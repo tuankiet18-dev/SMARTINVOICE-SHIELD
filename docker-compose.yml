@@ -1,0 +1,64 @@
+services:
+  # ---------------------------------------------------------------------------
+  # BACKEND (.NET 9 API)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./SmartInvoice.API
+      dockerfile: Dockerfile
+    container_name: smartinvoice-backend
+    ports:
+      - "5172:8080"
+    # Load environment variables from .env file
+    env_file:
+      - ./SmartInvoice.API/.env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DB_CONNECTION_STRING=Host=postgres;Port=5432;Database=SmartInvoiceDb;Username=postgres;Password=yourdescription
+    depends_on:
+      - postgres
+    networks:
+      - smartinvoice-network
+
+  # ---------------------------------------------------------------------------
+  # DATABASE (PostgreSQL)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16
+    container_name: smartinvoice-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=yourdescription
+      - POSTGRES_DB=SmartInvoiceDb
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - smartinvoice-network
+  # ---------------------------------------------------------------------------
+  # FRONTEND (React/Next.js) - Placeholder
+  # ---------------------------------------------------------------------------
+  # frontend:
+  #   build: ./frontend
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     - smartinvoice-network
+
+  # ---------------------------------------------------------------------------
+  # AI SERVICE (Python) - Placeholder
+  # ---------------------------------------------------------------------------
+  # ai-service:
+  #   build: ./ai
+  #   ports:
+  #     - "8000:8000"
+  #   networks:
+  #     - smartinvoice-network
+
+networks:
+  smartinvoice-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
