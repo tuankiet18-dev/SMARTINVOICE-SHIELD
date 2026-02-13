@@ -1,0 +1,144 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 30% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 12%;
+
+    --primary: 215 80% 28%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 174 62% 40%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 220 15% 92%;
+    --muted-foreground: 220 10% 46%;
+
+    --accent: 174 62% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 88%;
+    --input: 220 15% 88%;
+    --ring: 215 80% 28%;
+
+    --radius: 0.5rem;
+
+    /* SmartInvoice specific tokens */
+    --risk-green: 145 65% 42%;
+    --risk-yellow: 45 95% 50%;
+    --risk-orange: 25 95% 55%;
+    --risk-red: 0 72% 51%;
+
+    --sidebar-bg: 215 80% 18%;
+    --sidebar-fg: 220 15% 85%;
+    --sidebar-active: 174 62% 40%;
+    --sidebar-hover: 215 70% 24%;
+
+    --kpi-blue: 215 80% 28%;
+    --kpi-teal: 174 62% 40%;
+    --kpi-amber: 45 95% 50%;
+    --kpi-rose: 0 72% 51%;
+
+    --sidebar-background: 215 80% 18%;
+    --sidebar-foreground: 220 15% 85%;
+    --sidebar-primary: 174 62% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 70% 24%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 215 60% 25%;
+    --sidebar-ring: 174 62% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
+
+/* Ant Design theme overrides */
+.ant-layout {
+  background: hsl(var(--background)) !important;
+}
+
+.ant-table {
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Risk badge styles */
+.risk-green {
+  background: hsl(var(--risk-green) / 0.12);
+  color: hsl(var(--risk-green));
+  border: 1px solid hsl(var(--risk-green) / 0.3);
+}
+
+.risk-yellow {
+  background: hsl(var(--risk-yellow) / 0.12);
+  color: hsl(45 80% 35%);
+  border: 1px solid hsl(var(--risk-yellow) / 0.3);
+}
+
+.risk-orange {
+  background: hsl(var(--risk-orange) / 0.12);
+  color: hsl(25 80% 40%);
+  border: 1px solid hsl(var(--risk-orange) / 0.3);
+}
+
+.risk-red {
+  background: hsl(var(--risk-red) / 0.12);
+  color: hsl(var(--risk-red));
+  border: 1px solid hsl(var(--risk-red) / 0.3);
+}
+
+/* Fade in animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out forwards;
+}

@@ -80,6 +80,20 @@ builder.Services.AddAuthentication(options =>
 });
 
 
+
+// 6. Config CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp",
+        builder =>
+        {
+            builder.WithOrigins("http://localhost:3000")
+                   .AllowAnyHeader()
+                   .AllowAnyMethod()
+                   .AllowCredentials(); // Important for cookies/auth if needed
+        });
+});
+
 builder.Services.AddControllers();
 // Swagger để test API
 builder.Services.AddEndpointsApiExplorer();
@@ -111,7 +125,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Disabled for local Docker dev to prevent port issues
+
+app.UseCors(x => x
+    .AllowAnyMethod()
+    .AllowAnyHeader()
+    .SetIsOriginAllowed(origin => true) // Allow any origin
+    .AllowCredentials());
+
+// app.UseCors("AllowReactApp");
 
 app.UseAuthentication();
 app.UseAuthorization();

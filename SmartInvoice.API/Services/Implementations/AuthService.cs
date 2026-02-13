@@ -101,6 +101,9 @@ namespace SmartInvoice.API.Services.Implementations
                     TaxCode = request.TaxCode,
                     Address = request.Address,
                     Email = request.CompanyEmail,
+                    PhoneNumber = request.PhoneNumber, // [NEW]
+                    BusinessType = request.BusinessType, // [NEW]
+                    LegalRepresentative = request.LegalRepresentative, // [NEW]
                     SubscriptionTier = request.SubscriptionTier ?? SubscriptionTier.Free.ToString(),
                     IsActive = true
                 };

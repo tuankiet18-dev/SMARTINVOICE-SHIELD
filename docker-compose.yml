@@ -5,10 +5,14 @@ services:
   backend:
     build:
       context: ./SmartInvoice.API
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: smartinvoice-backend
     ports:
       - "5172:8080"
+    volumes:
+      - ./SmartInvoice.API:/app
+      - /app/obj
+      - /app/bin
     # Load environment variables from .env file
     env_file:
       - ./SmartInvoice.API/.env

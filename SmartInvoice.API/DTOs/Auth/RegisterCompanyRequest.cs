@@ -17,6 +17,10 @@ namespace SmartInvoice.API.DTOs.Auth
         [EmailAddress]
         public string? CompanyEmail { get; set; }
 
+        public string? PhoneNumber { get; set; } // [NEW] From FE
+        public string? BusinessType { get; set; } // [NEW] From FE
+        public string? LegalRepresentative { get; set; } // [NEW] From FE
+
         public string? SubscriptionTier { get; set; } = "Free";
 
         // Admin Info

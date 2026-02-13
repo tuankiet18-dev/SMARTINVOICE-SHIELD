@@ -5,7 +5,7 @@ using SmartInvoice.API.Services.Interfaces;
 
 namespace SmartInvoice.API.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/auth")]
     [ApiController]
     public class AuthController : ControllerBase
     {

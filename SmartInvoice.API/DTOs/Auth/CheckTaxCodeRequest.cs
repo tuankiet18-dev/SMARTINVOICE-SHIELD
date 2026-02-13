@@ -5,7 +5,7 @@ namespace SmartInvoice.API.DTOs.Auth
     public class CheckTaxCodeRequest
     {
         [Required]
-        [RegularExpression(@"^[0-9]{10}(-[0-9]{3})?$", ErrorMessage = "Invalid Tax Code format")]
+        // [RegularExpression(@"^[0-9]{10}(-[0-9]{3})?$", ErrorMessage = "Invalid Tax Code format")]
         public string TaxCode { get; set; } = string.Empty;
     }
 
