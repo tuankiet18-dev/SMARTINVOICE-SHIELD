@@ -41,15 +41,19 @@ services:
     networks:
       - smartinvoice-network
   # ---------------------------------------------------------------------------
-  # FRONTEND (React/Next.js) - Placeholder
+  # FRONTEND (React/Nginx)
   # ---------------------------------------------------------------------------
-  # frontend:
-  #   build: ./frontend
-  #   ports:
-  #     - "3000:3000"
-  #   networks:
-  #     - smartinvoice-network
-
+  frontend:
+    build:
+      context: ./SmartInvoice.Frontend
+      dockerfile: Dockerfile
+    container_name: smartinvoice-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - smartinvoice-network
   # ---------------------------------------------------------------------------
   # AI SERVICE (Python) - Placeholder
   # ---------------------------------------------------------------------------

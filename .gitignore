@@ -40,4 +40,10 @@ Generated\ Files/
 
 # Sensitive Configs
 appsettings.Development.json
-appsettings.Production.json
+
+# Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm/
