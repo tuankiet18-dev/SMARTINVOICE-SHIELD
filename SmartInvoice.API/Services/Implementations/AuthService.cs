@@ -138,7 +138,18 @@ namespace SmartInvoice.API.Services.Implementations
                     FullName = request.AdminFullName,
                     CompanyId = company.CompanyId,
                     Role = UserRole.CompanyAdmin.ToString(),
-                    Permissions = new List<string>(), // Default permissions managed later
+                    Permissions = new List<string>
+                    {
+                        SmartInvoice.API.Constants.Permissions.UserView,
+                        SmartInvoice.API.Constants.Permissions.UserManage,
+                        SmartInvoice.API.Constants.Permissions.InvoiceView,
+                        SmartInvoice.API.Constants.Permissions.InvoiceUpload,
+                        SmartInvoice.API.Constants.Permissions.InvoiceEdit,
+                        SmartInvoice.API.Constants.Permissions.InvoiceApprove,
+                        SmartInvoice.API.Constants.Permissions.InvoiceReject,
+                        SmartInvoice.API.Constants.Permissions.InvoiceOverrideRisk,
+                        SmartInvoice.API.Constants.Permissions.ReportExport
+                    },
                     IsActive = false, // Not active until verified
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
@@ -216,6 +227,7 @@ namespace SmartInvoice.API.Services.Implementations
                 return new LoginResponse
                 {
                     AccessToken = result.AccessToken,
+                    IdToken = result.IdToken,
                     RefreshToken = result.RefreshToken, // Cognito Refresh Token
                     Expiration = DateTime.UtcNow.AddSeconds(result.ExpiresIn ?? 3600),
                     User = new UserDto
@@ -239,6 +251,53 @@ namespace SmartInvoice.API.Services.Implementations
             catch (Exception ex)
             {
                 throw new Exception($"Login failed: {ex.Message}");
+            }
+        }
+
+        public async Task<LoginResponse> RefreshTokenAsync(RefreshTokenRequest request)
+        {
+            try
+            {
+                var normalizedEmail = request.Email.ToLower().Trim();
+                var secretHash = CalculateSecretHash(normalizedEmail);
+
+                var authRequest = new InitiateAuthRequest
+                {
+                    ClientId = _clientId,
+                    AuthFlow = AuthFlowType.REFRESH_TOKEN_AUTH,
+                    AuthParameters = new Dictionary<string, string>
+                    {
+                        { "REFRESH_TOKEN", request.RefreshToken },
+                        { "SECRET_HASH", secretHash }
+                    }
+                };
+
+                var authResponse = await _cognitoClient.InitiateAuthAsync(authRequest);
+                var result = authResponse.AuthenticationResult;
+
+                var user = await _unitOfWork.Users.GetByEmailAsync(normalizedEmail);
+                if (user == null)
+                    throw new Exception("Local user record not found.");
+
+                return new LoginResponse
+                {
+                    AccessToken = result.AccessToken,
+                    IdToken = result.IdToken,
+                    RefreshToken = request.RefreshToken, // Usually keep the old one unless Cognito issues a new one
+                    Expiration = DateTime.UtcNow.AddSeconds(result.ExpiresIn ?? 3600),
+                    User = new UserDto
+                    {
+                        UserId = user.Id,
+                        Email = user.Email,
+                        FullName = user.FullName,
+                        Role = user.Role,
+                        CompanyId = user.CompanyId
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Refresh token failed: {ex.Message}");
             }
         }
 

@@ -15,54 +15,19 @@ public class AppDbContext : DbContext
     public DbSet<DocumentType> DocumentTypes { get; set; }
     public DbSet<FileStorage> FileStorages { get; set; }
     public DbSet<Invoice> Invoices { get; set; }
+    public DbSet<SmartInvoice.API.Entities.InvoiceLineItem> InvoiceLineItems { get; set; } // NEW
+    public DbSet<LocalBlacklistedCompany> LocalBlacklists { get; set; } // NEW
     public DbSet<ValidationLayer> ValidationLayers { get; set; }
     public DbSet<InvoiceAuditLog> InvoiceAuditLogs { get; set; }
     public DbSet<RiskCheckResult> RiskCheckResults { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<ExportHistory> ExportHistories { get; set; }
-    public DbSet<AIProcessingLog> AIProcessingLogs { get; set; } // Renamed from AIProcessingLog
+    public DbSet<AIProcessingLog> AIProcessingLogs { get; set; }
     public DbSet<SystemConfiguration> SystemConfigurations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
-        // =================================================================================
-        // 1. JSONB CONFIGURATION
-        // =================================================================================
-
-        /*
-        // User
-        // User Permissions - Handled by [Column(TypeName="jsonb")] in Entity
-        // modelBuilder.Entity<User>().OwnsMany(u => u.Permissions, builder => builder.ToJson());
-
-        // DocumentType
-        modelBuilder.Entity<DocumentType>().OwnsOne(d => d.ValidationRules, builder => builder.ToJson());
-        modelBuilder.Entity<DocumentType>().OwnsOne(d => d.ProcessingConfig, builder => builder.ToJson());
-
-        // Invoice
-        modelBuilder.Entity<Invoice>().OwnsOne(i => i.RawData, builder => builder.ToJson());
-        modelBuilder.Entity<Invoice>().OwnsOne(i => i.ExtractedData, builder => 
-        { 
-            builder.ToJson(); 
-            // Explicitly map nested collection inside JSONB
-            builder.OwnsMany(e => e.LineItems);
-        });
-        modelBuilder.Entity<Invoice>().OwnsOne(i => i.ValidationResult, builder => 
-        { 
-            builder.ToJson();
-            builder.OwnsMany(v => v.Errors); // RiskReason list
-            builder.OwnsMany(v => v.Warnings);
-        });
-        modelBuilder.Entity<Invoice>().OwnsMany(i => i.RiskReasons, builder => builder.ToJson());
-
-        // ValidationLayer - Manually mapped mainly because strict schema is complex here
-        // But let's try to map what we can if useful. For now, keep as string/jsonb for flexibility
-        // unless we have specific classes for each layer type.
-
-        // InvoiceAuditLog
-        modelBuilder.Entity<InvoiceAuditLog>().OwnsMany(l => l.Changes, builder => builder.ToJson());
-        */
 
         // =================================================================================
         // 2. RELATIONSHIPS & CONSTRAINTS
@@ -96,6 +61,18 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(i => i.OriginalFileId)
             .OnDelete(DeleteBehavior.Restrict); // Don't delete invoice if file is deleted (keep record)
+
+        // InvoiceLineItems (NEW)
+        modelBuilder.Entity<SmartInvoice.API.Entities.InvoiceLineItem>()
+            .HasOne(li => li.Invoice)
+            .WithMany(i => i.InvoiceLineItems)
+            .HasForeignKey(li => li.InvoiceId)
+            .OnDelete(DeleteBehavior.Cascade); // Delete invoice -> delete line items
+
+        // LocalBlacklistedCompany (NEW)
+        modelBuilder.Entity<LocalBlacklistedCompany>()
+            .HasIndex(b => b.TaxCode)
+            .IsUnique();
 
         // ValidationLayers
         modelBuilder.Entity<ValidationLayer>()
@@ -148,6 +125,9 @@ public class AppDbContext : DbContext
 
         // Global Query Filter for User (Soft Delete)
         modelBuilder.Entity<User>().HasQueryFilter(u => u.IsActive);
+
+        // Global Query Filter for LocalBlacklist
+        modelBuilder.Entity<LocalBlacklistedCompany>().HasQueryFilter(b => b.IsActive);
 
         // =================================================================================
         // 5. VALUE CONVERTERS

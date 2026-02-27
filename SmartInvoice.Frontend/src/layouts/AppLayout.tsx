@@ -14,8 +14,13 @@ import {
   SafetyCertificateOutlined,
   AuditOutlined,
   TeamOutlined,
+  AppstoreOutlined,
+  BlockOutlined,
+  ToolOutlined,
+  StopOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { authService } from '@/services/auth';
 
 const { Sider, Header, Content } = Layout;
 const { Text } = Typography;
@@ -25,16 +30,20 @@ const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const menuItems = [
-    { key: '/app/dashboard', icon: <DashboardOutlined />, label: 'Tổng quan' },
-    { key: '/app/invoices', icon: <FileTextOutlined />, label: 'Hóa đơn' },
-    { key: '/app/upload', icon: <UploadOutlined />, label: 'Tải lên' },
-    { key: '/app/validation', icon: <SafetyCertificateOutlined />, label: 'Rà soát rủi ro' },
-    { key: '/app/reports', icon: <BarChartOutlined />, label: 'Báo cáo' },
-    { key: 'divider-1', type: 'divider' as const },
-    { key: '/app/audit-log', icon: <AuditOutlined />, label: 'Nhật ký' },
-    { key: '/app/users', icon: <TeamOutlined />, label: 'Người dùng' },
-    { key: '/app/settings', icon: <SettingOutlined />, label: 'Cài đặt' },
+  const menuItems = [{ key: '/app/dashboard', icon: <DashboardOutlined />, label: 'Tổng quan' },
+  { key: '/app/invoices', icon: <FileTextOutlined />, label: 'Hóa đơn' },
+  { key: '/app/upload', icon: <UploadOutlined />, label: 'Tải lên' },
+  { key: '/app/validation', icon: <SafetyCertificateOutlined />, label: 'Rà soát rủi ro' },
+  { key: '/app/reports', icon: <BarChartOutlined />, label: 'Báo cáo' },
+  { key: '/app/approval-dashboard', icon: <AppstoreOutlined />, label: 'Duyệt ngoại lệ' },
+  { key: '/app/team', icon: <TeamOutlined />, label: 'Quản lý Team' },
+  { key: 'divider-1', type: 'divider' as const },
+  { key: '/app/audit-log', icon: <AuditOutlined />, label: 'Nhật ký Audit' },
+  { key: 'divider-2', type: 'divider' as const },
+  { key: '/app/tenants', icon: <BlockOutlined />, label: 'Tenant (SA)' },
+  { key: '/app/global-blacklist', icon: <StopOutlined />, label: 'Blacklist (SA)' },
+  { key: '/app/system-config', icon: <ToolOutlined />, label: 'Cấu hình (SA)' },
+  { key: '/app/settings', icon: <SettingOutlined />, label: 'Cài đặt' },
   ];
 
   const userMenuItems = [
@@ -43,6 +52,16 @@ const AppLayout: React.FC = () => {
     { type: 'divider' as const, key: 'div' },
     { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', danger: true },
   ];
+
+  const handleUserMenuClick = ({ key }: { key: string }) => {
+    if (key === 'logout') {
+      authService.logout();
+      navigate('/login');
+    } else {
+      // Handle other menu actions
+      console.log('Clicked', key);
+    }
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -133,7 +152,7 @@ const AppLayout: React.FC = () => {
               <Button type="text" icon={<BellOutlined />} style={{ fontSize: 18 }} />
             </Badge>
 
-            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>
+            <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight" trigger={['click']}>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
                 padding: '4px 12px', borderRadius: 8, transition: 'background 0.2s',

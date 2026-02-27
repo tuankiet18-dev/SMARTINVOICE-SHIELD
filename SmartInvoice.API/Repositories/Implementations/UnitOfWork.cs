@@ -12,6 +12,7 @@ namespace SmartInvoice.API.Repositories.Implementations
         public IInvoiceRepository Invoices { get; private set; }
         public IUserRepository Users { get; private set; }
         public ICompanyRepository Companies { get; private set; }
+        public ILocalBlacklistRepository LocalBlacklists { get; private set; }
 
         public UnitOfWork(AppDbContext context)
         {
@@ -19,6 +20,7 @@ namespace SmartInvoice.API.Repositories.Implementations
             Invoices = new InvoiceRepository(_context);
             Users = new UserRepository(_context);
             Companies = new CompanyRepository(_context);
+            LocalBlacklists = new LocalBlacklistRepository(_context);
         }
 
         private Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? _currentTransaction;

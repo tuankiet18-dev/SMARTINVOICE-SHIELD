@@ -8,6 +8,7 @@ namespace SmartInvoice.API.Repositories.Interfaces
         IInvoiceRepository Invoices { get; }
         IUserRepository Users { get; }
         ICompanyRepository Companies { get; }
+        ILocalBlacklistRepository LocalBlacklists { get; }
         Task<int> CompleteAsync();
         Task BeginTransactionAsync();
         Task CommitTransactionAsync();

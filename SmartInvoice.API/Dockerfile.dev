@@ -2,5 +2,5 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0
 WORKDIR /app
 EXPOSE 8080
 ENV ASPNETCORE_ENVIRONMENT=Development
-# Use dotnet watch for hot reloading
-ENTRYPOINT ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:8080"]
+# Use dotnet watch for hot reloading, non-interactive mode avoids 'y/n' prompt blocking
+ENTRYPOINT ["dotnet", "watch", "run", "--non-interactive", "--urls", "http://0.0.0.0:8080"]
