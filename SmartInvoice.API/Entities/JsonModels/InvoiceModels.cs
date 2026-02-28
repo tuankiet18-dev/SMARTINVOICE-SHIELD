@@ -22,9 +22,9 @@ public class InvoiceRawData
     [JsonPropertyName("xml_content_base64")]
     public string? XmlContentBase64 { get; set; }
 
-    // For Textract
-    [JsonPropertyName("textract_job_id")]
-    public string? TextractJobId { get; set; }
+    // For Internal OCR API
+    [JsonPropertyName("ocr_job_id")]
+    public string? OcrJobId { get; set; }
 
     [JsonPropertyName("confidence_scores")]
     public Dictionary<string, float>? ConfidenceScores { get; set; }
@@ -32,6 +32,33 @@ public class InvoiceRawData
 
 public class InvoiceExtractedData
 {
+    [JsonPropertyName("seller_name")]
+    public string? SellerName { get; set; }
+
+    [JsonPropertyName("seller_tax_code")]
+    public string? SellerTaxCode { get; set; }
+
+    [JsonPropertyName("invoice_date")]
+    public DateTime? InvoiceDate { get; set; }
+
+    [JsonPropertyName("invoice_number")]
+    public string? InvoiceNumber { get; set; }
+
+    [JsonPropertyName("invoice_symbol")]
+    public string? InvoiceSymbol { get; set; }
+
+    [JsonPropertyName("invoice_template_code")]
+    public string? InvoiceTemplateCode { get; set; }
+
+    [JsonPropertyName("total_pre_tax")]
+    public decimal TotalPreTax { get; set; }
+
+    [JsonPropertyName("total_tax_amount")]
+    public decimal TotalTaxAmount { get; set; }
+
+    [JsonPropertyName("total_amount")]
+    public decimal TotalAmount { get; set; }
+
     [JsonPropertyName("line_items")]
     public List<InvoiceLineItem>? LineItems { get; set; }
 
@@ -41,7 +68,7 @@ public class InvoiceExtractedData
     [JsonPropertyName("delivery_address")]
     public string? DeliveryAddress { get; set; }
 
-    [JsonPropertyName("exchange_rate")] 
+    [JsonPropertyName("exchange_rate")]
     public decimal? ExchangeRate { get; set; }
 }
 
@@ -150,8 +177,8 @@ public class ProcessingConfig
     [JsonPropertyName("ocr_enabled")]
     public bool OcrEnabled { get; set; }
 
-    [JsonPropertyName("textract_model")]
-    public string? TextractModel { get; set; }
+    [JsonPropertyName("ocr_engine_version")]
+    public string? OcrEngineVersion { get; set; }
 
     [JsonPropertyName("confidence_threshold")]
     public float ConfidenceThreshold { get; set; }

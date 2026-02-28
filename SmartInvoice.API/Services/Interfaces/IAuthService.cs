@@ -8,6 +8,7 @@ namespace SmartInvoice.API.Services.Interfaces
         Task<CheckTaxCodeResponse> CheckTaxCodeAsync(CheckTaxCodeRequest request);
         Task RegisterCompanyAsync(RegisterCompanyRequest request);
         Task<LoginResponse> LoginAsync(LoginRequest request);
+        Task<LoginResponse> RefreshTokenAsync(RefreshTokenRequest request);
         Task VerifyEmailAsync(VerifyEmailRequest request);
     }
 }

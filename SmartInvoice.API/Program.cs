@@ -13,6 +13,9 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using DotNetEnv;
 using Microsoft.Extensions.DependencyInjection;
+using SmartInvoice.API.Services;
+using Microsoft.AspNetCore.Authentication;
+using SmartInvoice.API.Security;
 
 // Load .env file
 // Load .env file (if exists, mainly for local dev without Docker)
@@ -35,8 +38,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // 2. Kết nối AWS S3 
 // (Nó sẽ tự tìm AWS Credentials trong máy bạn ở ~/.aws/credentials hoặc biến môi trường)
-// builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
-// builder.Services.AddAWSService<IAmazonS3>();
+builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
+builder.Services.AddAWSService<IAmazonS3>();
+builder.Services.AddScoped<SmartInvoice.API.Services.StorageService>();
 
 // 3. Đăng ký Repositories & Unit of Work
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -45,10 +49,24 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ICompanyRepository, CompanyRepository>();
 
 // 4. Đăng ký Services
+builder.Services.AddScoped<IOcrClientService, OcrClientService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
-builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IInvoiceProcessorService, InvoiceProcessorService>();
+
+// Add HttpClient for Services to use (like VietQR API calls)
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<IEmailService, MockEmailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Register Internal OCR Client
+var ocrApiEndpoint = Env.GetString("OCR_API_ENDPOINT") ?? builder.Configuration["OcrApiEndpoint"] ?? "http://localhost:8000";
+builder.Services.AddHttpClient<IOcrClientService, OcrClientService>(client =>
+{
+    client.BaseAddress = new Uri(ocrApiEndpoint);
+});
+
+// Configure Custom Claims Transformer
+builder.Services.AddTransient<IClaimsTransformation, ClaimsTransformer>();
 
 // 5. Config AWS Cognito
 builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());

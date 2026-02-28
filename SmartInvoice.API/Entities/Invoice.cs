@@ -120,6 +120,9 @@ public class Invoice
     [Column(TypeName = "jsonb")]
     public List<RiskReason>? RiskReasons { get; set; }
 
+    // --- OCR METADATA ---
+    public float? OcrConfidenceScore { get; set; }
+
     // --- VERSION CONTROL ---
     public bool IsReplaced { get; set; } = false;
     public Guid? ReplacedBy { get; set; }
@@ -156,4 +159,5 @@ public class Invoice
     public virtual ICollection<ValidationLayer> ValidationLayers { get; set; } = new List<ValidationLayer>();
     public virtual ICollection<RiskCheckResult> RiskCheckResults { get; set; } = new List<RiskCheckResult>();
     public virtual ICollection<InvoiceAuditLog> AuditLogs { get; set; } = new List<InvoiceAuditLog>();
+    public virtual ICollection<InvoiceLineItem> InvoiceLineItems { get; set; } = new List<InvoiceLineItem>();
 }

@@ -17,6 +17,7 @@ const Login: React.FC = () => {
       setLoading(true);
       const data = await authService.login(values);
       localStorage.setItem('token', data.accessToken);
+      localStorage.setItem('idToken', data.idToken);
       localStorage.setItem('user', JSON.stringify(data.user));
       message.success('Đăng nhập thành công!');
       navigate('/app/dashboard');

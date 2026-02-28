@@ -15,9 +15,19 @@ namespace SmartInvoice.API.DTOs.Auth
     public class LoginResponse
     {
         public string AccessToken { get; set; } = string.Empty;
+        public string IdToken { get; set; } = string.Empty;
         public string RefreshToken { get; set; } = string.Empty;
         public DateTime Expiration { get; set; }
         public UserDto User { get; set; } = null!;
+    }
+
+    public class RefreshTokenRequest
+    {
+        public string RefreshToken { get; set; } = string.Empty; // Optional, set by controller
+
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
     }
 
     public class UserDto

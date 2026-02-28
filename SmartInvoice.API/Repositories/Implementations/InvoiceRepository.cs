@@ -24,6 +24,14 @@ namespace SmartInvoice.API.Repositories.Implementations
                 .FirstOrDefaultAsync(i => i.InvoiceId == id);
         }
 
+        public async Task<bool> ExistsByDetailsAsync(string sellerTaxCode, string serialNumber, string invoiceNumber)
+        {
+            return await _context.Invoices.AnyAsync(i =>
+                i.SellerTaxCode == sellerTaxCode &&
+                i.SerialNumber == serialNumber &&
+                i.InvoiceNumber == invoiceNumber);
+        }
+
         public async Task<bool> ExistsByNumberAsync(string invoiceNumber, Guid companyId)
         {
             return await _context.Invoices.AnyAsync(i => i.InvoiceNumber == invoiceNumber && i.CompanyId == companyId);

@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Amazon.S3;
 using Amazon.S3.Model;
+using Microsoft.Extensions.Configuration;
+using System.IO;
 
 namespace SmartInvoice.API.Services
 {
@@ -18,9 +20,9 @@ namespace SmartInvoice.API.Services
             _config = config;
         }
 
-        public string GeneratePresignedUrl(string fileName, string contentType)
+        public (string Url, string Key) GeneratePresignedUrl(string fileName, string contentType)
         {
-            var bucketName = _config["AWS:BucketName"];
+            var bucketName = _config["AWS:BucketName"] ?? "smartinvoice-default-bucket";
             // Đổi tên file để tránh trùng: raw/guid_tenfile.pdf
             var key = $"raw/{Guid.NewGuid()}_{fileName}";
 
@@ -33,7 +35,42 @@ namespace SmartInvoice.API.Services
                 ContentType = contentType
             };
 
-            return _s3Client.GetPreSignedURL(request);
+            return (_s3Client.GetPreSignedURL(request), key);
+        }
+
+        public async Task<string> DownloadToTempFileAsync(string s3Key)
+        {
+            var bucketName = _config["AWS:BucketName"] ?? "smartinvoice-default-bucket";
+            var request = new GetObjectRequest
+            {
+                BucketName = bucketName,
+                Key = s3Key
+            };
+
+            using var response = await _s3Client.GetObjectAsync(request);
+            var tempFilePath = Path.GetTempFileName();
+            using var fileStream = File.Create(tempFilePath);
+            await response.ResponseStream.CopyToAsync(fileStream);
+
+            return tempFilePath;
+        }
+
+        public async Task DeleteFileAsync(string s3Key)
+        {
+            try
+            {
+                var bucketName = _config["AWS:BucketName"] ?? "smartinvoice-default-bucket";
+                var request = new DeleteObjectRequest
+                {
+                    BucketName = bucketName,
+                    Key = s3Key
+                };
+                await _s3Client.DeleteObjectAsync(request);
+            }
+            catch (Exception)
+            {
+                // Log exception if needed
+            }
         }
     }
 }

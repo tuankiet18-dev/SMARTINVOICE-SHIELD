@@ -14,6 +14,11 @@ import ValidationPage from './pages/ValidationPage';
 import ReportsPage from './pages/ReportsPage';
 import AuditLogPage from './pages/AuditLogPage';
 import NotFound from './pages/NotFound';
+import ApprovalDashboard from './pages/ApprovalDashboard';
+import TeamManagement from './pages/TeamManagement';
+import TenantManagement from './pages/TenantManagement';
+import GlobalBlacklist from './pages/GlobalBlacklist';
+import SystemConfig from './pages/SystemConfig';
 
 const queryClient = new QueryClient();
 
@@ -33,6 +38,11 @@ const App = () => (
             <Route path="validation" element={<ValidationPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="audit-log" element={<AuditLogPage />} />
+            <Route path="approval-dashboard" element={<ApprovalDashboard />} />
+            <Route path="team" element={<TeamManagement />} />
+            <Route path="tenants" element={<TenantManagement />} />
+            <Route path="global-blacklist" element={<GlobalBlacklist />} />
+            <Route path="system-config" element={<SystemConfig />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

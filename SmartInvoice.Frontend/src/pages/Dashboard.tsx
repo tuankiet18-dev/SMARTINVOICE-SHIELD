@@ -1,6 +1,8 @@
 import React from 'react';
 import { Card, Row, Col, Statistic, Table, Tag, Typography, Progress, Space } from 'antd';
 import AnalyticsCharts from '@/components/dashboard/AnalyticsCharts';
+import { useQuery } from '@tanstack/react-query';
+import { invoiceService } from '../services/invoice';
 import {
   FileTextOutlined,
   CheckCircleOutlined,
@@ -28,8 +30,8 @@ const statusColors: Record<string, string> = {
 
 const kpiData = [
   {
-    title: 'Tổng hóa đơn',
-    value: 1284,
+    title: 'Hóa đơn đã Upload (Hôm nay)',
+    value: 128,
     prefix: <FileTextOutlined />,
     color: '#1a4b8c',
     bg: 'linear-gradient(135deg, rgba(26,75,140,0.08), rgba(26,75,140,0.02))',
@@ -37,8 +39,8 @@ const kpiData = [
     up: true,
   },
   {
-    title: 'Đã phê duyệt',
-    value: 1089,
+    title: 'Hợp lệ (Green)',
+    value: 105,
     prefix: <CheckCircleOutlined />,
     color: '#2d9a5c',
     bg: 'linear-gradient(135deg, rgba(45,154,92,0.08), rgba(45,154,92,0.02))',
@@ -46,17 +48,17 @@ const kpiData = [
     up: true,
   },
   {
-    title: 'Chờ xử lý',
-    value: 142,
-    prefix: <ClockCircleOutlined />,
+    title: 'Cảnh báo (Yellow / Orange)',
+    value: 18,
+    prefix: <WarningOutlined />,
     color: '#e6a817',
     bg: 'linear-gradient(135deg, rgba(230,168,23,0.08), rgba(230,168,23,0.02))',
     change: 3.2,
     up: false,
   },
   {
-    title: 'Cảnh báo rủi ro',
-    value: 53,
+    title: 'Lỗi cấu trúc (Red)',
+    value: 5,
     prefix: <WarningOutlined />,
     color: '#d63031',
     bg: 'linear-gradient(135deg, rgba(214,48,49,0.08), rgba(214,48,49,0.02))',
@@ -65,7 +67,7 @@ const kpiData = [
   },
 ];
 
-const recentInvoices = [
+const mockRecentInvoices = [
   { key: '1', invoiceNo: 'INV-2026-001284', seller: 'Công ty TNHH ABC', amount: '25,400,000 ₫', date: '12/02/2026', status: 'Approved', risk: 'Green' },
   { key: '2', invoiceNo: 'INV-2026-001283', seller: 'Công ty CP XYZ', amount: '8,750,000 ₫', date: '11/02/2026', status: 'Pending', risk: 'Yellow' },
   { key: '3', invoiceNo: 'INV-2026-001282', seller: 'DN Tư nhân DEF', amount: '42,100,000 ₫', date: '11/02/2026', status: 'Approved', risk: 'Green' },
@@ -134,6 +136,24 @@ const riskDistribution = [
 ];
 
 const Dashboard: React.FC = () => {
+  const { data: apiData = [], isLoading, isError } = useQuery({
+    queryKey: ['invoices-dashboard'],
+    queryFn: () => invoiceService.getInvoices(),
+  });
+
+  const recentInvoices = apiData.length > 0 ? apiData.slice(0, 5) : mockRecentInvoices;
+  const statsTotal = apiData.length > 0 ? apiData.length : kpiData[0].value;
+  const statsGreen = apiData.length > 0 ? apiData.filter(i => i.risk === 'Green').length : kpiData[1].value;
+  const statsYellowOrange = apiData.length > 0 ? apiData.filter(i => i.risk === 'Yellow' || i.risk === 'Orange').length : kpiData[2].value;
+  const statsRed = apiData.length > 0 ? apiData.filter(i => i.risk === 'Red').length : kpiData[3].value;
+
+  const dynamicKpiData = [
+    { ...kpiData[0], value: statsTotal },
+    { ...kpiData[1], value: statsGreen },
+    { ...kpiData[2], value: statsYellowOrange },
+    { ...kpiData[3], value: statsRed },
+  ];
+
   return (
     <div className="animate-fade-in-up">
       <div style={{ marginBottom: 24 }}>
@@ -143,7 +163,7 @@ const Dashboard: React.FC = () => {
 
       {/* KPI Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        {kpiData.map((kpi, index) => (
+        {dynamicKpiData.map((kpi, index) => (
           <Col xs={24} sm={12} lg={6} key={index}>
             <Card
               bordered={false}
@@ -231,6 +251,7 @@ const Dashboard: React.FC = () => {
             <Table
               columns={columns}
               dataSource={recentInvoices}
+              loading={isLoading}
               pagination={false}
               size="middle"
               style={{ marginTop: -8 }}

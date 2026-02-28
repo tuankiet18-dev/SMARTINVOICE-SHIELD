@@ -4,9 +4,11 @@ import {
 } from 'antd';
 import {
   SearchOutlined, FilterOutlined, DownloadOutlined, PlusOutlined,
-  EyeOutlined, EditOutlined, MoreOutlined, FileTextOutlined,
+  EyeOutlined, EditOutlined, MoreOutlined, FileTextOutlined, LoadingOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { invoiceService } from '../services/invoice';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -15,34 +17,14 @@ const riskColors: Record<string, string> = {
   Green: '#2d9a5c', Yellow: '#e6a817', Orange: '#e17055', Red: '#d63031',
 };
 
-const invoiceData = Array.from({ length: 20 }, (_, i) => {
-  const risks = ['Green', 'Green', 'Green', 'Yellow', 'Orange', 'Red', 'Green', 'Yellow'];
-  const statuses = ['Approved', 'Pending', 'Draft', 'Approved', 'Rejected', 'Approved', 'Pending', 'Approved'];
-  const types = ['01GTKT', '02GTTT', '01GTKT', '01GTKT', '02GTTT'];
-  const sellers = [
-    'Công ty TNHH Thương mại ABC',
-    'Công ty CP Công nghệ XYZ',
-    'DN Tư nhân Phát Đạt',
-    'Công ty TNHH SX Minh Tâm',
-    'Công ty CP Vận tải An Bình',
-  ];
-  return {
-    key: String(i + 1),
-    invoiceNo: `INV-2026-${String(1284 - i).padStart(6, '0')}`,
-    type: types[i % types.length],
-    seller: sellers[i % sellers.length],
-    mst: `0${Math.floor(Math.random() * 900000000 + 100000000)}`,
-    amount: `${(Math.floor(Math.random() * 90 + 1) * 1000000).toLocaleString('vi-VN')} ₫`,
-    date: `${String(12 - Math.floor(i / 3)).padStart(2, '0')}/02/2026`,
-    status: statuses[i % statuses.length],
-    risk: risks[i % risks.length],
-    method: i % 4 === 0 ? 'OCR' : 'XML',
-  };
-});
-
 const InvoiceList: React.FC = () => {
   const navigate = useNavigate();
   const [showFilters, setShowFilters] = useState(false);
+
+  const { data: invoiceData = [], isLoading, isError } = useQuery({
+    queryKey: ['invoices'],
+    queryFn: () => invoiceService.getInvoices(),
+  });
 
   const columns = [
     {
@@ -135,7 +117,7 @@ const InvoiceList: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <Title level={4} style={{ margin: 0 }}>Quản lý hóa đơn</Title>
-          <Text type="secondary">Tổng cộng {invoiceData.length} hóa đơn</Text>
+          <Text type="secondary">Tổng cộng {invoiceData?.length || 0} hóa đơn</Text>
         </div>
         <Space>
           <Button icon={<DownloadOutlined />}>Xuất Excel</Button>
@@ -201,6 +183,7 @@ const InvoiceList: React.FC = () => {
         <Table
           columns={columns}
           dataSource={invoiceData}
+          loading={isLoading}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,

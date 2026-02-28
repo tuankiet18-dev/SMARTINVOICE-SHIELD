@@ -20,13 +20,13 @@ public class AIProcessingLog
     // --- AI Service Info ---
     [Required]
     [MaxLength(50)]
-    public string AIService { get; set; } = null!; // TEXTRACT
+    public string AIService { get; set; } = "INTERNAL_OCR_API";
 
     [MaxLength(100)]
-    public string? AIModel { get; set; } // AnalyzeExpense
+    public string? AIModel { get; set; } // e.g. paddle-vietocr-v1
 
-    [MaxLength(50)]
-    public string AIRegion { get; set; } = "ap-southeast-1";
+    [MaxLength(100)]
+    public string AIRegion { get; set; } = "local"; // or API endpoint context
 
     // --- Payloads (JSONB) ---
     [Column(TypeName = "jsonb")]

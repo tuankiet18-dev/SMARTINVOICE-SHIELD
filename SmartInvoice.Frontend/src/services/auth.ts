@@ -7,6 +7,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
     accessToken: string;
+    idToken: string;
     refreshToken: string;
     expiration: string;
     user: {
@@ -54,8 +55,19 @@ export const authService = {
         return response.data;
     },
 
-    logout() {
+    async refreshToken(refreshToken: string, email: string) {
+        const response = await apiClient.post<LoginResponse>('/auth/refresh-token', { refreshToken, email });
+        return response.data;
+    },
+
+    async logout() {
+        try {
+            await apiClient.post('/auth/logout');
+        } catch (error) {
+            console.error('Backend logout failed', error);
+        }
         localStorage.removeItem('token');
+        localStorage.removeItem('idToken');
         localStorage.removeItem('user');
     },
 };

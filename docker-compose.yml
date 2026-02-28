@@ -19,6 +19,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - DB_CONNECTION_STRING=Host=postgres;Port=5432;Database=SmartInvoiceDb;Username=postgres;Password=yourdescription
+      - DOTNET_WATCH_SUPPRESS_PROMPTS=1
     depends_on:
       - postgres
     networks:
@@ -46,10 +47,16 @@ services:
   frontend:
     build:
       context: ./SmartInvoice.Frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: smartinvoice-frontend
     ports:
-      - "3000:80"
+      - "3000:3000"
+    volumes:
+      - ./SmartInvoice.Frontend:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=http://localhost:5172/api
     depends_on:
       - backend
     networks:
