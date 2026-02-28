@@ -23,5 +23,10 @@ namespace SmartInvoice.API.Repositories.Implementations
             if (string.IsNullOrWhiteSpace(email)) return false;
             return await _context.Users.IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == email.ToLower());
         }
+
+        public async Task<System.Collections.Generic.IEnumerable<User>> GetByCompanyIdAsync(System.Guid companyId)
+        {
+            return await _context.Users.Where(u => u.CompanyId == companyId).ToListAsync();
+        }
     }
 }
