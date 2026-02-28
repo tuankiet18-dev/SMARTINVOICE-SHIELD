@@ -18,7 +18,7 @@ namespace SmartInvoice.API.DTOs.Auth
         public string IdToken { get; set; } = string.Empty;
         public string RefreshToken { get; set; } = string.Empty;
         public DateTime Expiration { get; set; }
-        public UserDto User { get; set; } = null!;
+        public SmartInvoice.API.DTOs.User.UserProfileDto User { get; set; } = null!;
     }
 
     public class RefreshTokenRequest
@@ -28,14 +28,5 @@ namespace SmartInvoice.API.DTOs.Auth
         [Required]
         [EmailAddress]
         public string Email { get; set; } = string.Empty;
-    }
-
-    public class UserDto
-    {
-        public Guid UserId { get; set; }
-        public string Email { get; set; } = string.Empty;
-        public string FullName { get; set; } = string.Empty;
-        public string Role { get; set; } = string.Empty;
-        public Guid CompanyId { get; set; }
     }
 }

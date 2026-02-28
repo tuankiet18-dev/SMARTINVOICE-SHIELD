@@ -17,7 +17,6 @@ namespace SmartInvoice.API.Services.Implementations
     public class AuthService : IAuthService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IEmailService _emailService; // Optional if Cognito sends emails
         private readonly IAmazonCognitoIdentityProvider _cognitoClient;
         private readonly string _clientId;
         private readonly string _userPoolId;
@@ -25,11 +24,9 @@ namespace SmartInvoice.API.Services.Implementations
 
         public AuthService(
             IUnitOfWork unitOfWork,
-            IEmailService emailService,
             IAmazonCognitoIdentityProvider cognitoClient)
         {
             _unitOfWork = unitOfWork;
-            _emailService = emailService;
             _cognitoClient = cognitoClient;
             _clientId = Env.GetString("COGNITO_CLIENT_ID");
             _userPoolId = Env.GetString("COGNITO_USER_POOL_ID");
@@ -230,13 +227,16 @@ namespace SmartInvoice.API.Services.Implementations
                     IdToken = result.IdToken,
                     RefreshToken = result.RefreshToken, // Cognito Refresh Token
                     Expiration = DateTime.UtcNow.AddSeconds(result.ExpiresIn ?? 3600),
-                    User = new UserDto
+                    User = new SmartInvoice.API.DTOs.User.UserProfileDto
                     {
-                        UserId = user.Id,
+                        Id = user.Id,
                         Email = user.Email,
                         FullName = user.FullName,
+                        EmployeeId = user.EmployeeId,
+                        CompanyId = user.CompanyId,
                         Role = user.Role,
-                        CompanyId = user.CompanyId
+                        Permissions = user.Permissions,
+                        IsActive = user.IsActive
                     }
                 };
             }
@@ -285,13 +285,16 @@ namespace SmartInvoice.API.Services.Implementations
                     IdToken = result.IdToken,
                     RefreshToken = request.RefreshToken, // Usually keep the old one unless Cognito issues a new one
                     Expiration = DateTime.UtcNow.AddSeconds(result.ExpiresIn ?? 3600),
-                    User = new UserDto
+                    User = new SmartInvoice.API.DTOs.User.UserProfileDto
                     {
-                        UserId = user.Id,
+                        Id = user.Id,
                         Email = user.Email,
                         FullName = user.FullName,
+                        EmployeeId = user.EmployeeId,
+                        CompanyId = user.CompanyId,
                         Role = user.Role,
-                        CompanyId = user.CompanyId
+                        Permissions = user.Permissions,
+                        IsActive = user.IsActive
                     }
                 };
             }

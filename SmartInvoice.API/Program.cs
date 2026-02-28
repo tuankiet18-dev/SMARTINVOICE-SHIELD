@@ -16,7 +16,6 @@ using Microsoft.Extensions.DependencyInjection;
 using SmartInvoice.API.Services;
 using Microsoft.AspNetCore.Authentication;
 using SmartInvoice.API.Security;
-
 // Load .env file
 // Load .env file (if exists, mainly for local dev without Docker)
 if (File.Exists(".env"))
@@ -52,11 +51,16 @@ builder.Services.AddScoped<ICompanyRepository, CompanyRepository>();
 builder.Services.AddScoped<IOcrClientService, OcrClientService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IInvoiceProcessorService, InvoiceProcessorService>();
+builder.Services.AddScoped<ICompanyService, CompanyService>();
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+builder.Services.AddScoped<ILocalBlacklistService, LocalBlacklistService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<ISystemConfigurationService, SystemConfigurationService>();
 
 // Add HttpClient for Services to use (like VietQR API calls)
 builder.Services.AddHttpClient();
-builder.Services.AddScoped<IEmailService, MockEmailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 // Register Internal OCR Client
 var ocrApiEndpoint = Env.GetString("OCR_API_ENDPOINT") ?? builder.Configuration["OcrApiEndpoint"] ?? "http://localhost:8000";
@@ -114,8 +118,25 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddControllers();
 // Swagger để test API
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. \r\n\r\nNhập 'Bearer' [khoảng trắng] và chuỗi token của bạn.\r\n\r\nExample: \"Bearer 1safsfsdfdfd\"",
+        Name = "Authorization",
+        In = Microsoft.OpenApi.ParameterLocation.Header,
+        Type = Microsoft.OpenApi.SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    c.AddSecurityRequirement(doc => new Microsoft.OpenApi.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer", doc, null),
+            new List<string>()
+        }
+    });
+});
 
 var app = builder.Build();
 
