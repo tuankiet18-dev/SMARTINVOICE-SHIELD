@@ -29,6 +29,24 @@ const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const [user, setUser] = useState<any>(null);
+
+  React.useEffect(() => {
+    // Load initial user state
+    const localUser = localStorage.getItem('user');
+    if (localUser) {
+      setUser(JSON.parse(localUser));
+    }
+
+    // Listen to profile updates (from Profile.tsx dispatch)
+    const handleStorageChange = () => {
+      const updatedUser = localStorage.getItem('user');
+      if (updatedUser) setUser(JSON.parse(updatedUser));
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const menuItems = [{ key: '/app/dashboard', icon: <DashboardOutlined />, label: 'Tổng quan' },
   { key: '/app/invoices', icon: <FileTextOutlined />, label: 'Hóa đơn' },
@@ -57,8 +75,9 @@ const AppLayout: React.FC = () => {
     if (key === 'logout') {
       authService.logout();
       navigate('/login');
+    } else if (key === 'profile') {
+      navigate('/app/profile');
     } else {
-      // Handle other menu actions
       console.log('Clicked', key);
     }
   };
@@ -158,11 +177,13 @@ const AppLayout: React.FC = () => {
                 padding: '4px 12px', borderRadius: 8, transition: 'background 0.2s',
               }}>
                 <Avatar size={34} style={{ background: 'hsl(215 80% 28%)' }}>
-                  NV
+                  {user?.fullName?.charAt(0) || 'U'}
                 </Avatar>
                 <div style={{ lineHeight: 1.3 }}>
-                  <Text strong style={{ fontSize: 13, display: 'block' }}>Nguyễn Văn A</Text>
-                  <Text type="secondary" style={{ fontSize: 11 }}>Admin</Text>
+                  <Text strong style={{ fontSize: 13, display: 'block' }}>{user?.fullName || 'User'}</Text>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {user?.role === 'CompanyAdmin' ? 'Admin' : (user?.role === 'SuperAdmin' ? 'Super Admin' : 'Member')}
+                  </Text>
                 </div>
               </div>
             </Dropdown>

@@ -14,5 +14,10 @@ namespace SmartInvoice.API.Services.Interfaces
         Task<User> CreateUserAsync(User user);
         Task UpdateUserAsync(User user);
         Task DeleteUserAsync(Guid id);
+
+        // Company Admin User Management
+        Task<User> CreateCompanyMemberAsync(SmartInvoice.API.DTOs.User.CreateCompanyMemberDto dto, Guid companyId);
+        Task UpdateCompanyMemberAsync(Guid userId, SmartInvoice.API.DTOs.User.UpdateCompanyMemberDto dto, Guid companyId);
+        Task DeleteCompanyMemberAsync(Guid userId, Guid companyId);
     }
 }

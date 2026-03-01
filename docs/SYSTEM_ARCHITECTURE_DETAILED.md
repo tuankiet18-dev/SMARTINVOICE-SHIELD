@@ -259,8 +259,8 @@ Payload:
 ├──────────────────┤    ├──────────────────┤    ├──────────────────┤
 │ • Upload invoice │    │ • Approve/Reject │    │ • Manage users   │
 │ • Edit data      │    │ • View dashboard │    │ • Manage config  │
-│ • Submit         │    │ • Export reports │    │ • View all data  │
-│ • Search         │    │ • Audit review   │    │ • System monitor │
+│ • Submit         │    │ • Export reports │    │ • System monitor │
+│ • Search         │    │ • Audit review   │    │ • NO invoice data│
 └──────────────────┘    └──────────────────┘    └──────────────────┘
          │                         │                         │
          └─────────────────────────┼─────────────────────────┘

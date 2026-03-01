@@ -19,6 +19,7 @@ import TeamManagement from './pages/TeamManagement';
 import TenantManagement from './pages/TenantManagement';
 import GlobalBlacklist from './pages/GlobalBlacklist';
 import SystemConfig from './pages/SystemConfig';
+import Profile from './pages/Profile';
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="tenants" element={<TenantManagement />} />
             <Route path="global-blacklist" element={<GlobalBlacklist />} />
             <Route path="system-config" element={<SystemConfig />} />
+            <Route path="profile" element={<Profile />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
