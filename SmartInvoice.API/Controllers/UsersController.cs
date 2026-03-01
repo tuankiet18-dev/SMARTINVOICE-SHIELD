@@ -50,32 +50,6 @@ namespace SmartInvoice.API.Controllers
             return Ok(userProfile);
         }
 
-        [HttpGet]
-        [Authorize(Roles = "CompanyAdmin")] // Or any role that can view users
-        public async Task<IActionResult> GetUsers()
-        {
-            var companyIdClaim = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;
-            if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId))
-            {
-                return BadRequest(new { Message = "Company ID not found in token." });
-            }
-
-            var users = await _userService.GetUsersByCompanyIdAsync(companyId);
-
-            var userList = users.Select(user => new UserProfileDto
-            {
-                Id = user.Id,
-                Email = user.Email,
-                FullName = user.FullName,
-                EmployeeId = user.EmployeeId,
-                CompanyId = user.CompanyId,
-                Role = user.Role,
-                Permissions = user.Permissions,
-                IsActive = user.IsActive
-            });
-
-            return Ok(userList);
-        }
 
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequest request)
@@ -130,6 +104,113 @@ namespace SmartInvoice.API.Controllers
             };
 
             return Ok(updatedProfile);
+        }
+
+        // ==========================================
+        // Company Admin Endpoints
+        // ==========================================
+
+        [HttpPost("company-member")]
+        [Authorize(Roles = "CompanyAdmin")]
+        public async Task<IActionResult> CreateCompanyMember([FromBody] CreateCompanyMemberDto request)
+        {
+            var companyIdClaim = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;
+            if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId))
+                return BadRequest(new { Message = "Company ID not found in token." });
+
+            try
+            {
+                var user = await _userService.CreateCompanyMemberAsync(request, companyId);
+                var userProfile = new UserProfileDto
+                {
+                    Id = user.Id,
+                    Email = user.Email,
+                    FullName = user.FullName,
+                    EmployeeId = user.EmployeeId,
+                    CompanyId = user.CompanyId,
+                    Role = user.Role,
+                    Permissions = user.Permissions,
+                    IsActive = user.IsActive,
+                    CreatedAt = user.CreatedAt
+                };
+                return Ok(userProfile);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        [HttpGet("company-member")]
+        [Authorize(Roles = "CompanyAdmin")]
+        public async Task<IActionResult> GetCompanyMembers()
+        {
+            var companyIdClaim = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;
+            if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId))
+                return BadRequest(new { Message = "Company ID not found in token." });
+
+            var users = await _userService.GetUsersByCompanyIdAsync(companyId);
+
+            var userList = users.Select(user => new UserProfileDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                FullName = user.FullName,
+                EmployeeId = user.EmployeeId,
+                CompanyId = user.CompanyId,
+                Role = user.Role,
+                Permissions = user.Permissions,
+                IsActive = user.IsActive,
+                CreatedAt = user.CreatedAt,
+                LastLoginAt = user.LastLoginAt
+            });
+
+            return Ok(userList);
+        }
+
+        [HttpPut("company-member/{id}")]
+        [Authorize(Roles = "CompanyAdmin")]
+        public async Task<IActionResult> UpdateCompanyMember(Guid id, [FromBody] UpdateCompanyMemberDto request)
+        {
+            var companyIdClaim = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;
+            if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId))
+                return BadRequest(new { Message = "Company ID not found in token." });
+
+            try
+            {
+                await _userService.UpdateCompanyMemberAsync(id, request, companyId);
+                return Ok(new { Message = "User updated successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        [HttpDelete("company-member/{id}")]
+        [Authorize(Roles = "CompanyAdmin")]
+        public async Task<IActionResult> DeleteCompanyMember(Guid id)
+        {
+            var companyIdClaim = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;
+            if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId))
+                return BadRequest(new { Message = "Company ID not found in token." });
+
+            // Prevent self-deletion
+            var currentUserIdStr = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
+            if (currentUserIdStr == id.ToString())
+            {
+                return BadRequest(new { Message = "You cannot delete your own account." });
+            }
+
+            try
+            {
+                await _userService.DeleteCompanyMemberAsync(id, companyId);
+                return Ok(new { Message = "User deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
         }
     }
 }

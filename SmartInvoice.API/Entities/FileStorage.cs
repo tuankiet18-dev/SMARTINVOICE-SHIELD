@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace SmartInvoice.API.Entities;
 
 [Table("FileStorages")]
-public class FileStorage
+public class FileStorage : ISoftDelete
 {
     [Key]
     public Guid FileId { get; set; }
@@ -63,8 +63,9 @@ public class FileStorage
     // --- Lifecycle ---
     public bool ArchivedToGlacier { get; set; } = false;
     public DateTime? ArchivedAt { get; set; }
-    
+
     public bool DeletedFromS3 { get; set; } = false;
+    public bool IsDeleted { get; set; } = false;
     public DateTime? DeletedAt { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

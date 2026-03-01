@@ -6,7 +6,7 @@ using SmartInvoice.API.Enums;
 namespace SmartInvoice.API.Entities;
 
 [Table("Users")]
-public class User
+public class User : ISoftDelete
 {
     [Key]
     public Guid Id { get; set; }
@@ -44,6 +44,9 @@ public class User
 
     public DateTime? LastLoginAt { get; set; }
     public string? LastLoginUserAgent { get; set; }
+
+    public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

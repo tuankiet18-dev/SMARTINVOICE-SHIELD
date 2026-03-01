@@ -5,17 +5,31 @@ import { useNavigate } from 'react-router-dom';
 
 const { Title, Text, Paragraph } = Typography;
 
-import { message } from 'antd';
+import { message, Modal } from 'antd';
 import { authService, LoginRequest } from '@/services/auth';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = React.useState(false);
+  const [passwordForm] = Form.useForm();
+
+  // New Password Challenge State
+  const [showNewPasswordModal, setShowNewPasswordModal] = React.useState(false);
+  const [challengeSession, setChallengeSession] = React.useState('');
+  const [loginEmail, setLoginEmail] = React.useState('');
 
   const onFinish = async (values: LoginRequest) => {
     try {
       setLoading(true);
       const data = await authService.login(values);
+
+      if (data.challengeName === 'NEW_PASSWORD_REQUIRED' && data.session) {
+        setChallengeSession(data.session);
+        setLoginEmail(values.email);
+        setShowNewPasswordModal(true);
+        return; // Stop here, wait for new password
+      }
+
       localStorage.setItem('token', data.accessToken);
       localStorage.setItem('idToken', data.idToken);
       localStorage.setItem('user', JSON.stringify(data.user));
@@ -23,6 +37,28 @@ const Login: React.FC = () => {
       navigate('/app/dashboard');
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Đăng nhập thất bại');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onFinishNewPassword = async (values: any) => {
+    try {
+      setLoading(true);
+      const data = await authService.respondNewPassword({
+        email: loginEmail,
+        newPassword: values.newPassword,
+        session: challengeSession
+      });
+
+      localStorage.setItem('token', data.accessToken);
+      localStorage.setItem('idToken', data.idToken);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      message.success('Đổi mật khẩu và đăng nhập thành công!');
+      setShowNewPasswordModal(false);
+      navigate('/app/dashboard');
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Đổi mật khẩu thất bại');
     } finally {
       setLoading(false);
     }
@@ -164,6 +200,65 @@ const Login: React.FC = () => {
           </Text>
         </Card>
       </div>
+
+      {/* New Password Required Modal */}
+      <Modal
+        title="Đổi mật khẩu lần đầu"
+        open={showNewPasswordModal}
+        onCancel={() => setShowNewPasswordModal(false)}
+        footer={null}
+        destroyOnClose
+        maskClosable={false}
+      >
+        <div style={{ marginBottom: 24 }}>
+          <Text type="secondary">
+            Tài khoản của bạn được tạo bởi Quản trị viên. Theo yêu cầu bảo mật, vui lòng tạo mật khẩu mới trong lần đăng nhập đầu tiên.
+          </Text>
+        </div>
+
+        <Form
+          form={passwordForm}
+          layout="vertical"
+          onFinish={onFinishNewPassword}
+          size="large"
+        >
+          <Form.Item
+            name="newPassword"
+            label="Mật khẩu mới"
+            rules={[
+              { required: true, message: 'Vui lòng nhập mật khẩu mới' },
+              { min: 8, message: 'Mật khẩu phải dài ít nhất 8 ký tự' },
+              { pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/, message: 'Mật khẩu cần ít nhất 1 chữ hoa, 1 chữ thường, 1 số và 1 ký tự đặc biệt' }
+            ]}
+          >
+            <Input.Password placeholder="Nhập mật khẩu mới" />
+          </Form.Item>
+
+          <Form.Item
+            name="confirmPassword"
+            label="Xác nhận mật khẩu mới"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: 'Vui lòng xác nhận mật khẩu mới' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('newPassword') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Mật khẩu xác nhận không khớp!'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="Nhập lại mật khẩu mới" />
+          </Form.Item>
+
+          <Button type="primary" htmlType="submit" block loading={loading} style={{ marginTop: 8 }}>
+            Xác nhận Đổi mật khẩu
+          </Button>
+        </Form>
+      </Modal>
+
     </div>
   );
 };

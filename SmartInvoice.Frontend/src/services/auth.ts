@@ -10,13 +10,21 @@ export interface LoginResponse {
     idToken: string;
     refreshToken: string;
     expiration: string;
-    user: {
-        userId: string;
+    user?: {
+        id: string;
         email: string;
         fullName: string;
         role: string;
         companyId: string;
     };
+    challengeName?: string;
+    session?: string;
+}
+
+export interface RespondToNewPasswordRequest {
+    email: string;
+    newPassword: string;
+    session: string;
 }
 
 export interface RegisterCompanyRequest {
@@ -47,6 +55,11 @@ export const authService = {
 
     async login(data: LoginRequest) {
         const response = await apiClient.post<LoginResponse>('/auth/login', data);
+        return response.data;
+    },
+
+    async respondNewPassword(data: RespondToNewPasswordRequest) {
+        const response = await apiClient.post<LoginResponse>('/auth/respond-new-password', data);
         return response.data;
     },
 
