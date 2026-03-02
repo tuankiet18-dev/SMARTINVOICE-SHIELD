@@ -57,6 +57,29 @@ namespace SmartInvoice.API.Controllers
             }
         }
 
+        [HttpPost("respond-new-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> RespondNewPassword([FromBody] RespondToNewPasswordRequest request)
+        {
+            try
+            {
+                var response = await _authService.RespondToNewPasswordRequiredAsync(request);
+
+                // If the response contains tokens, auth is complete
+                if (!string.IsNullOrEmpty(response.RefreshToken))
+                {
+                    SetRefreshTokenCookie(response.RefreshToken);
+                    response.RefreshToken = string.Empty; // Don't send in body
+                }
+
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return Unauthorized(new { Message = ex.Message });
+            }
+        }
+
         [HttpPost("refresh-token")]
         [AllowAnonymous]
         public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)

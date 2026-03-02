@@ -17,7 +17,6 @@ namespace SmartInvoice.API.Services.Implementations
     public class AuthService : IAuthService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IEmailService _emailService; // Optional if Cognito sends emails
         private readonly IAmazonCognitoIdentityProvider _cognitoClient;
         private readonly string _clientId;
         private readonly string _userPoolId;
@@ -25,11 +24,9 @@ namespace SmartInvoice.API.Services.Implementations
 
         public AuthService(
             IUnitOfWork unitOfWork,
-            IEmailService emailService,
             IAmazonCognitoIdentityProvider cognitoClient)
         {
             _unitOfWork = unitOfWork;
-            _emailService = emailService;
             _cognitoClient = cognitoClient;
             _clientId = Env.GetString("COGNITO_CLIENT_ID");
             _userPoolId = Env.GetString("COGNITO_USER_POOL_ID");
@@ -90,6 +87,7 @@ namespace SmartInvoice.API.Services.Implementations
 
             // 2. Transaction
             await _unitOfWork.BeginTransactionAsync();
+            bool cognitoCreated = false;
 
             try
             {
@@ -129,6 +127,7 @@ namespace SmartInvoice.API.Services.Implementations
 
                 var signUpResponse = await _cognitoClient.SignUpAsync(signUpRequest);
                 var cognitoSub = signUpResponse.UserSub;
+                cognitoCreated = true;
 
                 // 4. Create Local User
                 var user = new User
@@ -160,14 +159,27 @@ namespace SmartInvoice.API.Services.Implementations
 
                 await _unitOfWork.CommitTransactionAsync();
             }
-            catch (UsernameExistsException)
+            catch (Exception ex)
             {
                 await _unitOfWork.RollbackTransactionAsync();
-                throw new Exception("Email already registered in Cognito.");
-            }
-            catch (Exception)
-            {
-                await _unitOfWork.RollbackTransactionAsync();
+
+                if (cognitoCreated)
+                {
+                    try
+                    {
+                        var deleteRequest = new AdminDeleteUserRequest
+                        {
+                            UserPoolId = _userPoolId,
+                            Username = normalizedEmail
+                        };
+                        await _cognitoClient.AdminDeleteUserAsync(deleteRequest);
+                    }
+                    catch { /* Ignore rollback failure */ }
+                }
+
+                if (ex is UsernameExistsException)
+                    throw new Exception("Email already registered in Cognito.");
+
                 throw;
             }
         }
@@ -193,34 +205,34 @@ namespace SmartInvoice.API.Services.Implementations
                 };
 
                 var authResponse = await _cognitoClient.InitiateAuthAsync(authRequest);
+                if (authResponse.ChallengeName == ChallengeNameType.NEW_PASSWORD_REQUIRED)
+                {
+                    return new LoginResponse
+                    {
+                        ChallengeName = authResponse.ChallengeName.ToString(),
+                        Session = authResponse.Session
+                    };
+                }
+
                 var result = authResponse.AuthenticationResult;
 
-                // 2. Mock check local DB if needed (e.g. for Company status)
-                // We don't necessarily NEED to fetch the user if we trust the token, 
-                // but front-end might want user details.
                 var user = await _unitOfWork.Users.GetByEmailAsync(normalizedEmail);
                 if (user == null)
                 {
-                    // User exists in Cognito but not in local DB? Edge case.
-                    // Maybe auto-create or throw. for now throw.
                     throw new Exception($"Local user record not found for email: {normalizedEmail}");
                 }
 
                 if (!user.IsActive)
                 {
-                    // Check if Cognito says confirmed? 
-                    // user.IsActive is local soft delete/ban.
                     throw new Exception("Account is inactive.");
                 }
 
-                // Check Company
                 var company = await _unitOfWork.Companies.GetByIdAsync(user.CompanyId);
                 if (company != null && !company.IsActive)
                 {
                     throw new Exception("Company account is locked.");
                 }
 
-                // Update local stats
                 user.LastLoginAt = DateTime.UtcNow;
                 await _unitOfWork.CompleteAsync();
 
@@ -228,15 +240,18 @@ namespace SmartInvoice.API.Services.Implementations
                 {
                     AccessToken = result.AccessToken,
                     IdToken = result.IdToken,
-                    RefreshToken = result.RefreshToken, // Cognito Refresh Token
+                    RefreshToken = result.RefreshToken,
                     Expiration = DateTime.UtcNow.AddSeconds(result.ExpiresIn ?? 3600),
-                    User = new UserDto
+                    User = new SmartInvoice.API.DTOs.User.UserProfileDto
                     {
-                        UserId = user.Id,
+                        Id = user.Id,
                         Email = user.Email,
                         FullName = user.FullName,
+                        EmployeeId = user.EmployeeId,
+                        CompanyId = user.CompanyId,
                         Role = user.Role,
-                        CompanyId = user.CompanyId
+                        Permissions = user.Permissions,
+                        IsActive = user.IsActive
                     }
                 };
             }
@@ -251,6 +266,61 @@ namespace SmartInvoice.API.Services.Implementations
             catch (Exception ex)
             {
                 throw new Exception($"Login failed: {ex.Message}");
+            }
+        }
+
+        public async Task<LoginResponse> RespondToNewPasswordRequiredAsync(RespondToNewPasswordRequest request)
+        {
+            try
+            {
+                var normalizedEmail = request.Email.ToLower().Trim();
+                var secretHash = CalculateSecretHash(normalizedEmail);
+
+                var challengeRequest = new RespondToAuthChallengeRequest
+                {
+                    ClientId = _clientId,
+                    ChallengeName = ChallengeNameType.NEW_PASSWORD_REQUIRED,
+                    Session = request.Session,
+                    ChallengeResponses = new Dictionary<string, string>
+                    {
+                        { "USERNAME", normalizedEmail },
+                        { "NEW_PASSWORD", request.NewPassword },
+                        { "SECRET_HASH", secretHash }
+                    }
+                };
+
+                var authResponse = await _cognitoClient.RespondToAuthChallengeAsync(challengeRequest);
+                var result = authResponse.AuthenticationResult;
+
+                var user = await _unitOfWork.Users.GetByEmailAsync(normalizedEmail);
+                if (user == null)
+                    throw new Exception("Local user record not found.");
+
+                user.LastLoginAt = DateTime.UtcNow;
+                await _unitOfWork.CompleteAsync();
+
+                return new LoginResponse
+                {
+                    AccessToken = result.AccessToken,
+                    IdToken = result.IdToken,
+                    RefreshToken = result.RefreshToken,
+                    Expiration = DateTime.UtcNow.AddSeconds(result.ExpiresIn ?? 3600),
+                    User = new SmartInvoice.API.DTOs.User.UserProfileDto
+                    {
+                        Id = user.Id,
+                        Email = user.Email,
+                        FullName = user.FullName,
+                        EmployeeId = user.EmployeeId,
+                        CompanyId = user.CompanyId,
+                        Role = user.Role,
+                        Permissions = user.Permissions,
+                        IsActive = user.IsActive
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to respond to new password requirement: {ex.Message}");
             }
         }
 
@@ -285,13 +355,16 @@ namespace SmartInvoice.API.Services.Implementations
                     IdToken = result.IdToken,
                     RefreshToken = request.RefreshToken, // Usually keep the old one unless Cognito issues a new one
                     Expiration = DateTime.UtcNow.AddSeconds(result.ExpiresIn ?? 3600),
-                    User = new UserDto
+                    User = new SmartInvoice.API.DTOs.User.UserProfileDto
                     {
-                        UserId = user.Id,
+                        Id = user.Id,
                         Email = user.Email,
                         FullName = user.FullName,
+                        EmployeeId = user.EmployeeId,
+                        CompanyId = user.CompanyId,
                         Role = user.Role,
-                        CompanyId = user.CompanyId
+                        Permissions = user.Permissions,
+                        IsActive = user.IsActive
                     }
                 };
             }

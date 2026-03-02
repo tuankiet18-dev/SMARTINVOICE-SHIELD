@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.IO;
 using SmartInvoice.API.Data;
 using SmartInvoice.API.DTOs;
+using SmartInvoice.API.DTOs.Invoice;
 using SmartInvoice.API.Entities;
 using SmartInvoice.API.Services;
 using SmartInvoice.API.Services.Interfaces;
@@ -18,7 +19,7 @@ namespace SmartInvoice.API.Controller
 {
     [ApiController]
     [Route("api/invoices")]
-    [Authorize(Roles = "CompanyAdmin,Member")]
+    [Authorize]
     public class InvoicesController : ControllerBase
     {
         private readonly StorageService _storageService;
@@ -37,6 +38,7 @@ namespace SmartInvoice.API.Controller
 
         // API 1: Lấy link upload (Frontend gọi cái này trước)
         [HttpPost("generate-upload-url")]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public IActionResult GetUploadUrl([FromBody] UploadRequestDto request)
         {
             var result = _storageService.GeneratePresignedUrl(request.FileName, request.ContentType);
@@ -45,6 +47,7 @@ namespace SmartInvoice.API.Controller
         }
 
         [HttpPost("process-xml")]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public async Task<IActionResult> ProcessXml([FromBody] ProcessXmlRequestDto request)
         {
             if (string.IsNullOrEmpty(request.S3Key))
@@ -60,37 +63,40 @@ namespace SmartInvoice.API.Controller
 
                 // 2. Validate cấu trúc XSD
                 var structResult = _invoiceProcessor.ValidateStructure(tempFilePath);
-                if (!structResult.IsValid)
-                {
-                    await _storageService.DeleteFileAsync(request.S3Key);
-                    return BadRequest(structResult);
-                }
 
                 // 3. Verify Chữ ký số
                 var sigResult = _invoiceProcessor.VerifyDigitalSignature(tempFilePath);
-                if (!sigResult.IsValid)
-                {
-                    await _storageService.DeleteFileAsync(request.S3Key);
-                    return BadRequest(sigResult);
-                }
 
                 // 4. Validate Logic & Business (VietQR...)
                 var logicResult = await _invoiceProcessor.ValidateBusinessLogicAsync(tempFilePath);
 
-                // Gộp thông tin người ký vào kết quả cuối
-                logicResult.SignerSubject = sigResult.SignerSubject;
-
-                if (!logicResult.IsValid)
+                // 5. Gộp tất cả các lỗi và cảnh báo lại thành một kết quả duy nhất
+                var finalResult = new ValidationResultDto
                 {
-                    await _storageService.DeleteFileAsync(request.S3Key);
-                    return BadRequest(logicResult);
-                }
+                    SignerSubject = sigResult.SignerSubject,
+                    Errors = new List<string>(),
+                    Warnings = new List<string>()
+                };
+
+                if (structResult.Errors != null) finalResult.Errors.AddRange(structResult.Errors);
+                if (sigResult.Errors != null) finalResult.Errors.AddRange(sigResult.Errors);
+                if (logicResult.Errors != null) finalResult.Errors.AddRange(logicResult.Errors);
+
+                if (structResult.Warnings != null) finalResult.Warnings.AddRange(structResult.Warnings);
+                if (sigResult.Warnings != null) finalResult.Warnings.AddRange(sigResult.Warnings);
+                if (logicResult.Warnings != null) finalResult.Warnings.AddRange(logicResult.Warnings);
 
                 // TODO: Lưu vào Database (ExtractData -> Save)
                 // Hiện tại cứ trả về thành công
-                logicResult.ExtractedData = _invoiceProcessor.ExtractData(tempFilePath);
+                finalResult.ExtractedData = _invoiceProcessor.ExtractData(tempFilePath);
 
-                return Ok(logicResult);
+                if (!finalResult.IsValid)
+                {
+                    await _storageService.DeleteFileAsync(request.S3Key);
+                    return BadRequest(finalResult);
+                }
+
+                return Ok(finalResult);
             }
             catch (Exception ex)
             {
@@ -108,6 +114,7 @@ namespace SmartInvoice.API.Controller
 
         // API HỖ TRỢ TEST NHANH TRÊN SWAGGER (Bỏ qua S3)
         [HttpPost("test-process-local")]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public async Task<IActionResult> TestProcessLocal(IFormFile file)
         {
             if (file == null || file.Length == 0)
@@ -130,9 +137,10 @@ namespace SmartInvoice.API.Controller
                 var logicResult = await _invoiceProcessor.ValidateBusinessLogicAsync(tempFilePath);
                 logicResult.SignerSubject = sigResult.SignerSubject;
 
-                if (!logicResult.IsValid) return BadRequest(logicResult);
-
+                // Move data extraction before BadRequest to ensure details are returned
                 logicResult.ExtractedData = _invoiceProcessor.ExtractData(tempFilePath);
+
+                if (!logicResult.IsValid) return BadRequest(logicResult);
 
                 return Ok(logicResult);
             }
@@ -149,6 +157,7 @@ namespace SmartInvoice.API.Controller
 
         // API 2: Tạo hóa đơn (Gọi sau khi upload xong)
         [HttpPost]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public async Task<IActionResult> CreateInvoice()
         {
             // Tạm thời hard-code để test, sau này sẽ lấy từ Body gửi lên
@@ -205,6 +214,7 @@ namespace SmartInvoice.API.Controller
         // }
 
         [HttpGet]
+        [Authorize(Policy = Constants.Permissions.InvoiceView)]
         public async Task<IActionResult> GetInvoices([FromQuery] int page = 1, [FromQuery] int size = 10)
         {
             try

@@ -6,60 +6,80 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 220 30% 12%;
+    --background: 210 20% 98%;
+    /* #f8fafc */
+    --foreground: 222 47% 11%;
+    /* #0f172a / Slate-900 */
 
     --card: 0 0% 100%;
-    --card-foreground: 220 30% 12%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 30% 12%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 215 80% 28%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary: Navy Dark */
+    --primary: 222 47% 11%;
+    /* #0f172a */
+    --primary-foreground: 210 40% 98%;
+    /* White text */
 
-    --secondary: 174 62% 40%;
+    /* Secondary / Accent: Emerald */
+    --secondary: 160 84% 39%;
+    /* #10b981 */
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 15% 92%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Slate-500 */
 
-    --accent: 174 62% 40%;
+    --accent: 160 84% 39%;
+    /* #10b981 */
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 220 15% 88%;
-    --input: 220 15% 88%;
-    --ring: 215 80% 28%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 160 84% 39%;
+    /* Emerald */
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+    /* Larger modern radius */
 
     /* SmartInvoice specific tokens */
-    --risk-green: 145 65% 42%;
-    --risk-yellow: 45 95% 50%;
-    --risk-orange: 25 95% 55%;
-    --risk-red: 0 72% 51%;
+    --risk-green: 160 84% 39%;
+    /* Emerald */
+    --risk-yellow: 45 93% 47%;
+    /* Amber */
+    --risk-orange: 24 95% 53%;
+    /* Orange */
+    --risk-red: 348 83% 47%;
+    /* Rose */
 
-    --sidebar-bg: 215 80% 18%;
-    --sidebar-fg: 220 15% 85%;
-    --sidebar-active: 174 62% 40%;
-    --sidebar-hover: 215 70% 24%;
+    /* Sidebar: Navy Background */
+    --sidebar-bg: 222 47% 11%;
+    /* #0f172a */
+    --sidebar-fg: 215.4 16.3% 65%;
+    /* Slate-400 */
+    --sidebar-active: 160 84% 39%;
+    /* Emerald bg */
+    --sidebar-hover: 215 28% 17%;
+    /* Slate-800 hover */
 
-    --kpi-blue: 215 80% 28%;
-    --kpi-teal: 174 62% 40%;
-    --kpi-amber: 45 95% 50%;
-    --kpi-rose: 0 72% 51%;
+    --kpi-blue: 222 47% 11%;
+    --kpi-teal: 160 84% 39%;
+    --kpi-amber: 45 93% 47%;
+    --kpi-rose: 348 83% 47%;
 
-    --sidebar-background: 215 80% 18%;
-    --sidebar-foreground: 220 15% 85%;
-    --sidebar-primary: 174 62% 40%;
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 215.4 16.3% 65%;
+    --sidebar-primary: 160 84% 39%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 70% 24%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 215 60% 25%;
-    --sidebar-ring: 174 62% 40%;
+    --sidebar-accent: 215 28% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 215 28% 17%;
+    --sidebar-ring: 160 84% 39%;
   }
 }
 
@@ -69,14 +89,14 @@
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    @apply bg-background text-dash-textMain;
+    font-family: 'IBM Plex Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 }
 
 /* Ant Design theme overrides */
 .ant-layout {
-  background: hsl(var(--background)) !important;
+  background: theme('colors.dash.bg') !important;
 }
 
 .ant-table {
@@ -103,27 +123,46 @@
 
 /* Risk badge styles */
 .risk-green {
-  background: hsl(var(--risk-green) / 0.12);
-  color: hsl(var(--risk-green));
-  border: 1px solid hsl(var(--risk-green) / 0.3);
+  background: hsl(160 84% 39% / 0.1);
+  color: hsl(160 84% 39%);
 }
 
 .risk-yellow {
-  background: hsl(var(--risk-yellow) / 0.12);
-  color: hsl(45 80% 35%);
-  border: 1px solid hsl(var(--risk-yellow) / 0.3);
+  background: hsl(45 93% 47% / 0.1);
+  color: hsl(45 93% 38%);
 }
 
 .risk-orange {
-  background: hsl(var(--risk-orange) / 0.12);
-  color: hsl(25 80% 40%);
-  border: 1px solid hsl(var(--risk-orange) / 0.3);
+  background: hsl(24 95% 53% / 0.1);
+  color: hsl(24 95% 53%);
 }
 
 .risk-red {
-  background: hsl(var(--risk-red) / 0.12);
-  color: hsl(var(--risk-red));
-  border: 1px solid hsl(var(--risk-red) / 0.3);
+  background: hsl(348 83% 47% / 0.1);
+  color: hsl(348 83% 47%);
+}
+
+/* Custom Table highlight */
+.saas-table .ant-table-tbody>tr>td {
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  padding: 18px 16px;
+  position: relative;
+}
+
+.saas-table .ant-table-tbody>tr:hover>td {
+  background: hsl(210 40% 98%) !important;
+}
+
+.saas-table .ant-table-tbody>tr:hover>td:first-child::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: hsl(var(--primary));
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
 }
 
 /* Fade in animation */
@@ -141,4 +180,21 @@
 
 .animate-fade-in-up {
   animation: fadeInUp 0.4s ease-out forwards;
+}
+
+/* Glassmorphism Classes */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03);
 }

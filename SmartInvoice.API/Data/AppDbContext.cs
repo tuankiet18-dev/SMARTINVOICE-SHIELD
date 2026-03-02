@@ -10,6 +10,20 @@ public class AppDbContext : DbContext
     {
     }
 
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var entry in ChangeTracker.Entries<ISoftDelete>())
+        {
+            if (entry.State == EntityState.Deleted)
+            {
+                entry.State = EntityState.Modified;
+                entry.Entity.IsDeleted = true;
+                entry.Entity.DeletedAt = DateTime.UtcNow;
+            }
+        }
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
     public DbSet<Company> Companies { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<DocumentType> DocumentTypes { get; set; }
@@ -123,8 +137,11 @@ public class AppDbContext : DbContext
             .ToTable(t => t.HasCheckConstraint("CHK_Invoices_Amounts",
                 "\"TotalAmount\" >= 0"));
 
-        // Global Query Filter for User (Soft Delete)
-        modelBuilder.Entity<User>().HasQueryFilter(u => u.IsActive);
+        // Global Query Filters (Soft Delete)
+        modelBuilder.Entity<User>().HasQueryFilter(u => !u.IsDeleted);
+        modelBuilder.Entity<Company>().HasQueryFilter(c => !c.IsDeleted);
+        modelBuilder.Entity<Invoice>().HasQueryFilter(i => !i.IsDeleted);
+        modelBuilder.Entity<FileStorage>().HasQueryFilter(f => !f.IsDeleted);
 
         // Global Query Filter for LocalBlacklist
         modelBuilder.Entity<LocalBlacklistedCompany>().HasQueryFilter(b => b.IsActive);

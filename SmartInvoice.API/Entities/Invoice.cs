@@ -153,8 +153,12 @@ public class Invoice
     public string? RejectionReason { get; set; }
 
     // --- Metadata ---
+    public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
     // --- Navigation Properties ---
     public virtual ICollection<ValidationLayer> ValidationLayers { get; set; } = new List<ValidationLayer>();
     public virtual ICollection<RiskCheckResult> RiskCheckResults { get; set; } = new List<RiskCheckResult>();

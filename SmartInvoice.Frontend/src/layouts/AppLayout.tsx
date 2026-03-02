@@ -20,7 +20,7 @@ import {
   StopOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { authService } from '@/services/auth';
+import { useAuth } from '@/contexts/AuthContext';
 
 const { Sider, Header, Content } = Layout;
 const { Text } = Typography;
@@ -29,6 +29,7 @@ const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   const menuItems = [{ key: '/app/dashboard', icon: <DashboardOutlined />, label: 'Tổng quan' },
   { key: '/app/invoices', icon: <FileTextOutlined />, label: 'Hóa đơn' },
@@ -53,12 +54,13 @@ const AppLayout: React.FC = () => {
     { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', danger: true },
   ];
 
-  const handleUserMenuClick = ({ key }: { key: string }) => {
+  const handleUserMenuClick = async ({ key }: { key: string }) => {
     if (key === 'logout') {
-      authService.logout();
+      await logout();
       navigate('/login');
+    } else if (key === 'profile') {
+      navigate('/app/profile');
     } else {
-      // Handle other menu actions
       console.log('Clicked', key);
     }
   };
@@ -71,8 +73,8 @@ const AppLayout: React.FC = () => {
         collapsed={collapsed}
         width={250}
         style={{
-          background: 'hsl(215 80% 18%)',
-          borderRight: '1px solid hsl(215 60% 25%)',
+          background: '#FFFFFF',
+          borderRight: '1px solid #E2E8F0',
           overflow: 'auto',
           height: '100vh',
           position: 'fixed',
@@ -80,40 +82,42 @@ const AppLayout: React.FC = () => {
           top: 0,
           bottom: 0,
           zIndex: 100,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
         }}
       >
         <div style={{
-          padding: collapsed ? '20px 12px' : '20px 20px',
+          padding: collapsed ? '20px 12px' : '24px 20px',
           display: 'flex',
           alignItems: 'center',
           gap: 12,
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-          marginBottom: 8,
+          borderBottom: '1px solid rgba(0,0,0,0.03)',
+          marginBottom: 12,
         }}>
           <div style={{
-            width: 36,
-            height: 36,
-            borderRadius: 10,
-            background: 'linear-gradient(135deg, #2db791, #1a8a6a)',
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            background: 'linear-gradient(135deg, #4880FF, #3366CC)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
+            boxShadow: '0 4px 12px rgba(72, 128, 255, 0.2)',
           }}>
             <SafetyCertificateOutlined style={{ color: '#fff', fontSize: 18 }} />
           </div>
           {!collapsed && (
             <div>
-              <Text strong style={{ color: '#fff', fontSize: 15, display: 'block', lineHeight: 1.2 }}>
+              <Text strong style={{ color: '#202224', fontSize: 16, display: 'block', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
                 SmartInvoice
               </Text>
-              <Text style={{ color: 'rgba(200,210,225,0.6)', fontSize: 11 }}>Shield</Text>
+              <Text style={{ color: '#828282', fontSize: 12, fontWeight: 500 }}>Shield</Text>
             </div>
           )}
         </div>
 
         <Menu
-          theme="dark"
+          theme="light"
           mode="inline"
           selectedKeys={[location.pathname]}
           items={menuItems}
@@ -121,24 +125,25 @@ const AppLayout: React.FC = () => {
           style={{
             background: 'transparent',
             border: 'none',
-            padding: '0 8px',
+            padding: '0 12px',
           }}
+          className="saas-menu"
         />
       </Sider>
 
-      <Layout style={{ marginLeft: collapsed ? 80 : 250, transition: 'margin-left 0.2s' }}>
+      <Layout style={{ marginLeft: collapsed ? 80 : 250, transition: 'margin-left 0.2s cubic-bezier(0.2, 0, 0, 1)' }}>
         <Header style={{
-          background: '#fff',
+          background: '#FFFFFF',
           padding: '0 24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          borderBottom: '1px solid hsl(220 15% 88%)',
           position: 'sticky',
           top: 0,
           zIndex: 99,
           height: 64,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          borderBottom: '1px solid #E2E8F0',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
         }}>
           <Button
             type="text"
@@ -154,15 +159,17 @@ const AppLayout: React.FC = () => {
 
             <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight" trigger={['click']}>
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-                padding: '4px 12px', borderRadius: 8, transition: 'background 0.2s',
-              }}>
-                <Avatar size={34} style={{ background: 'hsl(215 80% 28%)' }}>
-                  NV
+                display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                padding: '4px 12px', borderRadius: 12, transition: 'background 0.2s',
+              }} className="hover:bg-slate-100/80">
+                <Avatar size={36} style={{ background: '#4880FF', fontWeight: 600 }}>
+                  {user?.fullName?.charAt(0) || 'U'}
                 </Avatar>
-                <div style={{ lineHeight: 1.3 }}>
-                  <Text strong style={{ fontSize: 13, display: 'block' }}>Nguyễn Văn A</Text>
-                  <Text type="secondary" style={{ fontSize: 11 }}>Admin</Text>
+                <div style={{ lineHeight: 1.2 }}>
+                  <Text strong style={{ fontSize: 13, display: 'block', color: '#202224' }}>{user?.fullName || 'User'}</Text>
+                  <Text style={{ fontSize: 11, color: '#828282' }}>
+                    {user?.role === 'CompanyAdmin' ? 'Admin' : (user?.role === 'SuperAdmin' ? 'Super Admin' : 'Member')}
+                  </Text>
                 </div>
               </div>
             </Dropdown>

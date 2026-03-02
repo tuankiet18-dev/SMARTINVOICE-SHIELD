@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import {
-  Card, Upload, Typography, Row, Col, Steps, Button, Space, Tag, Alert, message, Result, Drawer, Descriptions, Table, InputNumber, Tooltip
+  Card, Upload, Typography, Row, Col, Steps, Button, Space, Tag, Alert, message, Result, Drawer, Descriptions, Table, Input, InputNumber, Tooltip
 } from 'antd';
 import {
   InboxOutlined, FileTextOutlined, SafetyCertificateOutlined,
   CheckCircleOutlined, CloudUploadOutlined,
-  FilePdfOutlined, FileImageOutlined, LoadingOutlined, WarningOutlined, CloseCircleOutlined, EditOutlined, SaveOutlined, DeleteOutlined
+  FilePdfOutlined, FileImageOutlined, LoadingOutlined, WarningOutlined, CloseCircleOutlined, EditOutlined, SaveOutlined, DeleteOutlined, ClockCircleOutlined
 } from '@ant-design/icons';
 // Lưu ý: Cập nhật lại đường dẫn import nếu cần
 import { invoiceService, ValidationResult } from '../services/invoice';
@@ -70,7 +70,7 @@ const UploadInvoice: React.FC = () => {
       setFileList(info.fileList);
     },
     beforeUpload: () => false, // Ngăn auto upload để xử lý thủ công
-    showUploadList: true // Vẫn dùng list mặc định của Dragger cho gọn ở bước 1
+    showUploadList: false // Tự render list ở dưới để tránh lỗi layout
   };
 
   const handleReset = () => {
@@ -123,15 +123,22 @@ const UploadInvoice: React.FC = () => {
             errorMessage: !validation.isValid ? validation.errors.join(', ') : undefined
           } : item));
         } catch (error: any) {
-          const errMsg = error.response?.data?.errors?.join(', ')
-            || error.response?.data?.message
-            || error.response?.data?.title
+          const resData = error.response?.data;
+
+          let errMsg = resData?.errors?.join(', ')
+            || resData?.message
+            || resData?.title
             || error.message
             || 'Lỗi không xác định';
+
+          if (resData?.warnings && resData.warnings.length > 0) {
+            errMsg += (errMsg ? ' | Cảnh báo: ' : 'Cảnh báo: ') + resData.warnings.join(', ');
+          }
 
           setResults(prev => prev.map((item, idx) => idx === i ? {
             ...item,
             status: 'error',
+            result: resData,
             errorMessage: errMsg
           } : item));
         }
@@ -147,6 +154,7 @@ const UploadInvoice: React.FC = () => {
   // --- UI COMPONENTS ---
 
   const renderStatusTag = (status: string, result?: ValidationResultExtended) => {
+    if (status === 'pending') return <Tag icon={<ClockCircleOutlined />} color="default">Chờ xử lý</Tag>;
     if (status === 'processing') return <Tag icon={<LoadingOutlined />} color="processing">Đang xử lý</Tag>;
     if (status === 'warning') return <Tag icon={<WarningOutlined />} color="warning">Cần kiểm tra (Yellow)</Tag>;
     if (status === 'error') return <Tag icon={<CloseCircleOutlined />} color="error">Lỗi (Red)</Tag>;
@@ -173,6 +181,7 @@ const UploadInvoice: React.FC = () => {
       title: 'Thông điệp / Cảnh báo',
       key: 'message',
       render: (_: any, record: ProcessResult) => {
+        if (record.status === 'pending') return <Text type="secondary">Đang chờ xử lý...</Text>;
         if (record.status === 'processing') return <Text type="secondary">Đang bóc tách dữ liệu...</Text>;
         if (record.status === 'error' || record.status === 'warning') return <Text type="danger">{record.errorMessage}</Text>;
         if (record.result?.warnings?.length) return <Text type="warning">{record.result.warnings[0]} {record.result.warnings.length > 1 ? '(+)' : ''}</Text>;
@@ -185,7 +194,7 @@ const UploadInvoice: React.FC = () => {
       width: 250,
       render: (_: any, record: ProcessResult) => (
         <Space>
-          {(record.status === 'success' || record.status === 'warning') && (
+          {(record.status === 'success' || record.status === 'warning' || record.status === 'error') && (
             <Button size="small" type="primary" ghost icon={<EditOutlined />} onClick={() => handleViewDetails(record)}>
               Chi tiết
             </Button>
@@ -222,30 +231,112 @@ const UploadInvoice: React.FC = () => {
         />
 
         {results.length === 0 ? (
-          <Row gutter={24}>
-            <Col xs={24} lg={16}>
+          <Row gutter={24} align="stretch">
+            <Col xs={24} lg={fileList.length > 0 ? 8 : 16}>
               <Dragger
                 {...uploadProps}
-                style={{ padding: '30px 20px', borderRadius: 8, background: '#fafbfc' }}
+                style={{ padding: fileList.length > 0 ? '60px 10px' : '30px 20px', borderRadius: 8, background: '#fafbfc', height: '100%' }}
               >
                 <p className="ant-upload-drag-icon"><InboxOutlined style={{ color: '#1677ff', fontSize: 48 }} /></p>
-                <p className="ant-upload-text" style={{ fontSize: 16, fontWeight: 500 }}>Kéo thả hoặc click để chọn file</p>
+                <p className="ant-upload-text" style={{ fontSize: 16, fontWeight: 500 }}>
+                  {fileList.length > 0 ? 'Thêm file khác' : 'Kéo thả hoặc click để chọn file'}
+                </p>
                 <p className="ant-upload-hint">Hỗ trợ XML (Đề xuất), PDF, JPG, PNG. Tối đa 10MB/file.</p>
               </Dragger>
 
-              {fileList.length > 0 && (
-                <Button type="primary" size="large" style={{ width: '100%', marginTop: 24 }} onClick={handleProcessFiles} loading={isProcessing}>
-                  Bắt đầu xử lý {fileList.length} file
-                </Button>
+              {fileList.length === 0 && (
+                <Alert
+                  message="Khuyến nghị"
+                  description="Để đảm bảo tính pháp lý và độ chính xác 100%, vui lòng ưu tiên upload file định dạng XML (QĐ 1550/QĐ-TCT). Các định dạng PDF/Ảnh sẽ được xử lý qua AI và yêu cầu bạn kiểm tra lại mắt thường."
+                  type="info" showIcon
+                  style={{ marginTop: 24 }}
+                />
               )}
             </Col>
-            <Col xs={24} lg={8}>
-              <Alert
-                message="Khuyến nghị"
-                description="Để đảm bảo tính pháp lý và độ chính xác 100%, vui lòng ưu tiên upload file định dạng XML (QĐ 1550/QĐ-TCT). Các định dạng PDF/Ảnh sẽ được xử lý qua AI và yêu cầu bạn kiểm tra lại mắt thường."
-                type="info" showIcon
-              />
-            </Col>
+
+            {fileList.length > 0 ? (
+              <Col xs={24} lg={16}>
+                <Card
+                  size="small"
+                  title={<Text strong style={{ fontSize: 16 }}>Danh sách tải lên ({fileList.length} file)</Text>}
+                  extra={
+                    <Button type="primary" onClick={handleProcessFiles} loading={isProcessing} icon={<CloudUploadOutlined />}>
+                      Bắt đầu xử lý {fileList.length} file
+                    </Button>
+                  }
+                  style={{ borderColor: '#e2e8f0', borderRadius: 8, height: '100%', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}
+                  bodyStyle={{ padding: 0, flex: 1, display: 'flex', flexDirection: 'column' }}
+                >
+                  <div style={{ maxHeight: 400, overflowY: 'auto', padding: 16, background: '#fafbfc', flex: 1 }}>
+                    {fileList.map((f, i) => {
+                      const lowerName = f.name.toLowerCase();
+                      const isXml = lowerName.endsWith('.xml');
+                      const isPdf = lowerName.endsWith('.pdf');
+                      const isImage = lowerName.endsWith('.jpg') || lowerName.endsWith('.png') || lowerName.endsWith('.jpeg');
+
+                      let Icon = FileTextOutlined;
+                      let color = '#1677ff';
+                      let tagLabel = 'HÓA ĐƠN';
+
+                      if (isXml) { Icon = FileTextOutlined; color = '#52c41a'; tagLabel = 'XML'; }
+                      else if (isPdf) { Icon = FilePdfOutlined; color = '#ff4d4f'; tagLabel = 'PDF'; }
+                      else if (isImage) { Icon = FileImageOutlined; color = '#faad14'; tagLabel = 'IMAGE'; }
+
+                      const sizeKb = (f.size / 1024).toFixed(1);
+
+                      return (
+                        <div key={i} className="animate-fade-in-up" style={{
+                          padding: '12px 16px',
+                          background: '#fff',
+                          border: '1px solid #f0f0f0',
+                          borderRadius: 8,
+                          marginBottom: 12,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                          animationDelay: `${i * 0.05}s`
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 16, overflow: 'hidden' }}>
+                            <div style={{
+                              width: 44, height: 44, borderRadius: 8,
+                              background: `${color}15`, color: color,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 22, flexShrink: 0
+                            }}>
+                              <Icon />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <Text strong ellipsis style={{ display: 'block', maxWidth: 300, fontSize: 14 }}>{f.name}</Text>
+                              <Space size="middle" style={{ marginTop: 2 }}>
+                                <Tag bordered={false} color={color} style={{ margin: 0 }}>{tagLabel}</Tag>
+                                <Text type="secondary" style={{ fontSize: 12 }}>{sizeKb} KB</Text>
+                              </Space>
+                            </div>
+                          </div>
+
+                          <Tooltip title="Xóa file">
+                            <Button
+                              type="text"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFileList(prev => prev.filter((_, idx) => idx !== i));
+                              }}
+                            />
+                          </Tooltip>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              </Col>
+            ) : (
+              <Col xs={24} lg={8}>
+                {/* Placeholder Col when fileList is empty so the Dragger takes 16 cols and is centered alongside Alert */}
+              </Col>
+            )}
           </Row>
         ) : (
           <div>
@@ -327,22 +418,24 @@ const UploadInvoice: React.FC = () => {
               {selectedInvoice?.result?.extractedData?.line_items ? (
                 <Table
                   dataSource={selectedInvoice.result.extractedData.line_items}
-                  rowKey="stt"
+                  rowKey={(record) => `${selectedInvoice.fileName}_${record.stt}`}
                   pagination={false}
                   size="small"
                   scroll={{ y: 300 }} // Scroll dọc nếu nhiều item
                   columns={[
-                    { title: 'Tên hàng', dataIndex: 'product_name', width: '35%', render: (val) => <InputNumber defaultValue={val} style={{ width: '100%' }} /> as any },
-                    { title: 'SL', dataIndex: 'quantity', width: '15%', render: (val) => <InputNumber defaultValue={val} size="small" style={{ width: '100%' }} /> },
-                    { title: 'Đơn giá', dataIndex: 'unit_price', width: '25%', render: (val) => <InputNumber defaultValue={val} size="small" style={{ width: '100%' }} formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} /> },
-                    { title: 'Thành tiền', dataIndex: 'total_amount', render: (val) => <Text strong>{val?.toLocaleString()}</Text> }
+                    { title: 'Tên hàng', dataIndex: 'product_name', width: '35%', render: (val) => <Input defaultValue={val} style={{ width: '100%' }} /> as any },
+                    { title: 'ĐVT', dataIndex: 'unit', width: '10%', render: (val) => <Input defaultValue={val || ''} size="small" style={{ width: '100%' }} /> as any },
+                    { title: 'SL', dataIndex: 'quantity', width: '10%', render: (val) => <InputNumber defaultValue={val} size="small" style={{ width: '100%' }} /> },
+                    { title: 'Đơn giá', dataIndex: 'unit_price', width: '15%', render: (val) => <InputNumber defaultValue={val} size="small" style={{ width: '100%' }} formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} /> },
+                    { title: 'Thuế', dataIndex: 'vat_rate', width: '10%', align: 'center', render: (val) => <Text>{val}%</Text> },
+                    { title: 'Thành tiền', dataIndex: 'total_amount', width: '20%', align: 'right', render: (val) => <Text strong>{val?.toLocaleString()}</Text> }
                   ]}
                   summary={(pageData) => {
                     let total = 0;
                     pageData.forEach(({ total_amount }) => { total += total_amount || 0; });
                     return (
-                      <Table.Summary.Row>
-                        <Table.Summary.Cell index={0} colSpan={3}><Text strong style={{ float: 'right' }}>Tổng cộng:</Text></Table.Summary.Cell>
+                      <Table.Summary.Row style={{ background: '#fafafa' }}>
+                        <Table.Summary.Cell index={0} colSpan={5}><Text strong style={{ float: 'right', paddingRight: 16 }}>Tổng cộng:</Text></Table.Summary.Cell>
                         <Table.Summary.Cell index={1}>
                           <Space direction="vertical" size={2} style={{ width: '100%', textAlign: 'right' }}>
                             {selectedInvoice?.result?.extractedData?.total_pre_tax !== undefined && (

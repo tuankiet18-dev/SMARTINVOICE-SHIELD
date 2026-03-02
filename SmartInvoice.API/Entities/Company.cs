@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace SmartInvoice.API.Entities;
 
 [Table("Companies")]
-public class Company
+public class Company : ISoftDelete
 {
     [Key]
     public Guid CompanyId { get; set; }
@@ -53,6 +53,9 @@ public class Company
 
     // --- Status ---
     public bool IsActive { get; set; } = true;
+    public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
+
     public DateTime RegistrationDate { get; set; } = DateTime.UtcNow;
 
     // --- Metadata ---

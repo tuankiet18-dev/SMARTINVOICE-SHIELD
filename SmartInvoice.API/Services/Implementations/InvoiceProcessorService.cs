@@ -190,7 +190,7 @@ namespace SmartInvoice.API.Services.Implementations
                 int stt = 1;
                 foreach (XmlNode item in items)
                 {
-                    string name = item.SelectSingleNode(".//*[local-name()='Ten']")?.InnerText;
+                    string name = item.SelectSingleNode(".//*[local-name()='THHDVu']")?.InnerText;
                     string unit = item.SelectSingleNode(".//*[local-name()='DVTinh']")?.InnerText;
                     string sQty = item.SelectSingleNode(".//*[local-name()='SLuong']")?.InnerText;
                     string sPrice = item.SelectSingleNode(".//*[local-name()='DGia']")?.InnerText;
@@ -243,6 +243,7 @@ namespace SmartInvoice.API.Services.Implementations
             try
             {
                 XmlDocument xmlDoc = new XmlDocument();
+                xmlDoc.PreserveWhitespace = true;
                 xmlDoc.Load(xmlPath);
 
                 string GetVal(string tag) => GetNodeValue(xmlDoc, tag);
@@ -293,12 +294,13 @@ namespace SmartInvoice.API.Services.Implementations
                 }
 
                 // C. Tiền tệ (DVTTe) và Tỷ giá (TGia)
-                isDataValid &= CheckMandatory(dvtTe, "Đơn vị tiền tệ (DVTTe)", result);
-                if (!string.IsNullOrEmpty(dvtTe) && dvtTe.ToUpper() != "VND")
+                // Theo QĐ 1450/QĐ-TCT, nhiều nhà cung cấp MTT không gửi DVTTe, ngầm định là VND.
+                string currencyUnit = string.IsNullOrEmpty(dvtTe) ? "VND" : dvtTe.ToUpper();
+                if (currencyUnit != "VND")
                 {
                     if (string.IsNullOrEmpty(tGia))
                     {
-                        result.AddError($"[LỖI CẤU TRÚC] Tiền tệ là '{dvtTe}', bắt buộc phải có hệ số Tỷ giá (TGia).");
+                        result.AddError($"[LỖI CẤU TRÚC] Tiền tệ là '{currencyUnit}', bắt buộc phải có hệ số Tỷ giá (TGia).");
                         isDataValid = false;
                     }
                     else if (!decimal.TryParse(tGia, out _))
@@ -320,13 +322,21 @@ namespace SmartInvoice.API.Services.Implementations
                     }
                 }
 
-                if (!string.IsNullOrEmpty(nLap) && !string.IsNullOrEmpty(ngayKy))
+                if (!string.IsNullOrEmpty(nLap))
                 {
-                    if (DateTime.TryParse(nLap, out DateTime dtLap) && DateTime.TryParse(ngayKy, out DateTime dtKy))
+                    if (DateTime.TryParse(nLap, out DateTime dtLap))
                     {
-                        if (Math.Abs((dtKy - dtLap).TotalDays) > 1)
+                        if (dtLap > DateTime.Now)
                         {
-                            result.AddWarning($"[RỦI RO THỜI GIAN] Ngày lập ({dtLap:dd/MM/yyyy}) và Ngày ký ({dtKy:dd/MM/yyyy}) chênh lệch quá 1 ngày.");
+                            result.AddWarning($"[RỦI RO THỜI GIAN] Ngày lập ({dtLap:dd/MM/yyyy}) là ngày ở tương lai.");
+                        }
+
+                        if (!string.IsNullOrEmpty(ngayKy) && DateTime.TryParse(ngayKy, out DateTime dtKy))
+                        {
+                            if (Math.Abs((dtKy - dtLap).TotalDays) > 1)
+                            {
+                                result.AddWarning($"[RỦI RO THỜI GIAN] Ngày lập ({dtLap:dd/MM/yyyy}) và Ngày ký ({dtKy:dd/MM/yyyy}) chênh lệch quá 1 ngày.");
+                            }
                         }
                     }
                 }
@@ -337,13 +347,11 @@ namespace SmartInvoice.API.Services.Implementations
                 if (!string.IsNullOrEmpty(khhDon) && khhDon.Length >= 4 && char.ToUpper(khhDon[3]) == 'M')
                 {
                     isCashRegister = true;
-                    result.AddWarning("Thông tin: Hóa đơn MÁY TÍNH TIỀN (Ký hiệu 'M'). Hệ thống tự động áp dụng luật kiểm tra của Máy tính tiền (Có kiểm tra Mã CQT hợp lệ).");
                 }
 
                 if (khmshDon?.StartsWith("2") == true || mauSo == "2")
                 {
                     isVatInvoice = false;
-                    result.AddWarning("PHÁT HIỆN: Hóa đơn Bán hàng (02GTTT). Chế độ kiểm tra: KHÔNG THUẾ.");
                 }
 
                 XmlNode nBan = xmlDoc.SelectSingleNode("//*[local-name()='NBan']");
