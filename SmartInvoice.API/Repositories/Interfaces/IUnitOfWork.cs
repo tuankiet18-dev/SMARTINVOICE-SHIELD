@@ -6,6 +6,7 @@ namespace SmartInvoice.API.Repositories.Interfaces
     public interface IUnitOfWork : IDisposable
     {
         IInvoiceRepository Invoices { get; }
+        IInvoiceAuditLogRepository InvoiceAuditLogs { get; }
         IUserRepository Users { get; }
         ICompanyRepository Companies { get; }
         ILocalBlacklistRepository LocalBlacklists { get; }

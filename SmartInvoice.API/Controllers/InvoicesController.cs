@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 using SmartInvoice.API.Enums;
+using SmartInvoice.API.DTOs.Invoice;
 
 namespace SmartInvoice.API.Controller
 {
@@ -23,13 +24,15 @@ namespace SmartInvoice.API.Controller
         private readonly StorageService _storageService;
         private readonly AppDbContext _context;
         private readonly IInvoiceProcessorService _invoiceProcessor;
+        private readonly IInvoiceService _invoiceService;
 
         [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-        public InvoicesController(StorageService storageService, AppDbContext context, IInvoiceProcessorService invoiceProcessor)
+        public InvoicesController(StorageService storageService, AppDbContext context, IInvoiceProcessorService invoiceProcessor, IInvoiceService invoiceService)
         {
             _storageService = storageService;
             _context = context;
             _invoiceProcessor = invoiceProcessor;
+            _invoiceService = invoiceService;
         }
 
         // API 1: Lấy link upload (Frontend gọi cái này trước)
@@ -165,40 +168,161 @@ namespace SmartInvoice.API.Controller
         }
 
         // API 3: Lấy danh sách hóa đơn (Frontend gọi để hiển thị lên bảng)
+        // [HttpGet]
+        // public IActionResult GetInvoices()
+        // {
+        //     // Tạm thời trả về mock data theo chuẩn cấu trúc của DB nếu thực tế chưa có CSDL (để phục vụ giao diện FE trước)
+        //     var mockInvoices = Enumerable.Range(1, 20).Select(i =>
+        //     {
+        //         var risks = new[] { "Green", "Green", "Green", "Yellow", "Orange", "Red", "Green", "Yellow" };
+        //         var statuses = new[] { "Approved", "Pending", "Draft", "Approved", "Rejected", "Approved", "Pending", "Approved" };
+        //         var types = new[] { "01GTKT", "02GTTT", "01GTKT", "01GTKT", "02GTTT" };
+        //         var sellers = new[]
+        //         {
+        //             "Công ty TNHH Thương mại ABC",
+        //             "Công ty CP Công nghệ XYZ",
+        //             "DN Tư nhân Phát Đạt",
+        //             "Công ty TNHH SX Minh Tâm",
+        //             "Công ty CP Vận tải An Bình"
+        //         };
+
+        //         return new
+        //         {
+        //             key = i.ToString(),
+        //             invoiceNo = $"INV-2026-{(1284 - i).ToString("D6")}",
+        //             type = types[i % types.Length],
+        //             seller = sellers[i % sellers.Length],
+        //             mst = $"0{new Random().Next(100000000, 999999999)}",
+        //             amount = $"{(new Random().Next(1, 90) * 1000000).ToString("N0")} ₫",
+        //             date = $"{(12 - (i / 3)).ToString("D2")}/02/2026",
+        //             status = statuses[i % statuses.Length],
+        //             risk = risks[i % risks.Length],
+        //             method = i % 4 == 0 ? "OCR" : "XML"
+        //         };
+        //     }).ToList();
+
+        //     return Ok(mockInvoices);
+        // }
+
         [HttpGet]
-        public IActionResult GetInvoices()
+        public async Task<IActionResult> GetInvoices([FromQuery] int page = 1, [FromQuery] int size = 10)
         {
-            // Tạm thời trả về mock data theo chuẩn cấu trúc của DB nếu thực tế chưa có CSDL (để phục vụ giao diện FE trước)
-            var mockInvoices = Enumerable.Range(1, 20).Select(i =>
+            try
             {
-                var risks = new[] { "Green", "Green", "Green", "Yellow", "Orange", "Red", "Green", "Yellow" };
-                var statuses = new[] { "Approved", "Pending", "Draft", "Approved", "Rejected", "Approved", "Pending", "Approved" };
-                var types = new[] { "01GTKT", "02GTTT", "01GTKT", "01GTKT", "02GTTT" };
-                var sellers = new[]
-                {
-                    "Công ty TNHH Thương mại ABC",
-                    "Công ty CP Công nghệ XYZ",
-                    "DN Tư nhân Phát Đạt",
-                    "Công ty TNHH SX Minh Tâm",
-                    "Công ty CP Vận tải An Bình"
-                };
+                var result = await _invoiceService.GetInvoicesAsync(page, size);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
 
-                return new
-                {
-                    key = i.ToString(),
-                    invoiceNo = $"INV-2026-{(1284 - i).ToString("D6")}",
-                    type = types[i % types.Length],
-                    seller = sellers[i % sellers.Length],
-                    mst = $"0{new Random().Next(100000000, 999999999)}",
-                    amount = $"{(new Random().Next(1, 90) * 1000000).ToString("N0")} ₫",
-                    date = $"{(12 - (i / 3)).ToString("D2")}/02/2026",
-                    status = statuses[i % statuses.Length],
-                    risk = risks[i % risks.Length],
-                    method = i % 4 == 0 ? "OCR" : "XML"
-                };
-            }).ToList();
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetInvoiceById(Guid id)
+        {
+            try
+            {
+                var invoice = await _invoiceService.GetInvoiceByIdAsync(id);
 
-            return Ok(mockInvoices);
+                if (invoice == null)
+                {
+                    return NotFound(new { Message = $"Không tìm thấy hóa đơn với ID: {id}" });
+                }
+
+                return Ok(invoice);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Lỗi server nội bộ", Error = ex.Message });
+            }
+        }
+
+        [HttpPost("upload")]
+        public IActionResult UploadInvoice(IFormFile file)
+        {
+            return Problem("Chức năng đang phát triển", statusCode: 501);
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateInvoice(Guid id, [FromBody] UpdateInvoiceDto request)
+        {
+            try
+            {
+                await _invoiceService.UpdateInvoiceAsync(id, request);
+
+                return Ok(new { Message = "Cập nhật thành công" });
+            }
+            catch (KeyNotFoundException) // Bắt cái lỗi mình ném ra ở Service
+            {
+                return NotFound(new { Message = "Không tìm thấy hóa đơn" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteInvoice(Guid id)
+        {
+            try
+            {
+                var isDeleted = await _invoiceService.DeleteInvoiceAsync(id);
+
+                if (!isDeleted)
+                {
+                    return NotFound(new { Message = $"Không tìm thấy hóa đơn với ID: {id}" });
+                }
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Lỗi khi xóa hóa đơn", Error = ex.Message });
+            }
+        }
+
+        [HttpPost("{id}/validate")]
+        public IActionResult ValidateInvoice(Guid id)
+        {
+            return Problem("Chức năng đang phát triển", statusCode: 501);
+        }
+
+        [HttpPost("{id}/submit")]
+        public IActionResult SubmitInvoice(Guid id)
+        {
+            return Problem("Chức năng đang phát triển", statusCode: 501);
+        }
+
+        [HttpPost("{id}/approve")]
+        public IActionResult ApproveInvoice(Guid id)
+        {
+            return Problem("Chức năng đang phát triển", statusCode: 501);
+        }
+
+        [HttpPost("{id}/reject")]
+        public IActionResult RejectInvoice(Guid id, [FromBody] object reason) // object tạm, sau này thay bằng DTO
+        {
+            return Problem("Chức năng đang phát triển", statusCode: 501);
+        }
+
+        [HttpGet("{id}/audit-logs")]
+        public async Task<IActionResult> GetAuditLogs(Guid id)
+        {
+            try
+            {
+                var logs = await _invoiceService.GetAuditLogsAsync(id);
+                return Ok(logs);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { Message = "Không tìm thấy hóa đơn." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
         }
     }
 }
