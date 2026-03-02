@@ -18,7 +18,7 @@ namespace SmartInvoice.API.Controller
 {
     [ApiController]
     [Route("api/invoices")]
-    [Authorize(Roles = "CompanyAdmin,Member")]
+    [Authorize]
     public class InvoicesController : ControllerBase
     {
         private readonly StorageService _storageService;
@@ -35,6 +35,7 @@ namespace SmartInvoice.API.Controller
 
         // API 1: Lấy link upload (Frontend gọi cái này trước)
         [HttpPost("generate-upload-url")]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public IActionResult GetUploadUrl([FromBody] UploadRequestDto request)
         {
             var result = _storageService.GeneratePresignedUrl(request.FileName, request.ContentType);
@@ -43,6 +44,7 @@ namespace SmartInvoice.API.Controller
         }
 
         [HttpPost("process-xml")]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public async Task<IActionResult> ProcessXml([FromBody] ProcessXmlRequestDto request)
         {
             if (string.IsNullOrEmpty(request.S3Key))
@@ -109,6 +111,7 @@ namespace SmartInvoice.API.Controller
 
         // API HỖ TRỢ TEST NHANH TRÊN SWAGGER (Bỏ qua S3)
         [HttpPost("test-process-local")]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public async Task<IActionResult> TestProcessLocal(IFormFile file)
         {
             if (file == null || file.Length == 0)
@@ -151,6 +154,7 @@ namespace SmartInvoice.API.Controller
 
         // API 2: Tạo hóa đơn (Gọi sau khi upload xong)
         [HttpPost]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public async Task<IActionResult> CreateInvoice()
         {
             // Tạm thời hard-code để test, sau này sẽ lấy từ Body gửi lên
@@ -171,6 +175,7 @@ namespace SmartInvoice.API.Controller
 
         // API 3: Lấy danh sách hóa đơn (Frontend gọi để hiển thị lên bảng)
         [HttpGet]
+        [Authorize(Policy = Constants.Permissions.InvoiceView)]
         public IActionResult GetInvoices()
         {
             // Tạm thời trả về mock data theo chuẩn cấu trúc của DB nếu thực tế chưa có CSDL (để phục vụ giao diện FE trước)

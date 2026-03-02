@@ -4,11 +4,12 @@ import {
 } from 'antd';
 import {
   SearchOutlined, FilterOutlined, DownloadOutlined, PlusOutlined,
-  EyeOutlined, EditOutlined, MoreOutlined, FileTextOutlined, LoadingOutlined,
+  EyeOutlined, EditOutlined, MoreOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { invoiceService } from '../services/invoice';
+import StatusBadge from '../components/ui/StatusBadge';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -33,9 +34,9 @@ const InvoiceList: React.FC = () => {
       key: 'invoiceNo',
       render: (text: string, record: any) => (
         <div>
-          <Text strong style={{ color: '#1a4b8c', cursor: 'pointer' }}>{text}</Text>
+          <Text strong style={{ color: '#0f172a', cursor: 'pointer', fontSize: 14 }}>{text}</Text>
           <br />
-          <Text type="secondary" style={{ fontSize: 11 }}>
+          <Text style={{ fontSize: 12, color: '#64748b' }}>
             {record.type} • {record.method}
           </Text>
         </div>
@@ -47,9 +48,9 @@ const InvoiceList: React.FC = () => {
       key: 'seller',
       render: (text: string, record: any) => (
         <div>
-          <Text style={{ fontSize: 13 }}>{text}</Text>
+          <Text style={{ fontSize: 14, color: '#0f172a', fontWeight: 500 }}>{text}</Text>
           <br />
-          <Text type="secondary" style={{ fontSize: 11 }}>MST: {record.mst}</Text>
+          <Text style={{ fontSize: 12, color: '#64748b' }}>MST: {record.mst}</Text>
         </div>
       ),
     },
@@ -70,29 +71,13 @@ const InvoiceList: React.FC = () => {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => {
-        const map: Record<string, { color: string; label: string }> = {
-          Approved: { color: 'green', label: 'Đã duyệt' },
-          Pending: { color: 'gold', label: 'Chờ duyệt' },
-          Draft: { color: 'default', label: 'Nháp' },
-          Rejected: { color: 'red', label: 'Từ chối' },
-        };
-        const s = map[status] || { color: 'default', label: status };
-        return <Tag color={s.color}>{s.label}</Tag>;
-      },
+      render: (status: string) => <StatusBadge type="status" value={status} />,
     },
     {
       title: 'Rủi ro',
       dataIndex: 'risk',
       key: 'risk',
-      render: (risk: string) => (
-        <Tag style={{
-          background: `${riskColors[risk]}14`, color: riskColors[risk],
-          border: `1px solid ${riskColors[risk]}30`, borderRadius: 6, fontWeight: 600, fontSize: 12,
-        }}>
-          {risk}
-        </Tag>
-      ),
+      render: (risk: string) => <StatusBadge type="risk" value={risk} />,
     },
     {
       title: '',
@@ -114,28 +99,30 @@ const InvoiceList: React.FC = () => {
 
   return (
     <div className="animate-fade-in-up">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <Title level={4} style={{ margin: 0 }}>Quản lý hóa đơn</Title>
-          <Text type="secondary">Tổng cộng {invoiceData?.length || 0} hóa đơn</Text>
+          <Title level={3} className="text-dash-textMain font-bold tracking-tight m-0">Quản lý hóa đơn</Title>
+          <Text className="text-dash-textMuted text-sm font-medium block mt-1">Tổng cộng {invoiceData?.length || 0} hóa đơn trong hệ thống</Text>
         </div>
-        <Space>
-          <Button icon={<DownloadOutlined />}>Xuất Excel</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/upload')}>
+        <Space size={12}>
+          <Button icon={<DownloadOutlined />} style={{ borderRadius: 10, fontWeight: 600, height: 42, color: '#4880FF', borderColor: '#4880FF' }}>
+            Xuất Excel
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/upload')} style={{ borderRadius: 10, fontWeight: 600, height: 42, background: '#4880FF', border: 'none' }}>
             Tải lên hóa đơn
           </Button>
         </Space>
       </div>
 
-      <Card bordered={false} style={{ borderRadius: 12 }} bodyStyle={{ padding: 0 }}>
+      <Card bordered={false} className="bg-dash-card rounded-[14px] shadow-dash overflow-hidden" bodyStyle={{ padding: 0 }}>
         {/* Search & Filter Bar */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0f0f0' }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0' }}>
           <Row gutter={12} align="middle">
             <Col flex="auto">
               <Input
                 placeholder="Tìm kiếm theo số hóa đơn, MST, tên người bán..."
-                prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
-                style={{ borderRadius: 8 }}
+                prefix={<SearchOutlined style={{ color: '#828282' }} />}
+                style={{ borderRadius: 10, padding: '10px 16px', background: '#F5F6FA', border: '1px solid #E2E8F0' }}
                 allowClear
               />
             </Col>
@@ -144,9 +131,9 @@ const InvoiceList: React.FC = () => {
                 icon={<FilterOutlined />}
                 onClick={() => setShowFilters(!showFilters)}
                 type={showFilters ? 'primary' : 'default'}
-                ghost={showFilters}
+                style={{ borderRadius: 10, height: 44, background: showFilters ? '#4880FF' : '#fff', color: showFilters ? '#fff' : '#202224', borderColor: showFilters ? '#4880FF' : '#E2E8F0', fontWeight: 600 }}
               >
-                Bộ lọc
+                Bộ lọc nâng cao
               </Button>
             </Col>
           </Row>
@@ -188,10 +175,22 @@ const InvoiceList: React.FC = () => {
             pageSize: 10,
             showSizeChanger: true,
             showTotal: (total) => `Tổng ${total} hóa đơn`,
+            style: { padding: '16px 24px', margin: 0, borderTop: '1px solid #E2E8F0' }
           }}
-          size="middle"
-          rowSelection={{ type: 'checkbox' }}
-          style={{ padding: '0 4px' }}
+          rowSelection={{ type: 'checkbox', columnWidth: 48 }}
+          rowClassName={() => 'hover:bg-dash-bg/50 transition-colors'}
+          components={{
+            header: {
+              cell: (props: any) => (
+                <th {...props} className="bg-[#F9F9FB] text-dash-textMain font-semibold border-y border-dash-border py-4 px-6 text-left" />
+              )
+            },
+            body: {
+              cell: (props: any) => (
+                <td {...props} className="py-5 px-6 border-b border-dash-border bg-dash-card" />
+              )
+            }
+          }}
         />
       </Card>
     </div>

@@ -16,6 +16,8 @@ using Microsoft.Extensions.DependencyInjection;
 using SmartInvoice.API.Services;
 using Microsoft.AspNetCore.Authentication;
 using SmartInvoice.API.Security;
+using System.Reflection;
+using SmartInvoice.API.Constants;
 // Load .env file
 // Load .env file (if exists, mainly for local dev without Docker)
 if (File.Exists(".env"))
@@ -99,6 +101,24 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true
     };
+});
+
+// 8. Config Authorization Policies based on Permissions
+// We iterate over the constants in the Permissions class and dynamically create a requirement
+builder.Services.AddAuthorization(options =>
+{
+    var permissionFields = typeof(Permissions)
+        .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+        .Where(fi => fi.IsLiteral && !fi.IsInitOnly && fi.FieldType == typeof(string));
+
+    foreach (var field in permissionFields)
+    {
+        var permissionValue = field.GetRawConstantValue()?.ToString();
+        if (!string.IsNullOrEmpty(permissionValue))
+        {
+            options.AddPolicy(permissionValue, policy => policy.RequireClaim("Permission", permissionValue));
+        }
+    }
 });
 
 

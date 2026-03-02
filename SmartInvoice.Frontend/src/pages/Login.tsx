@@ -7,11 +7,13 @@ const { Title, Text, Paragraph } = Typography;
 
 import { message, Modal } from 'antd';
 import { authService, LoginRequest } from '@/services/auth';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = React.useState(false);
   const [passwordForm] = Form.useForm();
+  const { login } = useAuth();
 
   // New Password Challenge State
   const [showNewPasswordModal, setShowNewPasswordModal] = React.useState(false);
@@ -21,7 +23,7 @@ const Login: React.FC = () => {
   const onFinish = async (values: LoginRequest) => {
     try {
       setLoading(true);
-      const data = await authService.login(values);
+      const data = await login(values);
 
       if (data.challengeName === 'NEW_PASSWORD_REQUIRED' && data.session) {
         setChallengeSession(data.session);
@@ -30,9 +32,6 @@ const Login: React.FC = () => {
         return; // Stop here, wait for new password
       }
 
-      localStorage.setItem('token', data.accessToken);
-      localStorage.setItem('idToken', data.idToken);
-      localStorage.setItem('user', JSON.stringify(data.user));
       message.success('Đăng nhập thành công!');
       navigate('/app/dashboard');
     } catch (error: any) {
@@ -54,6 +53,9 @@ const Login: React.FC = () => {
       localStorage.setItem('token', data.accessToken);
       localStorage.setItem('idToken', data.idToken);
       localStorage.setItem('user', JSON.stringify(data.user));
+      // Triggers checkAuth indirectly or you could expose checkAuth from useAuth
+      window.dispatchEvent(new Event('storage'));
+
       message.success('Đổi mật khẩu và đăng nhập thành công!');
       setShowNewPasswordModal(false);
       navigate('/app/dashboard');
@@ -68,7 +70,7 @@ const Login: React.FC = () => {
     <div style={{
       minHeight: '100vh',
       display: 'flex',
-      background: 'linear-gradient(135deg, hsl(215 80% 18%) 0%, hsl(215 70% 28%) 50%, hsl(174 50% 30%) 100%)',
+      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
     }}>
       {/* Left Panel */}
       <div style={{
@@ -83,15 +85,15 @@ const Login: React.FC = () => {
         className="hidden lg:flex"
       >
         <div style={{
-          width: 56, height: 56, borderRadius: 14,
-          background: 'linear-gradient(135deg, #2db791, #1a8a6a)',
+          width: 64, height: 64, borderRadius: 16,
+          background: 'linear-gradient(135deg, #10b981, #059669)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          marginBottom: 32,
+          marginBottom: 36, boxShadow: '0 8px 24px rgba(16, 185, 129, 0.3)',
         }}>
-          <SafetyCertificateOutlined style={{ fontSize: 28, color: '#fff' }} />
+          <SafetyCertificateOutlined style={{ fontSize: 32, color: '#fff' }} />
         </div>
 
-        <Title level={1} style={{ color: '#fff', marginBottom: 16, fontWeight: 700 }}>
+        <Title level={1} style={{ color: '#fff', marginBottom: 16, fontWeight: 800, fontSize: 48, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
           SmartInvoice<br />Shield
         </Title>
         <Paragraph style={{ color: 'rgba(255,255,255,0.75)', fontSize: 16, lineHeight: 1.7, maxWidth: 420 }}>
@@ -99,15 +101,15 @@ const Login: React.FC = () => {
           Tự động hóa quy trình, đảm bảo tuân thủ pháp luật Việt Nam.
         </Paragraph>
 
-        <div style={{ marginTop: 40, display: 'flex', gap: 32 }}>
+        <div style={{ marginTop: 48, display: 'flex', gap: 40 }}>
           {[
             { value: '90%', label: 'Tiết kiệm thời gian' },
             { value: '100%', label: 'Tuân thủ pháp lý' },
             { value: '85%+', label: 'AI Accuracy' },
           ].map((stat, i) => (
             <div key={i}>
-              <Text style={{ color: '#2db791', fontSize: 28, fontWeight: 700, display: 'block' }}>{stat.value}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{stat.label}</Text>
+              <Text style={{ color: '#10b981', fontSize: 32, fontWeight: 800, display: 'block', letterSpacing: '-0.02em' }}>{stat.value}</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 13, fontWeight: 500 }}>{stat.label}</Text>
             </div>
           ))}
         </div>
@@ -125,26 +127,26 @@ const Login: React.FC = () => {
           bordered={false}
           style={{
             width: '100%',
-            maxWidth: 420,
-            borderRadius: 16,
-            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+            maxWidth: 440,
+            borderRadius: 24,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
           }}
-          bodyStyle={{ padding: '40px 36px' }}
+          bodyStyle={{ padding: '48px 40px' }}
         >
-          <div className="lg:hidden" style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div className="lg:hidden" style={{ textAlign: 'center', marginBottom: 32 }}>
             <div style={{
-              width: 44, height: 44, borderRadius: 12,
-              background: 'linear-gradient(135deg, #2db791, #1a8a6a)',
+              width: 48, height: 48, borderRadius: 14,
+              background: 'linear-gradient(135deg, #10b981, #059669)',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              marginBottom: 12,
+              marginBottom: 16, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)',
             }}>
-              <SafetyCertificateOutlined style={{ fontSize: 22, color: '#fff' }} />
+              <SafetyCertificateOutlined style={{ fontSize: 24, color: '#fff' }} />
             </div>
-            <Title level={4} style={{ margin: 0 }}>SmartInvoice Shield</Title>
+            <Title level={4} style={{ margin: 0, fontWeight: 700, color: '#0f172a' }}>SmartInvoice Shield</Title>
           </div>
 
-          <Title level={3} style={{ marginBottom: 4 }}>Đăng nhập</Title>
-          <Text type="secondary" style={{ display: 'block', marginBottom: 28 }}>
+          <Title level={3} style={{ marginBottom: 8, color: '#0f172a', fontWeight: 700, letterSpacing: '-0.02em' }}>Đăng nhập</Title>
+          <Text style={{ display: 'block', marginBottom: 32, color: '#64748b', fontSize: 15 }}>
             Chào mừng bạn quay lại hệ thống
           </Text>
 
@@ -154,9 +156,9 @@ const Login: React.FC = () => {
               rules={[{ required: true, message: 'Vui lòng nhập email' }]}
             >
               <Input
-                prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
+                prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
                 placeholder="Email đăng nhập"
-                style={{ borderRadius: 10, height: 46 }}
+                style={{ borderRadius: 12, height: 48, background: '#f8fafc', border: '1px solid #e2e8f0' }}
               />
             </Form.Item>
 
@@ -165,37 +167,37 @@ const Login: React.FC = () => {
               rules={[{ required: true, message: 'Vui lòng nhập mật khẩu' }]}
             >
               <Input.Password
-                prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+                prefix={<LockOutlined style={{ color: '#94a3b8' }} />}
                 placeholder="Mật khẩu"
-                style={{ borderRadius: 10, height: 46 }}
+                style={{ borderRadius: 12, height: 48, background: '#f8fafc', border: '1px solid #e2e8f0' }}
               />
             </Form.Item>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
-              <Checkbox>Ghi nhớ đăng nhập</Checkbox>
-              <a style={{ color: '#1a4b8c', fontSize: 13 }}>Quên mật khẩu?</a>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 28 }}>
+              <Checkbox style={{ color: '#64748b' }}>Ghi nhớ đăng nhập</Checkbox>
+              <a style={{ color: '#10b981', fontSize: 14, fontWeight: 500 }}>Quên mật khẩu?</a>
             </div>
 
             <Button type="primary" htmlType="submit" block loading={loading}
               style={{
-                height: 48, borderRadius: 10, fontWeight: 600, fontSize: 15,
-                background: 'linear-gradient(135deg, #1a4b8c, #15396d)',
+                height: 52, borderRadius: 12, fontWeight: 600, fontSize: 16,
+                background: '#0f172a', border: 'none', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
               }}
             >
               Đăng nhập
             </Button>
           </Form>
 
-          <Divider plain style={{ margin: '28px 0 16px', color: '#bfbfbf', fontSize: 12 }}>
+          <Divider plain style={{ margin: '32px 0 20px', color: '#94a3b8', fontSize: 13 }}>
             hoặc
           </Divider>
 
           <Button block onClick={() => navigate('/register')}
-            style={{ height: 44, borderRadius: 10, fontWeight: 500, marginBottom: 16 }}>
+            style={{ height: 48, borderRadius: 12, fontWeight: 600, marginBottom: 24, color: '#475569', borderColor: '#cbd5e1' }}>
             Đăng ký tài khoản mới
           </Button>
 
-          <Text type="secondary" style={{ display: 'block', textAlign: 'center', fontSize: 12 }}>
+          <Text style={{ display: 'block', textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>
             © 2026 SmartInvoice Shield. Tuân thủ NĐ 123/2020/NĐ-CP
           </Text>
         </Card>

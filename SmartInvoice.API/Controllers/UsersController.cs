@@ -111,7 +111,7 @@ namespace SmartInvoice.API.Controllers
         // ==========================================
 
         [HttpPost("company-member")]
-        [Authorize(Roles = "CompanyAdmin")]
+        [Authorize(Policy = Constants.Permissions.UserManage)]
         public async Task<IActionResult> CreateCompanyMember([FromBody] CreateCompanyMemberDto request)
         {
             var companyIdClaim = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;
@@ -142,7 +142,7 @@ namespace SmartInvoice.API.Controllers
         }
 
         [HttpGet("company-member")]
-        [Authorize(Roles = "CompanyAdmin")]
+        [Authorize(Policy = Constants.Permissions.UserView)]
         public async Task<IActionResult> GetCompanyMembers()
         {
             var companyIdClaim = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;
@@ -169,7 +169,7 @@ namespace SmartInvoice.API.Controllers
         }
 
         [HttpPut("company-member/{id}")]
-        [Authorize(Roles = "CompanyAdmin")]
+        [Authorize(Policy = Constants.Permissions.UserManage)]
         public async Task<IActionResult> UpdateCompanyMember(Guid id, [FromBody] UpdateCompanyMemberDto request)
         {
             var companyIdClaim = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;
@@ -188,7 +188,7 @@ namespace SmartInvoice.API.Controllers
         }
 
         [HttpDelete("company-member/{id}")]
-        [Authorize(Roles = "CompanyAdmin")]
+        [Authorize(Policy = Constants.Permissions.UserManage)]
         public async Task<IActionResult> DeleteCompanyMember(Guid id)
         {
             var companyIdClaim = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;

@@ -13,7 +13,21 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["Inter", "sans-serif"],
+      },
       colors: {
+        dash: {
+          bg: '#F5F6FA',
+          card: '#FFFFFF',
+          primary: '#4880FF',
+          success: '#00B69B',
+          warning: '#FF9500',
+          danger: '#FC2A46',
+          textMain: '#202224',
+          textMuted: '#828282',
+          border: '#E2E8F0'
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -57,6 +71,12 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+      },
+      boxShadow: {
+        soft: "0 2px 10px rgba(0, 0, 0, 0.05)",
+        float: "0 10px 40px -10px rgba(0, 0, 0, 0.1)",
+        glow: "0 0 20px rgba(16, 185, 129, 0.15)",
+        dash: "0px 4px 20px rgba(0, 0, 0, 0.04)",
       },
       borderRadius: {
         lg: "var(--radius)",
