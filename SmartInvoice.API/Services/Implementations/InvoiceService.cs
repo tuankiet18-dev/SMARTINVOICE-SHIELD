@@ -3,11 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-<<<<<<< Updated upstream
 using SmartInvoice.API.DTOs;
-=======
 using Microsoft.Extensions.Configuration;
->>>>>>> Stashed changes
 using SmartInvoice.API.DTOs.Invoice;
 using SmartInvoice.API.Entities;
 using SmartInvoice.API.Entities.JsonModels;
@@ -91,10 +88,9 @@ namespace SmartInvoice.API.Services.Implementations
             return true;
         }
 
-<<<<<<< Updated upstream
-        public async Task<PagedResult<InvoiceDto>> GetInvoicesAsync(int pageIndex, int pageSize)
+        public async Task<PagedResult<InvoiceDto>> GetInvoicesAsync(DTOs.Invoice.GetInvoicesQueryDto query, Guid companyId, Guid userId, string userRole)
         {
-            var result = await _unitOfWork.Invoices.GetPagedInvoicesAsync(pageIndex, pageSize);
+            var result = await _unitOfWork.Invoices.GetPagedInvoicesAsync(query, companyId, userId, userRole);
 
             // Map từ Entity sang DTO thủ công (Hoặc dùng AutoMapper sau này)
             var dtos = result.Items.Select(i => new InvoiceDto
@@ -103,6 +99,7 @@ namespace SmartInvoice.API.Services.Implementations
                 InvoiceNumber = i.InvoiceNumber,
                 SerialNumber = i.SerialNumber,
                 InvoiceDate = i.InvoiceDate,
+                CreatedAt = i.CreatedAt,
                 SellerName = i.SellerName,
                 SellerTaxCode = i.SellerTaxCode,
                 TotalAmount = i.TotalAmount,
@@ -117,8 +114,8 @@ namespace SmartInvoice.API.Services.Implementations
             {
                 Items = dtos,
                 TotalCount = result.TotalCount,
-                PageIndex = pageIndex,
-                PageSize = pageSize
+                PageIndex = query.Page,
+                PageSize = query.Size
             };
         }
 
@@ -146,7 +143,7 @@ namespace SmartInvoice.API.Services.Implementations
             }).ToList();
 
             return dtos;
-=======
+        }
         public async Task<ValidationResultDto> ProcessInvoiceXmlAsync(string s3Key, string userId, string companyId)
         {
             if (string.IsNullOrEmpty(s3Key))
@@ -393,7 +390,6 @@ namespace SmartInvoice.API.Services.Implementations
                     System.IO.File.Delete(tempFilePath);
                 }
             }
->>>>>>> Stashed changes
         }
     }
 }

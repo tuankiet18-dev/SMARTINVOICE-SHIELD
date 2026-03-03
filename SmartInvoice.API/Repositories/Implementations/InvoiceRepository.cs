@@ -39,20 +39,66 @@ namespace SmartInvoice.API.Repositories.Implementations
             return await _context.Invoices.AnyAsync(i => i.InvoiceNumber == invoiceNumber && i.CompanyId == companyId);
         }
 
-        public async Task<(IEnumerable<Invoice> Items, int TotalCount)> GetPagedInvoicesAsync(int pageIndex, int pageSize)
+        public async Task<(IEnumerable<Invoice> Items, int TotalCount)> GetPagedInvoicesAsync(DTOs.Invoice.GetInvoicesQueryDto request, Guid companyId, Guid userId, string userRole)
         {
             var query = _context.Invoices.AsQueryable();
 
-            // 1. Đếm tổng số bản ghi (để FE biết có bao nhiêu trang)
+            // 1. Tenant Isolation: MUST be restricted to CompanyId
+            query = query.Where(i => i.CompanyId == companyId);
+
+            // 2. Role-Based Access Control (RBAC)
+            if (userRole == "Member")
+            {
+                // Member can only see their own uploaded invoices
+                query = query.Where(i => i.UploadedBy == userId);
+            }
+            // CompanyAdmin and SuperAdmin can see all invoices in the company
+
+            // 3. Apply Filters
+            if (!string.IsNullOrEmpty(request.Keyword))
+            {
+                var keyword = request.Keyword.ToLower();
+                query = query.Where(i =>
+                    (i.InvoiceNumber != null && i.InvoiceNumber.ToLower().Contains(keyword)) ||
+                    (i.SerialNumber != null && i.SerialNumber.ToLower().Contains(keyword)) ||
+                    (i.SellerName != null && i.SellerName.ToLower().Contains(keyword)) ||
+                    (i.SellerTaxCode != null && i.SellerTaxCode.ToLower().Contains(keyword))
+                );
+            }
+
+            if (!string.IsNullOrEmpty(request.Status))
+            {
+                query = query.Where(i => i.Status == request.Status);
+            }
+
+            if (!string.IsNullOrEmpty(request.RiskLevel))
+            {
+                query = query.Where(i => i.RiskLevel == request.RiskLevel);
+            }
+
+            if (request.FromDate.HasValue)
+            {
+                // Set the time part to start of day for inclusive filtering
+                var fromDate = request.FromDate.Value.Date;
+                query = query.Where(i => i.InvoiceDate >= fromDate);
+            }
+
+            if (request.ToDate.HasValue)
+            {
+                // Include the entire toDate
+                var toDate = request.ToDate.Value.Date.AddDays(1).AddTicks(-1);
+                query = query.Where(i => i.InvoiceDate <= toDate);
+            }
+
+            // 4. Count total records BEFORE pagination
             var totalCount = await query.CountAsync();
 
-            // 2. Lấy dữ liệu phân trang
-            // Ví dụ: Trang 2 (index 1), size 10 -> Skip(10).Take(10)
+            // 5. Sort & Pagination
             var items = await query
                 .Include(i => i.Uploader)
-                .OrderByDescending(i => i.InvoiceDate) // Sắp xếp mới nhất lên đầu
-                .Skip((pageIndex - 1) * pageSize)
-                .Take(pageSize)
+                .OrderByDescending(i => i.InvoiceDate)
+                .Skip((request.Page - 1) * request.Size)
+                .Take(request.Size)
                 .ToListAsync();
 
             return (items, totalCount);

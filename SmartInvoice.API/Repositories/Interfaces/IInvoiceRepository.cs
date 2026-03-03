@@ -9,6 +9,6 @@ namespace SmartInvoice.API.Repositories.Interfaces
         Task<Invoice?> GetInvoiceWithDetailsAsync(Guid id);
         Task<bool> ExistsByNumberAsync(string invoiceNumber, Guid companyId);
         Task<bool> ExistsByDetailsAsync(string sellerTaxCode, string serialNumber, string invoiceNumber);
-        Task<(IEnumerable<Invoice> Items, int TotalCount)> GetPagedInvoicesAsync(int pageIndex, int pageSize);
+        Task<(IEnumerable<Invoice> Items, int TotalCount)> GetPagedInvoicesAsync(DTOs.Invoice.GetInvoicesQueryDto query, Guid companyId, Guid userId, string userRole);
     }
 }

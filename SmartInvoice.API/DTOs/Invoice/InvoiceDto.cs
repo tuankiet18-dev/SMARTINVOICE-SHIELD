@@ -6,7 +6,8 @@ namespace SmartInvoice.API.DTOs.Invoice
         public string InvoiceNumber { get; set; } = null!;
         public string? SerialNumber { get; set; } // Ký hiệu
         public DateTime InvoiceDate { get; set; }
-        
+        public DateTime CreatedAt { get; set; }
+
         // Thông tin người bán (Hiển thị tóm tắt)
         public string? SellerName { get; set; }
         public string? SellerTaxCode { get; set; }
@@ -16,13 +17,13 @@ namespace SmartInvoice.API.DTOs.Invoice
         public string InvoiceCurrency { get; set; } = "VND";
 
         // Trạng thái & Rủi ro (Để tô màu trên FE)
-        public string Status { get; set; } // Draft, Pending...
-        public string RiskLevel { get; set; } // Green, Red...
-        
+        public string Status { get; set; } = null!; // Draft, Pending...
+        public string RiskLevel { get; set; } = null!; // Green, Red...
+
         // Ai làm?
         public string? UploadedByName { get; set; } // Map từ User entity
-        
+
         // Phương thức xử lý
-        public string ProcessingMethod { get; set; } // XML, OCR
+        public string ProcessingMethod { get; set; } = null!; // XML, OCR
     }
 }

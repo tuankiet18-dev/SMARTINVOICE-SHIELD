@@ -30,11 +30,7 @@ namespace SmartInvoice.API.Controller
         private readonly IInvoiceService _invoiceService;
 
         [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-<<<<<<< Updated upstream
-        public InvoicesController(StorageService storageService, AppDbContext context, IInvoiceProcessorService invoiceProcessor, IInvoiceService invoiceService)
-=======
         public InvoicesController(StorageService storageService, IInvoiceProcessorService invoiceProcessor, IInvoiceService invoiceService)
->>>>>>> Stashed changes
         {
             _storageService = storageService;
             _invoiceProcessor = invoiceProcessor;
@@ -186,11 +182,23 @@ namespace SmartInvoice.API.Controller
 
         [HttpGet]
         [Authorize(Policy = Constants.Permissions.InvoiceView)]
-        public async Task<IActionResult> GetInvoices([FromQuery] int page = 1, [FromQuery] int size = 10)
+        public async Task<IActionResult> GetInvoices([FromQuery] GetInvoicesQueryDto query)
         {
             try
             {
-                var result = await _invoiceService.GetInvoicesAsync(page, size);
+                var userIdStr = User.FindFirst("UserId")?.Value;
+                var companyIdStr = User.FindFirst("CompanyId")?.Value;
+                var userRole = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
+
+                if (string.IsNullOrEmpty(userIdStr) || string.IsNullOrEmpty(companyIdStr))
+                {
+                    return Unauthorized(new { Message = "User identity or company information is missing in token." });
+                }
+
+                Guid userId = Guid.Parse(userIdStr);
+                Guid companyId = Guid.Parse(companyIdStr);
+
+                var result = await _invoiceService.GetInvoicesAsync(query, companyId, userId, userRole ?? "Member");
                 return Ok(result);
             }
             catch (Exception ex)

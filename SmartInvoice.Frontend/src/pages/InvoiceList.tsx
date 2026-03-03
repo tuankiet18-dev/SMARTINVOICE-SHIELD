@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import dayjs from 'dayjs';
 import {
   Card, Table, Tag, Input, Select, DatePicker, Button, Space, Typography, Row, Col, Dropdown, Badge,
 } from 'antd';
@@ -22,61 +23,93 @@ const InvoiceList: React.FC = () => {
   const navigate = useNavigate();
   const [showFilters, setShowFilters] = useState(false);
 
-  const { data: invoiceData = [], isLoading, isError } = useQuery({
-    queryKey: ['invoices'],
-    queryFn: () => invoiceService.getInvoices(),
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
+  const [keyword, setKeyword] = useState<string>();
+  const [status, setStatus] = useState<string>();
+  const [riskLevel, setRiskLevel] = useState<string>();
+  const [dateRange, setDateRange] = useState<[string, string]>();
+
+  const { data: invoiceData, isLoading, isError } = useQuery({
+    queryKey: ['invoices', pagination.current, pagination.pageSize, keyword, status, riskLevel, dateRange],
+    queryFn: () => invoiceService.getInvoices(
+      pagination.current, 
+      pagination.pageSize,
+      keyword,
+      status,
+      riskLevel,
+      dateRange?.[0],
+      dateRange?.[1]
+    ),
   });
+
+  const invoices = invoiceData?.items || [];
+  const totalInvoices = invoiceData?.totalCount || 0;
 
   const columns = [
     {
       title: 'Số hóa đơn',
-      dataIndex: 'invoiceNo',
-      key: 'invoiceNo',
+      dataIndex: 'invoiceNumber',
+      key: 'invoiceNumber',
       render: (text: string, record: any) => (
         <div>
-          <Text strong style={{ color: '#0f172a', cursor: 'pointer', fontSize: 14 }}>{text}</Text>
+          <Text strong style={{ color: '#0f172a', cursor: 'pointer', fontSize: 14 }}>
+            {text || 'N/A'} {record.serialNumber ? `- ${record.serialNumber}` : ''}
+          </Text>
           <br />
           <Text style={{ fontSize: 12, color: '#64748b' }}>
-            {record.type} • {record.method}
+            {record.processingMethod || 'XML'}
           </Text>
         </div>
       ),
     },
     {
       title: 'Người bán',
-      dataIndex: 'seller',
-      key: 'seller',
+      dataIndex: 'sellerName',
+      key: 'sellerName',
       render: (text: string, record: any) => (
         <div>
-          <Text style={{ fontSize: 14, color: '#0f172a', fontWeight: 500 }}>{text}</Text>
+          <Text style={{ fontSize: 14, color: '#0f172a', fontWeight: 500 }}>{text || 'N/A'}</Text>
           <br />
-          <Text style={{ fontSize: 12, color: '#64748b' }}>MST: {record.mst}</Text>
+          <Text style={{ fontSize: 12, color: '#64748b' }}>MST: {record.sellerTaxCode || 'N/A'}</Text>
         </div>
       ),
     },
     {
       title: 'Tổng tiền',
-      dataIndex: 'amount',
-      key: 'amount',
+      dataIndex: 'totalAmount',
+      key: 'totalAmount',
       align: 'right' as const,
-      render: (text: string) => <Text strong>{text}</Text>,
+      width: 150,
+      render: (amount: number) => <Text strong style={{ whiteSpace: 'nowrap' }}>{amount?.toLocaleString('vi-VN')} ₫</Text>,
     },
     {
-      title: 'Ngày lập',
-      dataIndex: 'date',
-      key: 'date',
-      render: (text: string) => <Text type="secondary">{text}</Text>,
+      title: 'Ngày lập & Tải lên',
+      dataIndex: 'invoiceDate',
+      key: 'invoiceDate',
+      render: (dateStr: string, record: any) => (
+        <div>
+          <Text style={{ color: '#0f172a', fontSize: 14 }}>
+            {dateStr ? dayjs(dateStr).format('DD/MM/YYYY') : 'N/A'}
+          </Text>
+          <br />
+          <Text style={{ fontSize: 12, color: '#64748b' }}>
+            Tải lên: {record.createdAt ? dayjs(record.createdAt).format('DD/MM/YYYY HH:mm') : 'N/A'}
+          </Text>
+        </div>
+      ),
     },
     {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => <StatusBadge type="status" value={status} />,
+      width: 140,
+      render: (status: string) => <div style={{ whiteSpace: 'nowrap' }}><StatusBadge type="status" value={status} /></div>,
     },
     {
       title: 'Rủi ro',
-      dataIndex: 'risk',
-      key: 'risk',
+      dataIndex: 'riskLevel',
+      key: 'riskLevel',
+      width: 120,
       render: (risk: string) => <StatusBadge type="risk" value={risk} />,
     },
     {
@@ -102,7 +135,7 @@ const InvoiceList: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <Title level={3} className="text-dash-textMain font-bold tracking-tight m-0">Quản lý hóa đơn</Title>
-          <Text className="text-dash-textMuted text-sm font-medium block mt-1">Tổng cộng {invoiceData?.length || 0} hóa đơn trong hệ thống</Text>
+          <Text className="text-dash-textMuted text-sm font-medium block mt-1">Tổng cộng {totalInvoices} hóa đơn trong hệ thống</Text>
         </div>
         <Space size={12}>
           <Button icon={<DownloadOutlined />} style={{ borderRadius: 10, fontWeight: 600, height: 42, color: '#4880FF', borderColor: '#4880FF' }}>
@@ -119,10 +152,11 @@ const InvoiceList: React.FC = () => {
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0' }}>
           <Row gutter={12} align="middle">
             <Col flex="auto">
-              <Input
+              <Input.Search
                 placeholder="Tìm kiếm theo số hóa đơn, MST, tên người bán..."
-                prefix={<SearchOutlined style={{ color: '#828282' }} />}
-                style={{ borderRadius: 10, padding: '10px 16px', background: '#F5F6FA', border: '1px solid #E2E8F0' }}
+                onSearch={val => { setKeyword(val); setPagination(prev => ({ ...prev, current: 1 })); }}
+                enterButton={<SearchOutlined />}
+                style={{ borderRadius: 10 }}
                 allowClear
               />
             </Col>
@@ -131,7 +165,7 @@ const InvoiceList: React.FC = () => {
                 icon={<FilterOutlined />}
                 onClick={() => setShowFilters(!showFilters)}
                 type={showFilters ? 'primary' : 'default'}
-                style={{ borderRadius: 10, height: 44, background: showFilters ? '#4880FF' : '#fff', color: showFilters ? '#fff' : '#202224', borderColor: showFilters ? '#4880FF' : '#E2E8F0', fontWeight: 600 }}
+                style={{ borderRadius: 10, height: 32, background: showFilters ? '#4880FF' : '#fff', color: showFilters ? '#fff' : '#202224', borderColor: showFilters ? '#4880FF' : '#E2E8F0', fontWeight: 600 }}
               >
                 Bộ lọc nâng cao
               </Button>
@@ -142,6 +176,7 @@ const InvoiceList: React.FC = () => {
             <Row gutter={12} style={{ marginTop: 12 }}>
               <Col xs={24} sm={8}>
                 <Select placeholder="Trạng thái" style={{ width: '100%' }} allowClear
+                  onChange={val => { setStatus(val); setPagination(prev => ({ ...prev, current: 1 })); }}
                   options={[
                     { value: 'Draft', label: 'Nháp' },
                     { value: 'Pending', label: 'Chờ duyệt' },
@@ -152,6 +187,7 @@ const InvoiceList: React.FC = () => {
               </Col>
               <Col xs={24} sm={8}>
                 <Select placeholder="Mức rủi ro" style={{ width: '100%' }} allowClear
+                  onChange={val => { setRiskLevel(val); setPagination(prev => ({ ...prev, current: 1 })); }}
                   options={[
                     { value: 'Green', label: '🟢 An toàn' },
                     { value: 'Yellow', label: '🟡 Lưu ý' },
@@ -161,7 +197,16 @@ const InvoiceList: React.FC = () => {
                 />
               </Col>
               <Col xs={24} sm={8}>
-                <RangePicker style={{ width: '100%' }} placeholder={['Từ ngày', 'Đến ngày']} />
+                <RangePicker style={{ width: '100%' }} placeholder={['Từ ngày', 'Đến ngày']}
+                  onChange={dates => {
+                    if (dates && dates[0] && dates[1]) {
+                      setDateRange([dates[0].toISOString(), dates[1].toISOString()]);
+                    } else {
+                      setDateRange(undefined);
+                    }
+                    setPagination(prev => ({ ...prev, current: 1 }));
+                  }}
+                />
               </Col>
             </Row>
           )}
@@ -169,10 +214,13 @@ const InvoiceList: React.FC = () => {
 
         <Table
           columns={columns}
-          dataSource={invoiceData}
+          dataSource={invoices}
           loading={isLoading}
+          onChange={(newPagination) => setPagination({ current: newPagination.current || 1, pageSize: newPagination.pageSize || 10 })}
           pagination={{
-            pageSize: 10,
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: totalInvoices,
             showSizeChanger: true,
             showTotal: (total) => `Tổng ${total} hóa đơn`,
             style: { padding: '16px 24px', margin: 0, borderTop: '1px solid #E2E8F0' }
