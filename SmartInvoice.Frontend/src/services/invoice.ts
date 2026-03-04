@@ -78,8 +78,15 @@ export const invoiceService = {
     },
 
     // B5: Fetch list of invoices
-    async getInvoices(): Promise<any[]> {
-        const response = await apiClient.get<any[]>('/invoices');
+    async getInvoices(page: number = 1, size: number = 10, keyword?: string, status?: string, riskLevel?: string, fromDate?: string, toDate?: string): Promise<any> {
+        let url = `/invoices?page=${page}&size=${size}`;
+        if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
+        if (status) url += `&status=${status}`;
+        if (riskLevel) url += `&riskLevel=${riskLevel}`;
+        if (fromDate) url += `&fromDate=${fromDate}`;
+        if (toDate) url += `&toDate=${toDate}`;
+        
+        const response = await apiClient.get<any>(url);
         return response.data;
     }
 };

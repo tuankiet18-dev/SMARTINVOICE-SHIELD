@@ -38,6 +38,39 @@ public class InvoiceExtractedData
     [JsonPropertyName("seller_tax_code")]
     public string? SellerTaxCode { get; set; }
 
+    [JsonPropertyName("seller_address")]
+    public string? SellerAddress { get; set; }
+
+    [JsonPropertyName("seller_phone")]
+    public string? SellerPhone { get; set; }
+
+    [JsonPropertyName("seller_email")]
+    public string? SellerEmail { get; set; }
+
+    [JsonPropertyName("seller_bank_account")]
+    public string? SellerBankAccount { get; set; }
+
+    [JsonPropertyName("seller_bank_name")]
+    public string? SellerBankName { get; set; }
+
+    [JsonPropertyName("buyer_name")]
+    public string? BuyerName { get; set; }
+
+    [JsonPropertyName("buyer_tax_code")]
+    public string? BuyerTaxCode { get; set; }
+
+    [JsonPropertyName("buyer_address")]
+    public string? BuyerAddress { get; set; }
+
+    [JsonPropertyName("buyer_phone")]
+    public string? BuyerPhone { get; set; }
+
+    [JsonPropertyName("buyer_email")]
+    public string? BuyerEmail { get; set; }
+
+    [JsonPropertyName("buyer_contact_person")]
+    public string? BuyerContactPerson { get; set; }
+
     [JsonPropertyName("invoice_date")]
     public DateTime? InvoiceDate { get; set; }
 
@@ -59,6 +92,12 @@ public class InvoiceExtractedData
     [JsonPropertyName("total_amount")]
     public decimal TotalAmount { get; set; }
 
+    [JsonPropertyName("total_amount_in_words")]
+    public string? TotalAmountInWords { get; set; }
+
+    [JsonPropertyName("mccqt")]
+    public string? MCCQT { get; set; } // Mã cơ quan thuế
+
     [JsonPropertyName("line_items")]
     public List<InvoiceLineItem>? LineItems { get; set; }
 
@@ -67,6 +106,9 @@ public class InvoiceExtractedData
 
     [JsonPropertyName("delivery_address")]
     public string? DeliveryAddress { get; set; }
+
+    [JsonPropertyName("invoice_currency")]
+    public string? InvoiceCurrency { get; set; }
 
     [JsonPropertyName("exchange_rate")]
     public decimal? ExchangeRate { get; set; }

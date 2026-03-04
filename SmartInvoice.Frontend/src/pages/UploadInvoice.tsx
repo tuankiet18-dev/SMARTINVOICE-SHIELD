@@ -390,6 +390,14 @@ const UploadInvoice: React.FC = () => {
           {/* CỘT PHẢI: FORM DỮ LIỆU BÓC TÁCH */}
           <Col span={12}>
             <Card size="small" title="Thông tin chung" style={{ marginBottom: 16, borderRadius: 8 }}>
+              {selectedInvoice?.result?.errors?.length ? (
+                <Alert message="Lỗi hệ thống / Nghiệp vụ" description={
+                  <ul style={{ paddingLeft: 16, margin: 0 }}>
+                    {selectedInvoice.result.errors.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                } type="error" showIcon style={{ marginBottom: 8 }} />
+              ) : null}
+
               {selectedInvoice?.result?.warnings?.length ? (
                 <Alert message="Cảnh báo rủi ro" description={
                   <ul style={{ paddingLeft: 16, margin: 0 }}>

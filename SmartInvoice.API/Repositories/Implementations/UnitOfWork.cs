@@ -10,6 +10,7 @@ namespace SmartInvoice.API.Repositories.Implementations
         private readonly AppDbContext _context;
 
         public IInvoiceRepository Invoices { get; private set; }
+        public IInvoiceAuditLogRepository InvoiceAuditLogs { get; private set; }
         public IUserRepository Users { get; private set; }
         public ICompanyRepository Companies { get; private set; }
         public ILocalBlacklistRepository LocalBlacklists { get; private set; }
@@ -17,7 +18,6 @@ namespace SmartInvoice.API.Repositories.Implementations
         public IDocumentTypeRepository DocumentTypes { get; private set; }
         public IExportHistoryRepository ExportHistories { get; private set; }
         public IFileStorageRepository FileStorages { get; private set; }
-        public IInvoiceAuditLogRepository InvoiceAuditLogs { get; private set; }
         public IInvoiceLineItemRepository InvoiceLineItems { get; private set; }
         public INotificationRepository Notifications { get; private set; }
         public IRiskCheckResultRepository RiskCheckResults { get; private set; }
@@ -28,6 +28,7 @@ namespace SmartInvoice.API.Repositories.Implementations
         {
             _context = context;
             Invoices = new InvoiceRepository(_context);
+            InvoiceAuditLogs = new InvoiceAuditLogRepository(_context);
             Users = new UserRepository(_context);
             Companies = new CompanyRepository(_context);
             LocalBlacklists = new LocalBlacklistRepository(_context);

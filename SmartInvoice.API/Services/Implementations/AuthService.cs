@@ -8,7 +8,6 @@ using SmartInvoice.API.Repositories.Interfaces;
 using SmartInvoice.API.Services.Interfaces;
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
-using DotNetEnv;
 using Amazon.Runtime;
 using SmartInvoice.API.Enums; // For AmazonServiceException if needed, but specific exceptions are in Model
 
@@ -24,13 +23,14 @@ namespace SmartInvoice.API.Services.Implementations
 
         public AuthService(
             IUnitOfWork unitOfWork,
-            IAmazonCognitoIdentityProvider cognitoClient)
+            IAmazonCognitoIdentityProvider cognitoClient,
+            IConfiguration configuration)
         {
             _unitOfWork = unitOfWork;
             _cognitoClient = cognitoClient;
-            _clientId = Env.GetString("COGNITO_CLIENT_ID");
-            _userPoolId = Env.GetString("COGNITO_USER_POOL_ID");
-            _clientSecret = Env.GetString("COGNITO_CLIENT_SECRET");
+            _clientId = configuration["COGNITO_CLIENT_ID"] ?? "";
+            _userPoolId = configuration["COGNITO_USER_POOL_ID"] ?? "";
+            _clientSecret = configuration["COGNITO_CLIENT_SECRET"] ?? "";
         }
 
         private string CalculateSecretHash(string username)

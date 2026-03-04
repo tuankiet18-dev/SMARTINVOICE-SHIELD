@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using DotNetEnv;
 
 namespace SmartInvoice.API.Data;
 
@@ -8,17 +7,32 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
     public AppDbContext CreateDbContext(string[] args)
     {
-        // Load .env file
-        Env.Load();
+        // Load local .env file for AWS credentials if it exists
+        if (File.Exists(".env"))
+        {
+            foreach (var line in System.IO.File.ReadAllLines(".env"))
+            {
+                var parts = line.Split('=', 2);
+                if (parts.Length == 2)
+                {
+                    Environment.SetEnvironmentVariable(parts[0].Trim(), parts[1].Trim());
+                }
+            }
+        }
+
+        // Setup configuration using AWS Parameter Store
+        IConfiguration config = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddSystemsManager("/SmartInvoice/dev/")
+            .Build();
 
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
 
         // Build Connection String from Env (with fallbacks for safety)
-        var host = Env.GetString("POSTGRES_HOST");
-        var port = Env.GetString("POSTGRES_PORT");
-        var db = Env.GetString("POSTGRES_DB");
-        var user = Env.GetString("POSTGRES_USER");
-        var pass = Env.GetString("POSTGRES_PASSWORD");
+        var host = config["POSTGRES_HOST"];
+        var port = config["POSTGRES_PORT"];
+        var db = config["POSTGRES_DB"];
+        var user = config["POSTGRES_USER"];
+        var pass = config["POSTGRES_PASSWORD"];
 
         var connectionString = $"Host={host};Port={port};Database={db};Username={user};Password={pass}";
 

@@ -6,10 +6,12 @@ import {
     UserOutlined, IdcardOutlined, SafetyCertificateOutlined, CodeSandboxOutlined
 } from '@ant-design/icons';
 import { userService, UserProfileDto, UpdateUserRequest } from '@/services/user';
+import { useAuth } from '@/contexts/AuthContext';
 
 const { Title, Text } = Typography;
 
 const Profile: React.FC = () => {
+    const { user, checkAuth } = useAuth();
     const [profile, setProfile] = useState<UserProfileDto | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -22,7 +24,6 @@ const Profile: React.FC = () => {
         try {
             const data = await userService.getMe();
             setProfile(data);
-            setProfile(data);
 
             // Update local storage in case global avatar needs it
             const localUserStr = localStorage.getItem('user');
@@ -31,7 +32,7 @@ const Profile: React.FC = () => {
                 localUser.fullName = data.fullName;
                 localUser.employeeId = data.employeeId;
                 localStorage.setItem('user', JSON.stringify(localUser));
-                window.dispatchEvent(new Event('storage')); // trigger update across tabs if needed
+                checkAuth(); // Update context state
             }
         } catch (error: any) {
             message.error(error.response?.data?.message || 'Không thể tải thông tin cá nhân');

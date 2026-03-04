@@ -9,9 +9,11 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Linq;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using SmartInvoice.API.DTOs.Invoice;
 using SmartInvoice.API.Entities.JsonModels;
+using SmartInvoice.API.Repositories.Interfaces;
+using SmartInvoice.API.Services.Interfaces;
 using SmartInvoice.API.Repositories.Interfaces;
 using SmartInvoice.API.Services.Interfaces;
 
@@ -23,17 +25,20 @@ namespace SmartInvoice.API.Services.Implementations
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly string _xsdPath;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IConfiguration _configuration;
 
         public InvoiceProcessorService(
             ILogger<InvoiceProcessorService> logger,
             IHttpClientFactory httpClientFactory,
             IHostEnvironment env,
-            IUnitOfWork unitOfWork)
+            IUnitOfWork unitOfWork,
+            IConfiguration configuration)
         {
             _logger = logger;
             _httpClientFactory = httpClientFactory;
             _xsdPath = Path.Combine(env.ContentRootPath, "Resources", "InvoiceSchema.xsd");
             _unitOfWork = unitOfWork;
+            _configuration = configuration;
         }
 
         public ValidationResultDto ValidateStructure(string xmlPath)
@@ -67,15 +72,12 @@ namespace SmartInvoice.API.Services.Implementations
             return result;
         }
 
-        public ValidationResultDto VerifyDigitalSignature(string xmlPath)
+        public ValidationResultDto VerifyDigitalSignature(XmlDocument xmlDoc)
         {
             var result = new ValidationResultDto();
 
             try
             {
-                XmlDocument xmlDoc = new XmlDocument();
-                xmlDoc.PreserveWhitespace = true;
-                xmlDoc.Load(xmlPath);
 
                 bool isCashRegister = false;
                 XmlNode khhDonNode = xmlDoc.SelectSingleNode("//*[local-name()='KHHDon']");
@@ -120,7 +122,7 @@ namespace SmartInvoice.API.Services.Implementations
                                     {
                                         if (invoiceDate < cert.NotBefore || invoiceDate > cert.NotAfter)
                                         {
-                                            result.AddError($"[RỦI RO CHỮ KÝ] Chữ ký số không có hiệu lực tại thời điểm lập hóa đơn ({invoiceDate:dd/MM/yyyy}). Hiệu lực chứng thư: {cert.NotBefore:dd/MM/yyyy} - {cert.NotAfter:dd/MM/yyyy}.");
+                                            result.AddError($"Chữ ký số chưa có hiệu lực hoặc đã hết hạn tại thời điểm lập hóa đơn ({invoiceDate:dd/MM/yyyy}). Thời hạn chứng thư thực tế: {cert.NotBefore:dd/MM/yyyy} đến {cert.NotAfter:dd/MM/yyyy}.");
                                         }
                                     }
 
@@ -132,7 +134,7 @@ namespace SmartInvoice.API.Services.Implementations
                 }
                 else
                 {
-                    result.AddError("Chữ ký số KHÔNG HỢP LỆ. Hóa đơn có thể đã bị sửa đổi.");
+                    result.AddError("Chữ ký số không hợp lệ hoặc dữ liệu hóa đơn đã bị thay đổi sau khi ký.");
                 }
             }
             catch (Exception ex)
@@ -144,7 +146,7 @@ namespace SmartInvoice.API.Services.Implementations
             return result;
         }
 
-        public InvoiceExtractedData ExtractData(string xmlPath)
+        public InvoiceExtractedData ExtractData(XmlDocument xmlDoc)
         {
             var extractedData = new InvoiceExtractedData
             {
@@ -153,19 +155,48 @@ namespace SmartInvoice.API.Services.Implementations
 
             try
             {
-                XmlDocument xmlDoc = new XmlDocument();
-                xmlDoc.Load(xmlPath);
 
                 // Try capturing additional general invoice details
-                extractedData.PaymentTerms = GetNodeValue(xmlDoc, "HTTT");
+                extractedData.PaymentTerms = GetNodeValue(xmlDoc, "HTTToan") ?? GetNodeValue(xmlDoc, "HTTT");
 
                 extractedData.InvoiceTemplateCode = GetNodeValue(xmlDoc, "KHMSHDon");
                 extractedData.InvoiceSymbol = GetNodeValue(xmlDoc, "KHHDon");
                 extractedData.InvoiceNumber = GetNodeValue(xmlDoc, "SHDon");
 
+                extractedData.InvoiceCurrency = GetNodeValue(xmlDoc, "DVTTe");
+                string sExchangeRate = GetNodeValue(xmlDoc, "TGia");
+                if (decimal.TryParse(sExchangeRate, out decimal exchangeRate))
+                {
+                    extractedData.ExchangeRate = exchangeRate;
+                }
+
                 XmlNode nBan = xmlDoc.SelectSingleNode("//*[local-name()='NBan']");
                 extractedData.SellerName = nBan?.SelectSingleNode(".//*[local-name()='Ten']")?.InnerText;
                 extractedData.SellerTaxCode = nBan?.SelectSingleNode(".//*[local-name()='MST']")?.InnerText;
+                extractedData.SellerAddress = nBan?.SelectSingleNode(".//*[local-name()='DChi']")?.InnerText;
+                extractedData.SellerPhone = nBan?.SelectSingleNode(".//*[local-name()='SDThoai']")?.InnerText;
+                extractedData.SellerEmail = nBan?.SelectSingleNode(".//*[local-name()='DCTDTu']")?.InnerText;
+                extractedData.SellerBankAccount = nBan?.SelectSingleNode(".//*[local-name()='STKhoan']")?.InnerText;
+                extractedData.SellerBankName = nBan?.SelectSingleNode(".//*[local-name()='TNHang']")?.InnerText;
+
+                XmlNode nMua = xmlDoc.SelectSingleNode("//*[local-name()='NMua']");
+                extractedData.BuyerName = nMua?.SelectSingleNode(".//*[local-name()='Ten']")?.InnerText;
+                extractedData.BuyerTaxCode = nMua?.SelectSingleNode(".//*[local-name()='MST']")?.InnerText;
+                extractedData.BuyerAddress = nMua?.SelectSingleNode(".//*[local-name()='DChi']")?.InnerText;
+                extractedData.BuyerPhone = nMua?.SelectSingleNode(".//*[local-name()='SDThoai']")?.InnerText;
+                extractedData.BuyerEmail = nMua?.SelectSingleNode(".//*[local-name()='DCTDTu']")?.InnerText;
+                extractedData.BuyerContactPerson = nMua?.SelectSingleNode(".//*[local-name()='HVTNMHang']")?.InnerText;
+
+                // Fallback: Nếu không có thẻ Ten (Tên đơn vị/Người mua), lấy HVTNMHang (Họ tên người mua hàng) làm BuyerName
+                if (string.IsNullOrWhiteSpace(extractedData.BuyerName) && !string.IsNullOrWhiteSpace(extractedData.BuyerContactPerson))
+                {
+                    extractedData.BuyerName = extractedData.BuyerContactPerson;
+                }
+
+                extractedData.TotalAmountInWords = GetNodeValue(xmlDoc, "TgTTTBChu");
+
+                // Mã cơ quan thuế cấp
+                extractedData.MCCQT = GetNodeValue(xmlDoc, "MCCQT");
 
                 string nLapStr = GetNodeValue(xmlDoc, "NLap");
                 if (DateTime.TryParse(nLapStr, out DateTime dtLap))
@@ -236,15 +267,12 @@ namespace SmartInvoice.API.Services.Implementations
             return extractedData;
         }
 
-        public async Task<ValidationResultDto> ValidateBusinessLogicAsync(string xmlPath)
+        public async Task<ValidationResultDto> ValidateBusinessLogicAsync(XmlDocument xmlDoc)
         {
             var result = new ValidationResultDto();
 
             try
             {
-                XmlDocument xmlDoc = new XmlDocument();
-                xmlDoc.PreserveWhitespace = true;
-                xmlDoc.Load(xmlPath);
 
                 string GetVal(string tag) => GetNodeValue(xmlDoc, tag);
 
@@ -267,7 +295,7 @@ namespace SmartInvoice.API.Services.Implementations
                 isDataValid &= CheckMandatory(pBan, "Phiên bản (PBan)", result);
                 if (!string.IsNullOrEmpty(pBan) && pBan != "2.0.1" && pBan != "2.0.0" && pBan != "2.1.0")
                 {
-                    result.AddError($"[LỖI CẤU TRÚC] Phiên bản XML '{pBan}' không được hỗ trợ. Bắt buộc phải là '2.0.1' (hoặc '2.0.0').");
+                    result.AddError($"Phiên bản XML của hóa đơn ({pBan}) chưa được hỗ trợ. Hệ thống hiện chỉ nhận định dạng 2.0.0, 2.0.1 hoặc 2.1.0.");
                     isDataValid = false;
                 }
 
@@ -275,7 +303,7 @@ namespace SmartInvoice.API.Services.Implementations
                 isDataValid &= CheckMandatory(khmshDon, "Ký hiệu mẫu số (KHMSHDon)", result);
                 if (!string.IsNullOrEmpty(khmshDon) && (khmshDon.Length != 1 || !"123456".Contains(khmshDon)))
                 {
-                    result.AddError($"[LỖI CẤU TRÚC] Ký hiệu mẫu số '{khmshDon}' sai định dạng. Bắt buộc phải có chiều dài chính xác là 1 ký tự và phải thuộc tập hợp [1, 2, 3, 4, 5, 6].");
+                    result.AddError($"Ký hiệu mẫu số '{khmshDon}' chưa chính xác (cần 1 ký tự từ 1 đến 6).");
                     isDataValid = false;
                 }
 
@@ -582,7 +610,11 @@ namespace SmartInvoice.API.Services.Implementations
 
             try
             {
-                string url = $"https://api.vietqr.io/v2/business/{taxCode}";
+                var vietQrBaseUrl = Environment.GetEnvironmentVariable("VIETQR_API_URL")
+                                    ?? _configuration["ExternalApis:VietQR"]
+                                    ?? "https://api.vietqr.io/v2/business";
+
+                string url = $"{vietQrBaseUrl.TrimEnd('/')}/{taxCode}";
                 var client = _httpClientFactory.CreateClient();
                 HttpResponseMessage response = await client.GetAsync(url);
                 if (response.IsSuccessStatusCode)
@@ -619,15 +651,15 @@ namespace SmartInvoice.API.Services.Implementations
             }
         }
 
-        private string GetSignerSubjectInternal(XmlDocument xmlDoc)
+        private string? GetSignerSubjectInternal(XmlDocument xmlDoc)
         {
             try
             {
-                XmlNodeList nodeList = xmlDoc.GetElementsByTagName("Signature");
-                if (nodeList.Count > 0)
+                XmlNodeList? nodeList = xmlDoc.GetElementsByTagName("Signature");
+                if (nodeList != null && nodeList.Count > 0)
                 {
                     SignedXml signedXml = new SignedXml(xmlDoc);
-                    signedXml.LoadXml((XmlElement)nodeList[0]);
+                    signedXml.LoadXml((XmlElement)nodeList[0]!);
 
                     if (signedXml.KeyInfo != null)
                     {
@@ -637,8 +669,8 @@ namespace SmartInvoice.API.Services.Implementations
                             {
                                 if (x509Data.Certificates.Count > 0)
                                 {
-                                    X509Certificate2 cert = (X509Certificate2)x509Data.Certificates[0];
-                                    return cert.Subject;
+                                    X509Certificate2? cert = (X509Certificate2?)x509Data.Certificates[0];
+                                    return cert?.Subject;
                                 }
                             }
                         }

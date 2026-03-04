@@ -8,6 +8,14 @@ namespace SmartInvoice.API.Entities;
 [Table("Invoices")]
 public class Invoice
 {
+    public Invoice()
+    {
+        ValidationLayers = new List<ValidationLayer>();
+        RiskCheckResults = new List<RiskCheckResult>();
+        AuditLogs = new List<InvoiceAuditLog>();
+        InvoiceLineItems = new List<InvoiceLineItem>();
+    }
+
     [Key]
     public Guid InvoiceId { get; set; }
 
@@ -160,8 +168,8 @@ public class Invoice
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     // --- Navigation Properties ---
-    public virtual ICollection<ValidationLayer> ValidationLayers { get; set; } = new List<ValidationLayer>();
-    public virtual ICollection<RiskCheckResult> RiskCheckResults { get; set; } = new List<RiskCheckResult>();
-    public virtual ICollection<InvoiceAuditLog> AuditLogs { get; set; } = new List<InvoiceAuditLog>();
-    public virtual ICollection<InvoiceLineItem> InvoiceLineItems { get; set; } = new List<InvoiceLineItem>();
+    public virtual ICollection<ValidationLayer> ValidationLayers { get; set; }
+    public virtual ICollection<RiskCheckResult> RiskCheckResults { get; set; }
+    public virtual ICollection<InvoiceAuditLog> AuditLogs { get; set; }
+    public virtual ICollection<InvoiceLineItem> InvoiceLineItems { get; set; }
 }

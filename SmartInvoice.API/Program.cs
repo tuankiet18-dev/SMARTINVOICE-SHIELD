@@ -11,29 +11,46 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using DotNetEnv;
 using Microsoft.Extensions.DependencyInjection;
 using SmartInvoice.API.Services;
 using Microsoft.AspNetCore.Authentication;
 using SmartInvoice.API.Security;
-// Load .env file
-// Load .env file (if exists, mainly for local dev without Docker)
-if (File.Exists(".env"))
-{
-    Env.Load();
-}
+using System.Reflection;
+using SmartInvoice.API.Constants;
+// DotNetEnv logic removed since we now use parameter store
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Load local .env file for AWS credentials if it exists
+if (File.Exists(".env"))
+{
+    foreach (var line in File.ReadAllLines(".env"))
+    {
+        var parts = line.Split('=', 2);
+        if (parts.Length == 2)
+        {
+            Environment.SetEnvironmentVariable(parts[0].Trim(), parts[1].Trim());
+        }
+    }
+}
+
+// Load AWS Systems Manager Parameter Store
+builder.Configuration.AddSystemsManager("/SmartInvoice/dev/");
 
 // 1. Kết nối PostgreSQL
 var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
 if (string.IsNullOrEmpty(connectionString))
 {
-    connectionString = $"Host={Env.GetString("POSTGRES_HOST")};Port={Env.GetString("POSTGRES_PORT")};Database={Env.GetString("POSTGRES_DB")};Username={Env.GetString("POSTGRES_USER")};Password={Env.GetString("POSTGRES_PASSWORD")}";
+    connectionString = $"Host={builder.Configuration["POSTGRES_HOST"]};Port={builder.Configuration["POSTGRES_PORT"]};Database={builder.Configuration["POSTGRES_DB"]};Username={builder.Configuration["POSTGRES_USER"]};Password={builder.Configuration["POSTGRES_PASSWORD"]}";
 }
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+var dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(connectionString);
+dataSourceBuilder.EnableDynamicJson();
+var dataSource = dataSourceBuilder.Build();
+builder.Services.AddSingleton(dataSource);
+
+builder.Services.AddDbContext<AppDbContext>((sp, options) =>
+    options.UseNpgsql(sp.GetRequiredService<Npgsql.NpgsqlDataSource>()));
 
 // 2. Kết nối AWS S3 
 // (Nó sẽ tự tìm AWS Credentials trong máy bạn ở ~/.aws/credentials hoặc biến môi trường)
@@ -63,7 +80,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
 // Register Internal OCR Client
-var ocrApiEndpoint = Env.GetString("OCR_API_ENDPOINT") ?? builder.Configuration["OcrApiEndpoint"] ?? "http://localhost:8000";
+var ocrApiEndpoint = builder.Configuration["OCR_API_ENDPOINT"] ?? "http://localhost:8000";
 builder.Services.AddHttpClient<IOcrClientService, OcrClientService>(client =>
 {
     client.BaseAddress = new Uri(ocrApiEndpoint);
@@ -79,8 +96,8 @@ builder.Services.AddAWSService<IAmazonCognitoIdentityProvider>();
 
 
 // 7. Config Authentication (Cognito)
-var region = Env.GetString("AWS_REGION");
-var userPoolId = Env.GetString("COGNITO_USER_POOL_ID");
+var region = builder.Configuration["AWS_REGION"];
+var userPoolId = builder.Configuration["COGNITO_USER_POOL_ID"];
 var authority = $"https://cognito-idp.{region}.amazonaws.com/{userPoolId}";
 
 builder.Services.AddAuthentication(options =>
@@ -101,6 +118,24 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// 8. Config Authorization Policies based on Permissions
+// We iterate over the constants in the Permissions class and dynamically create a requirement
+builder.Services.AddAuthorization(options =>
+{
+    var permissionFields = typeof(Permissions)
+        .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+        .Where(fi => fi.IsLiteral && !fi.IsInitOnly && fi.FieldType == typeof(string));
+
+    foreach (var field in permissionFields)
+    {
+        var permissionValue = field.GetRawConstantValue()?.ToString();
+        if (!string.IsNullOrEmpty(permissionValue))
+        {
+            options.AddPolicy(permissionValue, policy => policy.RequireClaim("Permission", permissionValue));
+        }
+    }
+});
+
 
 
 // 6. Config CORS
@@ -116,7 +151,12 @@ builder.Services.AddCors(options =>
         });
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Dòng này giúp bỏ qua lỗi vòng lặp (Cycle) khi 2 bảng trỏ qua lại
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    });
 // Swagger để test API
 builder.Services.AddSwaggerGen(c =>
 {
@@ -149,6 +189,33 @@ using (var scope = app.Services.CreateScope())
         var context = services.GetRequiredService<AppDbContext>();
         await context.Database.MigrateAsync();
         Console.WriteLine("Database migration applied successfully.");
+
+        // Seed basic document types if missing
+        if (!context.Set<DocumentType>().Any())
+        {
+            context.Set<DocumentType>().AddRange(
+                new DocumentType
+                {
+                    TypeCode = "GTGT",
+                    TypeName = "Hóa đơn giá trị gia tăng",
+                    IsActive = true,
+                    DisplayOrder = 1,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new DocumentType
+                {
+                    TypeCode = "SALE",
+                    TypeName = "Hóa đơn bán hàng",
+                    IsActive = true,
+                    DisplayOrder = 2,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                }
+            );
+            await context.SaveChangesAsync();
+            Console.WriteLine("Seeded initial DocumentTypes.");
+        }
     }
     catch (Exception ex)
     {

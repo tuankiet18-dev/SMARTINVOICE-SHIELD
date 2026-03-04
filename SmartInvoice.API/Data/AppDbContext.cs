@@ -163,5 +163,8 @@ public class AppDbContext : DbContext
                     c => System.Text.Json.JsonSerializer.Deserialize<List<string>>(System.Text.Json.JsonSerializer.Serialize(c, (System.Text.Json.JsonSerializerOptions?)null), (System.Text.Json.JsonSerializerOptions?)null) ?? new List<string>()
                 )
             );
+
+        // Npgsql native JSON serialization handles mapping POCOs to jsonb 
+        // as long as NpgsqlDataSourceBuilder.EnableDynamicJson() is called.
     }
 }

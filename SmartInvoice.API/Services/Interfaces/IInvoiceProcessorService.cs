@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using SmartInvoice.API.DTOs.Invoice;
 using SmartInvoice.API.Entities.JsonModels;
+using System.Xml;
 
 namespace SmartInvoice.API.Services.Interfaces
 {
@@ -14,16 +15,16 @@ namespace SmartInvoice.API.Services.Interfaces
         /// <summary>
         /// 2. Kiểm tra chữ ký số trên hóa đơn
         /// </summary>
-        ValidationResultDto VerifyDigitalSignature(string xmlPath);
+        ValidationResultDto VerifyDigitalSignature(XmlDocument xmlDoc);
 
         /// <summary>
         /// 3. Bóc tách dữ liệu từ file XML
         /// </summary>
-        InvoiceExtractedData ExtractData(string xmlPath);
+        InvoiceExtractedData ExtractData(XmlDocument xmlDoc);
 
         /// <summary>
         /// 4. Rà soát rủi ro logic, gọi API VietQR, kiểm tra tính toán
         /// </summary>
-        Task<ValidationResultDto> ValidateBusinessLogicAsync(string xmlPath);
+        Task<ValidationResultDto> ValidateBusinessLogicAsync(XmlDocument xmlDoc);
     }
 }
