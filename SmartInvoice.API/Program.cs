@@ -11,27 +11,37 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using DotNetEnv;
 using Microsoft.Extensions.DependencyInjection;
 using SmartInvoice.API.Services;
 using Microsoft.AspNetCore.Authentication;
 using SmartInvoice.API.Security;
 using System.Reflection;
 using SmartInvoice.API.Constants;
-// Load .env file
-// Load .env file (if exists, mainly for local dev without Docker)
-if (File.Exists(".env"))
-{
-    Env.Load();
-}
+// DotNetEnv logic removed since we now use parameter store
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Load local .env file for AWS credentials if it exists
+if (File.Exists(".env"))
+{
+    foreach (var line in File.ReadAllLines(".env"))
+    {
+        var parts = line.Split('=', 2);
+        if (parts.Length == 2)
+        {
+            Environment.SetEnvironmentVariable(parts[0].Trim(), parts[1].Trim());
+        }
+    }
+}
+
+// Load AWS Systems Manager Parameter Store
+builder.Configuration.AddSystemsManager("/SmartInvoice/dev/");
 
 // 1. Kết nối PostgreSQL
 var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
 if (string.IsNullOrEmpty(connectionString))
 {
-    connectionString = $"Host={Env.GetString("POSTGRES_HOST")};Port={Env.GetString("POSTGRES_PORT")};Database={Env.GetString("POSTGRES_DB")};Username={Env.GetString("POSTGRES_USER")};Password={Env.GetString("POSTGRES_PASSWORD")}";
+    connectionString = $"Host={builder.Configuration["POSTGRES_HOST"]};Port={builder.Configuration["POSTGRES_PORT"]};Database={builder.Configuration["POSTGRES_DB"]};Username={builder.Configuration["POSTGRES_USER"]};Password={builder.Configuration["POSTGRES_PASSWORD"]}";
 }
 
 var dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(connectionString);
@@ -70,7 +80,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
 // Register Internal OCR Client
-var ocrApiEndpoint = Env.GetString("OCR_API_ENDPOINT") ?? builder.Configuration["OcrApiEndpoint"] ?? "http://localhost:8000";
+var ocrApiEndpoint = builder.Configuration["OCR_API_ENDPOINT"] ?? "http://localhost:8000";
 builder.Services.AddHttpClient<IOcrClientService, OcrClientService>(client =>
 {
     client.BaseAddress = new Uri(ocrApiEndpoint);
@@ -86,8 +96,8 @@ builder.Services.AddAWSService<IAmazonCognitoIdentityProvider>();
 
 
 // 7. Config Authentication (Cognito)
-var region = Env.GetString("AWS_REGION");
-var userPoolId = Env.GetString("COGNITO_USER_POOL_ID");
+var region = builder.Configuration["AWS_REGION"];
+var userPoolId = builder.Configuration["COGNITO_USER_POOL_ID"];
 var authority = $"https://cognito-idp.{region}.amazonaws.com/{userPoolId}";
 
 builder.Services.AddAuthentication(options =>

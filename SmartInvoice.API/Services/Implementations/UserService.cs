@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
-using DotNetEnv;
 using SmartInvoice.API.DTOs.User;
 using SmartInvoice.API.Entities;
 using SmartInvoice.API.Repositories.Interfaces;
@@ -17,11 +16,11 @@ namespace SmartInvoice.API.Services.Implementations
         private readonly IAmazonCognitoIdentityProvider _cognitoClient;
         private readonly string _userPoolId;
 
-        public UserService(IUnitOfWork unitOfWork, IAmazonCognitoIdentityProvider cognitoClient)
+        public UserService(IUnitOfWork unitOfWork, IAmazonCognitoIdentityProvider cognitoClient, Microsoft.Extensions.Configuration.IConfiguration configuration)
         {
             _unitOfWork = unitOfWork;
             _cognitoClient = cognitoClient;
-            _userPoolId = Env.GetString("COGNITO_USER_POOL_ID");
+            _userPoolId = configuration["COGNITO_USER_POOL_ID"] ?? "";
         }
 
         public async Task<User?> GetUserByIdAsync(Guid id)
