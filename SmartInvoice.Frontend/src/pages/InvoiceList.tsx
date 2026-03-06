@@ -1,26 +1,23 @@
 import React, { useState } from 'react';
 import dayjs from 'dayjs';
 import {
-  Card, Table, Tag, Input, Select, DatePicker, Button, Space, Typography, Row, Col, Dropdown, Badge,
+  Card, Table, Tag, Input, Select, DatePicker, Button, Space, Typography, Row, Col, Dropdown, Badge, Modal, message,
 } from 'antd';
 import {
   SearchOutlined, FilterOutlined, DownloadOutlined, PlusOutlined,
-  EyeOutlined, EditOutlined, MoreOutlined,
+  EyeOutlined, MoreOutlined, SendOutlined, DeleteOutlined, ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoiceService } from '../services/invoice';
 import StatusBadge from '../components/ui/StatusBadge';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
-const riskColors: Record<string, string> = {
-  Green: '#2d9a5c', Yellow: '#e6a817', Orange: '#e17055', Red: '#d63031',
-};
-
 const InvoiceList: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [showFilters, setShowFilters] = useState(false);
 
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
@@ -29,10 +26,10 @@ const InvoiceList: React.FC = () => {
   const [riskLevel, setRiskLevel] = useState<string>();
   const [dateRange, setDateRange] = useState<[string, string]>();
 
-  const { data: invoiceData, isLoading, isError } = useQuery({
+  const { data: invoiceData, isLoading } = useQuery({
     queryKey: ['invoices', pagination.current, pagination.pageSize, keyword, status, riskLevel, dateRange],
     queryFn: () => invoiceService.getInvoices(
-      pagination.current, 
+      pagination.current,
       pagination.pageSize,
       keyword,
       status,
@@ -41,6 +38,61 @@ const InvoiceList: React.FC = () => {
       dateRange?.[1]
     ),
   });
+
+  const submitMutation = useMutation({
+    mutationFn: (id: string) => invoiceService.submitInvoice(id),
+    onSuccess: () => {
+      message.success('Đã gửi hóa đơn chờ duyệt thành công!');
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    },
+    onError: (err: any) => {
+      message.error(`Lỗi gửi duyệt: ${err?.response?.data?.message || err.message}`);
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => invoiceService.deleteInvoice(id),
+    onSuccess: () => {
+      message.success('Đã xóa hóa đơn thành công!');
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    },
+    onError: (err: any) => {
+      message.error(`Lỗi xóa: ${err?.response?.data?.message || err.message}`);
+    }
+  });
+
+  const handleSubmit = (record: any) => {
+    Modal.confirm({
+      title: 'Gửi hóa đơn chờ duyệt?',
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <div>
+          <p>Bạn sắp gửi hóa đơn <strong>{record.invoiceNumber}</strong> cho Admin duyệt.</p>
+          <p style={{ color: '#888' }}>Sau khi gửi, trạng thái sẽ chuyển từ <Tag color="default">Draft</Tag> sang <Tag color="processing">Pending</Tag></p>
+        </div>
+      ),
+      okText: 'Gửi duyệt',
+      cancelText: 'Hủy',
+      onOk: () => submitMutation.mutateAsync(record.invoiceId),
+    });
+  };
+
+  const handleDelete = (record: any) => {
+    Modal.confirm({
+      title: 'Xóa hóa đơn?',
+      icon: <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />,
+      content: (
+        <div>
+          <p>Bạn có chắc muốn xóa hóa đơn <strong>{record.invoiceNumber}</strong>?</p>
+          <p style={{ color: '#ff4d4f' }}>Hành động này không thể hoàn tác.</p>
+        </div>
+      ),
+      okText: 'Xóa',
+      okType: 'danger',
+      cancelText: 'Hủy',
+      onOk: () => deleteMutation.mutateAsync(record.invoiceId),
+    });
+  };
 
   const invoices = invoiceData?.items || [];
   const totalInvoices = invoiceData?.totalCount || 0;
@@ -103,7 +155,7 @@ const InvoiceList: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 140,
-      render: (status: string) => <div style={{ whiteSpace: 'nowrap' }}><StatusBadge type="status" value={status} /></div>,
+      render: (st: string) => <div style={{ whiteSpace: 'nowrap' }}><StatusBadge type="status" value={st} /></div>,
     },
     {
       title: 'Rủi ro',
@@ -116,17 +168,36 @@ const InvoiceList: React.FC = () => {
       title: '',
       key: 'actions',
       width: 48,
-      render: () => (
-        <Dropdown menu={{
-          items: [
-            { key: 'view', icon: <EyeOutlined />, label: 'Xem chi tiết' },
-            { key: 'edit', icon: <EditOutlined />, label: 'Chỉnh sửa' },
+      render: (_: any, record: any) => {
+        const isDraft = record.status === 'Draft';
+        const menuItems: any[] = [
+          { key: 'view', icon: <EyeOutlined />, label: 'Xem chi tiết' },
+        ];
+
+        if (isDraft) {
+          menuItems.push(
+            { key: 'submit', icon: <SendOutlined />, label: 'Gửi duyệt' },
+            { type: 'divider' },
+            { key: 'delete', icon: <DeleteOutlined />, label: 'Xóa hóa đơn', danger: true },
+          );
+        } else {
+          menuItems.push(
             { key: 'download', icon: <DownloadOutlined />, label: 'Tải xuống' },
-          ],
-        }} trigger={['click']}>
-          <Button type="text" icon={<MoreOutlined />} size="small" />
-        </Dropdown>
-      ),
+          );
+        }
+
+        return (
+          <Dropdown menu={{
+            items: menuItems,
+            onClick: ({ key }) => {
+              if (key === 'submit') handleSubmit(record);
+              if (key === 'delete') handleDelete(record);
+            }
+          }} trigger={['click']}>
+            <Button type="text" icon={<MoreOutlined />} size="small" />
+          </Dropdown>
+        );
+      },
     },
   ];
 
@@ -141,7 +212,7 @@ const InvoiceList: React.FC = () => {
           <Button icon={<DownloadOutlined />} style={{ borderRadius: 10, fontWeight: 600, height: 42, color: '#4880FF', borderColor: '#4880FF' }}>
             Xuất Excel
           </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/upload')} style={{ borderRadius: 10, fontWeight: 600, height: 42, background: '#4880FF', border: 'none' }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/app/upload')} style={{ borderRadius: 10, fontWeight: 600, height: 42, background: '#4880FF', border: 'none' }}>
             Tải lên hóa đơn
           </Button>
         </Space>
@@ -216,6 +287,7 @@ const InvoiceList: React.FC = () => {
           columns={columns}
           dataSource={invoices}
           loading={isLoading}
+          rowKey="invoiceId"
           onChange={(newPagination) => setPagination({ current: newPagination.current || 1, pageSize: newPagination.pageSize || 10 })}
           pagination={{
             current: pagination.current,

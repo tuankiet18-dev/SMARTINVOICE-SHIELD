@@ -18,5 +18,8 @@ namespace SmartInvoice.API.Services.Interfaces
                 Task<PagedResult<InvoiceDto>> GetInvoicesAsync(DTOs.Invoice.GetInvoicesQueryDto query, Guid companyId, Guid userId, string userRole);
                 Task<IEnumerable<InvoiceAuditLogDto>> GetAuditLogsAsync(Guid invoiceId);
                 Task<ValidationResultDto> ProcessInvoiceXmlAsync(string s3Key, string userId, string companyId);
+                Task SubmitInvoiceAsync(Guid id, Guid userId);
+                Task ApproveInvoiceAsync(Guid id, Guid userId);
+                Task RejectInvoiceAsync(Guid id, Guid userId, string reason);
         }
 }

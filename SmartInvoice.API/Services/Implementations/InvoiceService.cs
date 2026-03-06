@@ -88,6 +88,93 @@ namespace SmartInvoice.API.Services.Implementations
             return true;
         }
 
+        public async Task SubmitInvoiceAsync(Guid id, Guid userId)
+        {
+            var invoice = await _unitOfWork.Invoices.GetByIdAsync(id);
+            if (invoice == null) throw new KeyNotFoundException($"Không tìm thấy hóa đơn ID: {id}");
+
+            if (invoice.Status != "Draft")
+            {
+                throw new InvalidOperationException("Chỉ có thể submit hóa đơn đang ở trạng thái Draft.");
+            }
+
+            invoice.Status = "Pending";
+            invoice.UpdatedAt = DateTime.UtcNow;
+
+            var auditLog = new InvoiceAuditLog
+            {
+                AuditId = Guid.NewGuid(),
+                InvoiceId = id,
+                UserId = userId,
+                Action = "SUBMIT",
+                Comment = "Gửi hóa đơn phê duyệt"
+            };
+
+            await _unitOfWork.InvoiceAuditLogs.AddAsync(auditLog);
+            _unitOfWork.Invoices.Update(invoice);
+            await _unitOfWork.CompleteAsync();
+        }
+
+        public async Task ApproveInvoiceAsync(Guid id, Guid userId)
+        {
+            var invoice = await _unitOfWork.Invoices.GetByIdAsync(id);
+            if (invoice == null) throw new KeyNotFoundException($"Không tìm thấy hóa đơn ID: {id}");
+
+            if (invoice.Status != "Pending")
+            {
+                throw new InvalidOperationException("Chỉ có thể duyệt hóa đơn đang chờ xử lý (Pending).");
+            }
+
+            invoice.Status = "Approved";
+            invoice.UpdatedAt = DateTime.UtcNow;
+
+            var auditLog = new InvoiceAuditLog
+            {
+                AuditId = Guid.NewGuid(),
+                InvoiceId = id,
+                UserId = userId,
+                Action = "APPROVE",
+                Comment = "Đã phê duyệt hóa đơn"
+            };
+
+            await _unitOfWork.InvoiceAuditLogs.AddAsync(auditLog);
+            _unitOfWork.Invoices.Update(invoice);
+            await _unitOfWork.CompleteAsync();
+        }
+
+        public async Task RejectInvoiceAsync(Guid id, Guid userId, string reason)
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new ArgumentException("Lý do từ chối không được để trống.");
+            }
+
+            var invoice = await _unitOfWork.Invoices.GetByIdAsync(id);
+            if (invoice == null) throw new KeyNotFoundException($"Không tìm thấy hóa đơn ID: {id}");
+
+            if (invoice.Status != "Pending")
+            {
+                throw new InvalidOperationException("Chỉ có thể từ chối hóa đơn đang chờ xử lý (Pending).");
+            }
+
+            invoice.Status = "Rejected";
+            invoice.UpdatedAt = DateTime.UtcNow;
+
+            var auditLog = new InvoiceAuditLog
+            {
+                AuditId = Guid.NewGuid(),
+                InvoiceId = id,
+                UserId = userId,
+                Action = "REJECT",
+                Reason = reason,
+                Comment = $"Từ chối hóa đơn: {reason}"
+            };
+
+            await _unitOfWork.InvoiceAuditLogs.AddAsync(auditLog);
+            _unitOfWork.Invoices.Update(invoice);
+            await _unitOfWork.CompleteAsync();
+        }
+
         public async Task<PagedResult<InvoiceDto>> GetInvoicesAsync(DTOs.Invoice.GetInvoicesQueryDto query, Guid companyId, Guid userId, string userRole)
         {
             var result = await _unitOfWork.Invoices.GetPagedInvoicesAsync(query, companyId, userId, userRole);
@@ -152,6 +239,8 @@ namespace SmartInvoice.API.Services.Implementations
             }
 
             string? tempFilePath = null;
+            var UserId = Guid.Parse(userId);
+            var CompanyId = Guid.Parse(companyId);
             try
             {
                 // 1. Tải file từ S3 về máy chủ tạm
@@ -168,7 +257,7 @@ namespace SmartInvoice.API.Services.Implementations
                 var sigResult = _invoiceProcessor.VerifyDigitalSignature(xmlDoc);
 
                 // 4. Validate Logic & Business (VietQR...)
-                var logicResult = await _invoiceProcessor.ValidateBusinessLogicAsync(xmlDoc);
+                var logicResult = await _invoiceProcessor.ValidateBusinessLogicAsync(xmlDoc, CompanyId);
 
                 // 5. Gộp tất cả các lỗi và cảnh báo lại thành một kết quả duy nhất
                 var finalResult = new ValidationResultDto
@@ -189,9 +278,17 @@ namespace SmartInvoice.API.Services.Implementations
                 // Trích xuất dữ liệu
                 finalResult.ExtractedData = _invoiceProcessor.ExtractData(xmlDoc);
 
+                // --- KIỂM TRA LỖI NGHIÊM TRỌNG: Không lưu DB nếu là trùng lặp hoặc lỗi quyền sở hữu ---
+                var hasFatalError = finalResult.Errors.Any(e =>
+                    e.Contains("[RỦI RO TRÙNG LẶP]") ||
+                    e.Contains("[LỖI QUYỀN SỞ HỮU]"));
+
+                if (hasFatalError)
+                {
+                    return finalResult; // Trả kết quả ngay, KHÔNG lưu vào Database
+                }
+
                 // --- LƯU VÀO DATABASE ---
-                var UserId = Guid.Parse(userId);
-                var CompanyId = Guid.Parse(companyId);
 
                 var docTypes = await _unitOfWork.DocumentTypes.GetAllAsync();
 
@@ -285,8 +382,12 @@ namespace SmartInvoice.API.Services.Implementations
                     ExtractedData = finalResult.ExtractedData,
 
                     Status = isInvoiceValid ? "Draft" : "Rejected",
-                    RiskLevel = isInvoiceValid ? "Green" : "Red",
-                    Notes = isInvoiceValid ? null : "Hóa đơn có lỗi, cần kiểm tra lại",
+                    RiskLevel = !isInvoiceValid ? "Red"
+                                : (finalResult.Warnings != null && finalResult.Warnings.Count > 0) ? "Yellow"
+                                : "Green",
+                    Notes = !isInvoiceValid ? "Hóa đơn có lỗi, cần kiểm tra lại"
+                            : (finalResult.Warnings != null && finalResult.Warnings.Count > 0) ? "Hóa đơn có cảnh báo, cần Admin duyệt kỹ"
+                            : null,
 
                     UploadedBy = UserId,
                     CreatedAt = DateTime.UtcNow

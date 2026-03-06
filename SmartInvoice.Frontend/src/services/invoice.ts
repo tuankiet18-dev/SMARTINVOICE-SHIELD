@@ -88,5 +88,25 @@ export const invoiceService = {
         
         const response = await apiClient.get<any>(url);
         return response.data;
+    },
+
+    // B6: Submit invoice for approval
+    async submitInvoice(id: string): Promise<void> {
+        await apiClient.post(`/invoices/${id}/submit`);
+    },
+
+    // B7: Approve invoice
+    async approveInvoice(id: string): Promise<void> {
+        await apiClient.post(`/invoices/${id}/approve`);
+    },
+
+    // B8: Reject invoice
+    async rejectInvoice(id: string, reason: string): Promise<void> {
+        await apiClient.post(`/invoices/${id}/reject`, { reason });
+    },
+
+    // B9: Delete invoice
+    async deleteInvoice(id: string): Promise<void> {
+        await apiClient.delete(`/invoices/${id}`);
     }
 };

@@ -16,6 +16,7 @@ export interface LoginResponse {
         fullName: string;
         role: string;
         companyId: string;
+        companyName?: string;
     };
     challengeName?: string;
     session?: string;
@@ -32,13 +33,11 @@ export interface RegisterCompanyRequest {
     companyName: string;
     taxCode: string;
     address: string;
-    companyEmail?: string;
-    phoneNumber?: string;
-    businessType?: string;
-    legalRepresentative?: string;
+    businessType: string;
     // Admin Info
     adminFullName: string;
     adminEmail: string;
+    adminPhone: string;
     password: string;
 }
 

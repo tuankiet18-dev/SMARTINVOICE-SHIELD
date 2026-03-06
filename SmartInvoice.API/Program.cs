@@ -76,6 +76,9 @@ builder.Services.AddScoped<ISystemConfigurationService, SystemConfigurationServi
 
 // Add HttpClient for Services to use (like VietQR API calls)
 builder.Services.AddHttpClient();
+
+// Add Memory Cache
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 

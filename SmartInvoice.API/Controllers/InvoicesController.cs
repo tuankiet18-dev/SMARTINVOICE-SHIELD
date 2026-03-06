@@ -16,7 +16,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 using SmartInvoice.API.Enums;
-using SmartInvoice.API.DTOs.Invoice;
 
 namespace SmartInvoice.API.Controller
 {
@@ -279,21 +278,54 @@ namespace SmartInvoice.API.Controller
         }
 
         [HttpPost("{id}/submit")]
-        public IActionResult SubmitInvoice(Guid id)
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
+        public async Task<IActionResult> SubmitInvoice(Guid id)
         {
-            return Problem("Chức năng đang phát triển", statusCode: 501);
+            try
+            {
+                var userIdStr = User.FindFirst("UserId")?.Value;
+                if (string.IsNullOrEmpty(userIdStr)) return Unauthorized(new { Message = "User identity missing." });
+
+                await _invoiceService.SubmitInvoiceAsync(id, Guid.Parse(userIdStr));
+                return Ok(new { Message = "Đã gửi hóa đơn chờ duyệt." });
+            }
+            catch (KeyNotFoundException ex) { return NotFound(new { Message = ex.Message }); }
+            catch (InvalidOperationException ex) { return BadRequest(new { Message = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { Message = ex.Message }); }
         }
 
         [HttpPost("{id}/approve")]
-        public IActionResult ApproveInvoice(Guid id)
+        [Authorize(Policy = Constants.Permissions.InvoiceApprove)]
+        public async Task<IActionResult> ApproveInvoice(Guid id)
         {
-            return Problem("Chức năng đang phát triển", statusCode: 501);
+            try
+            {
+                var userIdStr = User.FindFirst("UserId")?.Value;
+                if (string.IsNullOrEmpty(userIdStr)) return Unauthorized(new { Message = "User identity missing." });
+
+                await _invoiceService.ApproveInvoiceAsync(id, Guid.Parse(userIdStr));
+                return Ok(new { Message = "Đã phê duyệt hóa đơn." });
+            }
+            catch (KeyNotFoundException ex) { return NotFound(new { Message = ex.Message }); }
+            catch (InvalidOperationException ex) { return BadRequest(new { Message = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { Message = ex.Message }); }
         }
 
         [HttpPost("{id}/reject")]
-        public IActionResult RejectInvoice(Guid id, [FromBody] object reason) // object tạm, sau này thay bằng DTO
+        [Authorize(Policy = Constants.Permissions.InvoiceApprove)]
+        public async Task<IActionResult> RejectInvoice(Guid id, [FromBody] RejectInvoiceDto request)
         {
-            return Problem("Chức năng đang phát triển", statusCode: 501);
+            try
+            {
+                var userIdStr = User.FindFirst("UserId")?.Value;
+                if (string.IsNullOrEmpty(userIdStr)) return Unauthorized(new { Message = "User identity missing." });
+
+                await _invoiceService.RejectInvoiceAsync(id, Guid.Parse(userIdStr), request.Reason);
+                return Ok(new { Message = "Đã từ chối hóa đơn." });
+            }
+            catch (KeyNotFoundException ex) { return NotFound(new { Message = ex.Message }); }
+            catch (InvalidOperationException ex) { return BadRequest(new { Message = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { Message = ex.Message }); }
         }
 
         [HttpGet("{id}/audit-logs")]

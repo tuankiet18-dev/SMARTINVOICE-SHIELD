@@ -11,6 +11,7 @@ export interface User {
     employeeId?: string;
     permissions?: string[];
     isActive?: boolean;
+    companyName?: string;
 }
 
 interface AuthContextType {

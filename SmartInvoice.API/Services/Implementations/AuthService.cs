@@ -10,6 +10,9 @@ using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
 using Amazon.Runtime;
 using SmartInvoice.API.Enums; // For AmazonServiceException if needed, but specific exceptions are in Model
+using System.Net.Http;
+using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace SmartInvoice.API.Services.Implementations
 {
@@ -17,6 +20,8 @@ namespace SmartInvoice.API.Services.Implementations
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAmazonCognitoIdentityProvider _cognitoClient;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IMemoryCache _cache;
         private readonly string _clientId;
         private readonly string _userPoolId;
         private readonly string _clientSecret;
@@ -24,10 +29,14 @@ namespace SmartInvoice.API.Services.Implementations
         public AuthService(
             IUnitOfWork unitOfWork,
             IAmazonCognitoIdentityProvider cognitoClient,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IHttpClientFactory httpClientFactory,
+            IMemoryCache cache)
         {
             _unitOfWork = unitOfWork;
             _cognitoClient = cognitoClient;
+            _httpClientFactory = httpClientFactory;
+            _cache = cache;
             _clientId = configuration["COGNITO_CLIENT_ID"] ?? "";
             _userPoolId = configuration["COGNITO_USER_POOL_ID"] ?? "";
             _clientSecret = configuration["COGNITO_CLIENT_SECRET"] ?? "";
@@ -61,16 +70,77 @@ namespace SmartInvoice.API.Services.Implementations
                 };
             }
 
-            // 2. Mock External Validtion (VietQR/Tax Authority)
-            // In real app, call external API here.
-
-            return new CheckTaxCodeResponse
+            // 2. Check Cache
+            string cacheKey = $"VietQR_TaxCode_{request.TaxCode}";
+            if (_cache.TryGetValue(cacheKey, out CheckTaxCodeResponse cachedResponse))
             {
-                IsValid = true,
-                IsRegistered = false,
-                CompanyName = "Unknown Company (Mock)", // Normally fetched from API
-                Address = "Unknown Address (Mock)"
-            };
+                return cachedResponse;
+            }
+
+            // 3. External Validation via VietQR API
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                var url = $"https://api.vietqr.io/v2/business/{request.TaxCode}";
+                var response = await client.GetAsync(url);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+
+                    if (root.TryGetProperty("code", out var codeElement) && codeElement.GetString() == "00")
+                    {
+                        var data = root.GetProperty("data");
+                        var companyName = data.GetProperty("name").GetString();
+                        var address = data.GetProperty("address").GetString();
+
+                        var validResponse = new CheckTaxCodeResponse
+                        {
+                            IsValid = true,
+                            IsRegistered = false,
+                            CompanyName = companyName,
+                            Address = address
+                        };
+
+                        // Cache successful response for 7 days
+                        var cacheEntryOptions = new MemoryCacheEntryOptions()
+                            .SetAbsoluteExpiration(TimeSpan.FromDays(7));
+                        _cache.Set(cacheKey, validResponse, cacheEntryOptions);
+
+                        return validResponse;
+                    }
+                    else
+                    {
+                        var desc = root.TryGetProperty("desc", out var descElement) ? descElement.GetString() : "Unknown error";
+                        return new CheckTaxCodeResponse
+                        {
+                            IsValid = false,
+                            IsRegistered = false,
+                            ErrorMessage = $"Mã số thuế không hợp lệ hoặc không tồn tại: {desc}"
+                        };
+                    }
+                }
+                else
+                {
+                    return new CheckTaxCodeResponse
+                    {
+                        IsValid = false,
+                        IsRegistered = false,
+                        ErrorMessage = $"Không thể xác thực mã số thuế. Status: {response.StatusCode}"
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new CheckTaxCodeResponse
+                {
+                    IsValid = false,
+                    IsRegistered = false,
+                    ErrorMessage = $"Lỗi khi xác thực mã số thuế: {ex.Message}"
+                };
+            }
         }
 
         public async Task RegisterCompanyAsync(RegisterCompanyRequest request)
@@ -82,8 +152,11 @@ namespace SmartInvoice.API.Services.Implementations
             var existingUser = await _unitOfWork.Users.GetByEmailAsync(normalizedEmail);
             if (existingUser != null) throw new Exception("Email already exists.");
 
-            var existingCompany = await _unitOfWork.Companies.GetByTaxCodeAsync(request.TaxCode);
-            if (existingCompany != null) throw new Exception("Company TaxCode already registered.");
+            var taxCodeCheck = await CheckTaxCodeAsync(new CheckTaxCodeRequest { TaxCode = request.TaxCode });
+            if (!taxCodeCheck.IsValid || taxCodeCheck.IsRegistered)
+            {
+                throw new Exception(taxCodeCheck.ErrorMessage ?? "Mã số thuế không hợp lệ hoặc đã được đăng ký.");
+            }
 
             // 2. Transaction
             await _unitOfWork.BeginTransactionAsync();
@@ -91,18 +164,18 @@ namespace SmartInvoice.API.Services.Implementations
 
             try
             {
-                // Create Company
+                // Create Company using validated data from VietQR
                 var company = new Company
                 {
                     CompanyId = Guid.NewGuid(),
-                    CompanyName = request.CompanyName,
+                    CompanyName = taxCodeCheck.CompanyName ?? request.CompanyName ?? "Default Company Name", // Fallback to avoid nullability issues
                     TaxCode = request.TaxCode,
-                    Address = request.Address,
-                    Email = request.CompanyEmail,
-                    PhoneNumber = request.PhoneNumber, // [NEW]
-                    BusinessType = request.BusinessType, // [NEW]
-                    LegalRepresentative = request.LegalRepresentative, // [NEW]
-                    SubscriptionTier = request.SubscriptionTier ?? SubscriptionTier.Free.ToString(),
+                    Address = string.IsNullOrWhiteSpace(taxCodeCheck.Address) ? request.Address : taxCodeCheck.Address, // Use API address if available
+                    Email = request.AdminEmail, // Using Admin Email since Company Email was removed
+                    PhoneNumber = request.AdminPhone, // Using Admin Phone
+                    BusinessType = request.BusinessType, // Using mapped payload data
+                    LegalRepresentative = request.AdminFullName, // Using Admin Name as representative
+                    SubscriptionTier = SubscriptionTier.Free.ToString(),
                     IsActive = true
                 };
                 await _unitOfWork.Companies.AddAsync(company);
@@ -249,6 +322,7 @@ namespace SmartInvoice.API.Services.Implementations
                         FullName = user.FullName,
                         EmployeeId = user.EmployeeId,
                         CompanyId = user.CompanyId,
+                        CompanyName = company?.CompanyName,
                         Role = user.Role,
                         Permissions = user.Permissions,
                         IsActive = user.IsActive
@@ -299,6 +373,8 @@ namespace SmartInvoice.API.Services.Implementations
                 user.LastLoginAt = DateTime.UtcNow;
                 await _unitOfWork.CompleteAsync();
 
+                var company = await _unitOfWork.Companies.GetByIdAsync(user.CompanyId);
+
                 return new LoginResponse
                 {
                     AccessToken = result.AccessToken,
@@ -312,6 +388,7 @@ namespace SmartInvoice.API.Services.Implementations
                         FullName = user.FullName,
                         EmployeeId = user.EmployeeId,
                         CompanyId = user.CompanyId,
+                        CompanyName = company?.CompanyName,
                         Role = user.Role,
                         Permissions = user.Permissions,
                         IsActive = user.IsActive
@@ -349,6 +426,8 @@ namespace SmartInvoice.API.Services.Implementations
                 if (user == null)
                     throw new Exception("Local user record not found.");
 
+                var company = await _unitOfWork.Companies.GetByIdAsync(user.CompanyId);
+
                 return new LoginResponse
                 {
                     AccessToken = result.AccessToken,
@@ -362,6 +441,7 @@ namespace SmartInvoice.API.Services.Implementations
                         FullName = user.FullName,
                         EmployeeId = user.EmployeeId,
                         CompanyId = user.CompanyId,
+                        CompanyName = company?.CompanyName,
                         Role = user.Role,
                         Permissions = user.Permissions,
                         IsActive = user.IsActive
