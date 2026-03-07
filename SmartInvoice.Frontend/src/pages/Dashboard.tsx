@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
-import { Row, Col } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Row, Col, Spin, Select } from 'antd';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import AnalyticsCharts from '@/components/dashboard/AnalyticsCharts';
 import { useQuery } from '@tanstack/react-query';
-import { invoiceService } from '../services/invoice';
+import { dashboardService, type DashboardPeriod } from '../services/dashboard';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import dayjs from 'dayjs';
 import {
   FileTextOutlined,
   CheckCircleOutlined,
@@ -16,24 +18,28 @@ import StatCard from '../components/ui/StatCard';
 import RiskDistributionCard from '../components/dashboard/RiskDistributionCard';
 import RecentInvoicesTable from '../components/dashboard/RecentInvoicesTable';
 
-const mockRecentInvoices = [
-  { key: '1', invoiceNo: 'INV-2026-001284', seller: 'Công ty TNHH ABC', amount: '25,400,000 ₫', date: '12/02/2026', status: 'Approved', risk: 'Green' },
-  { key: '2', invoiceNo: 'INV-2026-001283', seller: 'Công ty CP XYZ', amount: '8,750,000 ₫', date: '11/02/2026', status: 'Pending', risk: 'Yellow' },
-  { key: '3', invoiceNo: 'INV-2026-001282', seller: 'DN Tư nhân DEF', amount: '42,100,000 ₫', date: '11/02/2026', status: 'Approved', risk: 'Green' },
-  { key: '4', invoiceNo: 'INV-2026-001281', seller: 'Công ty TNHH GHI', amount: '3,200,000 ₫', date: '10/02/2026', status: 'Rejected', risk: 'Red' },
-  { key: '5', invoiceNo: 'INV-2026-001280', seller: 'Công ty CP JKL', amount: '15,600,000 ₫', date: '10/02/2026', status: 'Pending', risk: 'Orange' },
+const periodOptions: { value: DashboardPeriod; label: string }[] = [
+  { value: '7d', label: '7 ngày' },
+  { value: '30d', label: '30 ngày' },
+  { value: '90d', label: '90 ngày' },
+  { value: '6m', label: '6 tháng' },
+  { value: '1y', label: '1 năm' },
+  { value: 'all', label: 'Tất cả' },
 ];
 
-const riskDistribution = [
-  { label: 'An toàn (Green)', percent: 72, color: '#00B69B' },
-  { label: 'Lưu ý (Yellow)', percent: 15, color: '#FF9500' },
-  { label: 'Cảnh báo (Orange)', percent: 9, color: '#FD7E14' },
-  { label: 'Nguy hiểm (Red)', percent: 4, color: '#FC2A46' },
-];
+const periodChangeText: Record<DashboardPeriod, string> = {
+  '7d': 'so với 7 ngày trước',
+  '30d': 'so với 30 ngày trước',
+  '90d': 'so với 90 ngày trước',
+  '6m': 'so với 6 tháng trước',
+  '1y': 'so với năm trước',
+  all: 'so với kỳ trước',
+};
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [period, setPeriod] = useState<DashboardPeriod>('30d');
 
   // Redirect non-admin users to upload page
   useEffect(() => {
@@ -42,91 +48,116 @@ const Dashboard: React.FC = () => {
     }
   }, [user, navigate]);
 
-  const { data: apiData = [], isLoading } = useQuery({
-    queryKey: ['invoices-dashboard'],
-    queryFn: () => invoiceService.getInvoices(),
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ['dashboard-stats', period],
+    queryFn: () => dashboardService.getStats(period),
+    refetchInterval: 60_000, // auto-refresh every 60s
   });
 
-  const recentInvoices = apiData.length > 0 ? apiData.slice(0, 5) : mockRecentInvoices;
-  const statsTotal = apiData.length > 0 ? apiData.length : 128;
-  const statsGreen = apiData.length > 0 ? apiData.filter(i => i.risk === 'Green').length : 105;
-  const statsYellowOrange = apiData.length > 0 ? apiData.filter(i => i.risk === 'Yellow' || i.risk === 'Orange').length : 18;
-  const statsRed = apiData.length > 0 ? apiData.filter(i => i.risk === 'Red').length : 5;
+  const changeText = periodChangeText[period];
 
-  const dynamicKpiData = [
+  const kpiData = [
     {
       title: 'Tổng hóa đơn',
-      value: statsTotal,
+      value: stats?.totalInvoices ?? 0,
       icon: <FileTextOutlined />,
       iconColorClass: 'text-dash-primary',
       iconBgClass: 'bg-dash-primary/10',
-      changeValue: 8.5,
-      isUp: true,
+      changeValue: Math.abs(stats?.totalChange ?? 0),
+      isUp: (stats?.totalChange ?? 0) >= 0,
     },
     {
       title: 'Hợp lệ (Green)',
-      value: statsGreen,
+      value: stats?.greenInvoices ?? 0,
       icon: <CheckCircleOutlined />,
       iconColorClass: 'text-dash-success',
       iconBgClass: 'bg-dash-success/10',
-      changeValue: 1.3,
-      isUp: true,
+      changeValue: Math.abs(stats?.greenChange ?? 0),
+      isUp: (stats?.greenChange ?? 0) >= 0,
     },
     {
       title: 'Cần lưu ý (Warning)',
-      value: statsYellowOrange,
+      value: stats?.yellowOrangeInvoices ?? 0,
       icon: <WarningOutlined />,
       iconColorClass: 'text-dash-warning',
       iconBgClass: 'bg-dash-warning/10',
-      changeValue: 4.3,
-      isUp: false,
+      changeValue: Math.abs(stats?.yellowOrangeChange ?? 0),
+      isUp: (stats?.yellowOrangeChange ?? 0) >= 0,
     },
     {
-      title: 'Lỗi cấu trúc (Red)',
-      value: statsRed,
+      title: 'Nguy hiểm (Red)',
+      value: stats?.redInvoices ?? 0,
       icon: <WarningOutlined />,
       iconColorClass: 'text-dash-danger',
       iconBgClass: 'bg-dash-danger/10',
-      changeValue: 15.1,
-      isUp: true,
+      changeValue: Math.abs(stats?.redChange ?? 0),
+      isUp: (stats?.redChange ?? 0) >= 0,
     },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Spin size="large" tip="Đang tải dữ liệu..." />
+      </div>
+    );
+  }
+
   return (
     <div className="bg-dash-bg p-6 md:p-8 min-h-screen">
-      <div className="mb-8">
-        <h1 className="text-3xl text-dash-textMain font-bold mb-1 tracking-tight">Tổng quan hệ thống</h1>
-        <p className="text-dash-textMuted font-medium text-sm">Cập nhật lúc 12/02/2026 08:30</p>
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl text-dash-textMain font-bold mb-1 tracking-tight">Tổng quan hệ thống</h1>
+          <p className="text-dash-textMuted font-medium text-sm">
+            Cập nhật lúc {dayjs().format('DD/MM/YYYY HH:mm')}
+          </p>
+        </div>
+        <Select
+          value={period}
+          onChange={(val) => setPeriod(val)}
+          options={periodOptions}
+          style={{ width: 140 }}
+          size="middle"
+        />
       </div>
 
       {/* KPI Cards */}
       <Row gutter={[24, 24]} className="mb-8">
-        {dynamicKpiData.map((kpi, index) => (
+        {kpiData.map((kpi, index) => (
           <Col xs={24} sm={12} lg={6} key={index}>
-            <StatCard {...kpi} />
+            <StatCard {...kpi} changeText={changeText} />
           </Col>
         ))}
       </Row>
 
-      <Row gutter={[24, 24]}>
-        {/* Risk Distribution */}
-        <Col xs={24} lg={8}>
-          <RiskDistributionCard data={riskDistribution} />
-        </Col>
-
-        {/* Recent Invoices */}
-        <Col xs={24} lg={16}>
-          <RecentInvoicesTable
-            invoices={recentInvoices}
-            isLoading={isLoading}
-            onViewAll={() => navigate('/app/invoices')}
-          />
-        </Col>
-      </Row>
-
-      <div className="mt-8">
-        <AnalyticsCharts />
+      {/* Resizable: Risk Distribution + Recent Invoices */}
+      <div className="mb-8">
+        <PanelGroup direction="horizontal" className="rounded-xl">
+          <Panel defaultSize={33} minSize={20}>
+            <div className="h-full pr-2">
+              <RiskDistributionCard data={stats?.riskDistribution ?? []} />
+            </div>
+          </Panel>
+          <PanelResizeHandle className="w-2 flex items-center justify-center group cursor-col-resize">
+            <div className="w-1 h-8 rounded-full bg-gray-300 group-hover:bg-blue-400 transition-colors" />
+          </PanelResizeHandle>
+          <Panel defaultSize={67} minSize={30}>
+            <div className="h-full pl-2">
+              <RecentInvoicesTable
+                invoices={stats?.recentInvoices ?? []}
+                isLoading={false}
+                onViewAll={() => navigate('/app/invoices')}
+              />
+            </div>
+          </Panel>
+        </PanelGroup>
       </div>
+
+      <AnalyticsCharts
+        monthlyTrends={stats?.monthlyTrends ?? []}
+        riskTrends={stats?.riskTrends ?? []}
+        statusDistribution={stats?.statusDistribution ?? []}
+      />
     </div>
   );
 };

@@ -14,25 +14,22 @@ namespace SmartInvoice.API.DTOs.Auth
         [Required]
         public string Address { get; set; } = string.Empty;
 
-        [EmailAddress]
-        public string? CompanyEmail { get; set; }
-
-        public string? PhoneNumber { get; set; } // [NEW] From FE
-        public string? BusinessType { get; set; } // [NEW] From FE
-        public string? LegalRepresentative { get; set; } // [NEW] From FE
-
-        public string? SubscriptionTier { get; set; } = "Free";
+        [Required]
+        public string BusinessType { get; set; } = string.Empty;
 
         // Admin Info
         [Required]
         public string AdminFullName { get; set; } = string.Empty;
 
         [Required]
+        public string AdminPhone { get; set; } = string.Empty;
+
+        [Required]
         [EmailAddress]
         public string AdminEmail { get; set; } = string.Empty;
 
         [Required]
-        [MinLength(6)]
+        [MinLength(8)]
         public string Password { get; set; } = string.Empty;
     }
 }

@@ -9,6 +9,7 @@ namespace SmartInvoice.API.DTOs.Invoice
         // Ai làm? (Lấy từ trường denormalized cho nhanh)
         public string? UserEmail { get; set; } 
         public string? UserRole { get; set; }
+        public string? UserFullName { get; set; }
         public string? IpAddress { get; set; }
 
         // Làm gì?

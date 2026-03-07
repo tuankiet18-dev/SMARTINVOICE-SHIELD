@@ -114,6 +114,12 @@ public class AppDbContext : DbContext
             .HasIndex(i => new { i.CompanyId, i.Status });
 
         modelBuilder.Entity<Invoice>()
+            .HasIndex(i => new { i.CompanyId, i.CreatedAt });
+
+        modelBuilder.Entity<Invoice>()
+            .HasIndex(i => new { i.CompanyId, i.RiskLevel });
+
+        modelBuilder.Entity<Invoice>()
             .HasIndex(i => i.InvoiceNumber);
 
         modelBuilder.Entity<Invoice>()

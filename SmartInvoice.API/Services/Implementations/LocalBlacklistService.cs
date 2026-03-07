@@ -16,7 +16,7 @@ namespace SmartInvoice.API.Services.Implementations
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<LocalBlacklistedCompany> GetByIdAsync(Guid id)
+        public async Task<LocalBlacklistedCompany?> GetByIdAsync(Guid id)
         {
             return await _unitOfWork.LocalBlacklists.GetByIdAsync(id);
         }
@@ -24,6 +24,11 @@ namespace SmartInvoice.API.Services.Implementations
         public async Task<IEnumerable<LocalBlacklistedCompany>> GetAllAsync()
         {
             return await _unitOfWork.LocalBlacklists.GetAllAsync();
+        }
+
+        public async Task<LocalBlacklistedCompany?> GetByTaxCodeAsync(string taxCode)
+        {
+            return await _unitOfWork.LocalBlacklists.GetByTaxCodeAsync(taxCode);
         }
 
         public async Task<LocalBlacklistedCompany> CreateAsync(LocalBlacklistedCompany entity)

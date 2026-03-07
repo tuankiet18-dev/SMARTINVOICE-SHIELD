@@ -32,6 +32,8 @@ Generated\ Files/
 # Visual Studio Code
 .vscode/
 
+.history/
+
 # Environment Variables
 .env
 .env.local

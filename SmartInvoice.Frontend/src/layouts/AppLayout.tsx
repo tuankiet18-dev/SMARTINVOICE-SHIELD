@@ -18,6 +18,7 @@ import {
   BlockOutlined,
   ToolOutlined,
   StopOutlined,
+  BankOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -145,12 +146,28 @@ const AppLayout: React.FC = () => {
           borderBottom: '1px solid #E2E8F0',
           boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
         }}>
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{ fontSize: 16, width: 40, height: 40 }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+              style={{ fontSize: 16, width: 40, height: 40 }}
+            />
+            {user?.companyName && (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 8, 
+                padding: '6px 16px', 
+                background: '#F8FAFC', 
+                borderRadius: '8px', 
+                border: '1px solid #E2E8F0' 
+              }}>
+                <BankOutlined style={{ color: '#4880FF' }} />
+                <Text strong style={{ color: '#1E293B', fontSize: 14 }}>{user.companyName}</Text>
+              </div>
+            )}
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Badge count={3} size="small">

@@ -10,12 +10,11 @@ using System.Xml;
 using System.Linq;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
-using SmartInvoice.API.DTOs.Invoice;
 using SmartInvoice.API.Entities.JsonModels;
-using SmartInvoice.API.Repositories.Interfaces;
+using SmartInvoice.API.DTOs.Invoice;
 using SmartInvoice.API.Services.Interfaces;
 using SmartInvoice.API.Repositories.Interfaces;
-using SmartInvoice.API.Services.Interfaces;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace SmartInvoice.API.Services.Implementations
 {
@@ -26,19 +25,22 @@ namespace SmartInvoice.API.Services.Implementations
         private readonly string _xsdPath;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IConfiguration _configuration;
+        private readonly IMemoryCache _cache;
 
         public InvoiceProcessorService(
             ILogger<InvoiceProcessorService> logger,
             IHttpClientFactory httpClientFactory,
             IHostEnvironment env,
             IUnitOfWork unitOfWork,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IMemoryCache cache)
         {
             _logger = logger;
             _httpClientFactory = httpClientFactory;
             _xsdPath = Path.Combine(env.ContentRootPath, "Resources", "InvoiceSchema.xsd");
             _unitOfWork = unitOfWork;
             _configuration = configuration;
+            _cache = cache;
         }
 
         public ValidationResultDto ValidateStructure(string xmlPath)
@@ -267,7 +269,7 @@ namespace SmartInvoice.API.Services.Implementations
             return extractedData;
         }
 
-        public async Task<ValidationResultDto> ValidateBusinessLogicAsync(XmlDocument xmlDoc)
+        public async Task<ValidationResultDto> ValidateBusinessLogicAsync(XmlDocument xmlDoc, Guid? companyId = null)
         {
             var result = new ValidationResultDto();
 
@@ -387,6 +389,10 @@ namespace SmartInvoice.API.Services.Implementations
                 string sellerTax = nBan?.SelectSingleNode(".//*[local-name()='MST']")?.InnerText;
                 string sellerAddr = nBan?.SelectSingleNode(".//*[local-name()='DChi']")?.InnerText;
 
+                // Trích xuất MST Người Mua từ XML
+                XmlNode nMua = xmlDoc.SelectSingleNode("//*[local-name()='NMua']");
+                string buyerTax = nMua?.SelectSingleNode(".//*[local-name()='MST']")?.InnerText;
+
                 string totalAmountStr = GetVal("TgTTTBSo");
                 string totalAmountWords = GetVal("TgTTTBChu");
 
@@ -419,14 +425,43 @@ namespace SmartInvoice.API.Services.Implementations
 
                 if (!isDataValid) return result;
 
+                // CHECK C: KIỂM TRA QUYỀN SỞ HỮU HÓA ĐƠN ĐẦU VÀO
+                // TH1: CÓ MST Người mua → Phải khớp với MST công ty → Nếu sai → Block
+                // TH2: KHÔNG CÓ MST Người mua (BigC, xăng dầu...) → Cho qua, nhưng gắn cảnh báo để Admin duyệt
+                if (companyId.HasValue)
+                {
+                    var company = await _unitOfWork.Companies.GetByIdAsync(companyId.Value);
+                    if (company != null)
+                    {
+                        if (!string.IsNullOrEmpty(buyerTax))
+                        {
+                            // TH1: Có MST Người Mua → bắt buộc phải khớp
+                            if (!string.Equals(buyerTax.Trim(), company.TaxCode?.Trim(), StringComparison.OrdinalIgnoreCase))
+                            {
+                                result.AddError($"[LỖI QUYỀN SỞ HỮU] MST Người Mua trên hóa đơn ({buyerTax}) không khớp với MST công ty của bạn ({company.TaxCode}). Chỉ được upload hóa đơn đầu vào thuộc công ty mình.");
+                                return result;
+                            }
+                        }
+                        else
+                        {
+                            // TH2: Không có MST Người Mua → cảnh báo, cần Admin duyệt kỹ
+                            result.AddWarning("[CẢNH BÁO QUYỀN SỞ HỮU] Hóa đơn không có MST Người Mua (ví dụ: hóa đơn bán lẻ BigC, xăng dầu...). Không thể tự động xác minh quyền sở hữu. Quản trị viên cần kiểm tra thủ công trước khi duyệt.");
+                        }
+                    }
+                }
+
                 // CHECK D & E: Duplicate & Blacklist
                 if (!string.IsNullOrEmpty(sellerTax) && !string.IsNullOrEmpty(khhDon) && !string.IsNullOrEmpty(shDon))
                 {
-                    bool isDuplicate = await _unitOfWork.Invoices.ExistsByDetailsAsync(sellerTax, khhDon, shDon);
-
-                    if (isDuplicate)
+                    if (companyId.HasValue)
                     {
-                        result.AddError($"[RỦI RO TRÙNG LẶP] Hóa đơn số {shDon}, ký hiệu {khhDon} của MST {sellerTax} đã tồn tại trong hệ thống.");
+                        bool isDuplicate = await _unitOfWork.Invoices.ExistsByDetailsAsync(sellerTax, khhDon, shDon, companyId.Value);
+
+                        if (isDuplicate)
+                        {
+                            result.AddError($"[RỦI RO TRÙNG LẶP] Hóa đơn số {shDon}, ký hiệu {khhDon} của MST {sellerTax} đã tồn tại trong hệ thống của công ty.");
+                            return result;
+                        }
                     }
                 }
 
@@ -608,6 +643,13 @@ namespace SmartInvoice.API.Services.Implementations
         {
             if (!IsValidTaxCode(taxCode)) return;
 
+            string cacheKey = $"VietQR_TaxCode_{taxCode}";
+            if (_cache.TryGetValue(cacheKey, out bool isValidated) && isValidated)
+            {
+                // Already validated and cached successfully
+                return;
+            }
+
             try
             {
                 var vietQrBaseUrl = Environment.GetEnvironmentVariable("VIETQR_API_URL")
@@ -623,11 +665,14 @@ namespace SmartInvoice.API.Services.Implementations
                     using (JsonDocument doc = JsonDocument.Parse(json))
                     {
                         JsonElement root = doc.RootElement;
-                        string code = root.GetProperty("code").GetString();
+                        var code = root.TryGetProperty("code", out var codeElement) ? codeElement.GetString() : null;
 
                         if (code == "00")
                         {
-                            // Doanh nghiệp tồn tại
+                            // Doanh nghiệp tồn tại -> Lưu cache 7 ngày
+                            var cacheEntryOptions = new MemoryCacheEntryOptions()
+                                .SetAbsoluteExpiration(TimeSpan.FromDays(7));
+                            _cache.Set(cacheKey, true, cacheEntryOptions);
                         }
                         else
                         {

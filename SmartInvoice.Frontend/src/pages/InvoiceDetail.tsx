@@ -1,0 +1,520 @@
+import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import dayjs from 'dayjs';
+import {
+  Card, Typography, Button, Space, Tag, Descriptions, Table, Timeline, Tabs, Spin, Result, Modal,
+  Input, Tooltip, Divider, Row, Col, message, Alert,
+} from 'antd';
+import {
+  ArrowLeftOutlined, SendOutlined, CheckCircleOutlined, CloseCircleOutlined,
+  FileTextOutlined, SafetyCertificateOutlined, AuditOutlined, ShoppingCartOutlined,
+  ExclamationCircleOutlined, WarningOutlined, InfoCircleOutlined, UserOutlined,
+  CalendarOutlined, DollarOutlined, BankOutlined,
+} from '@ant-design/icons';
+import StatusBadge from '../components/ui/StatusBadge';
+import { useAuth } from '../contexts/AuthContext';
+import { invoiceService, type InvoiceDetailDto, type LineItemDto, type ValidationLayerDto } from '../services/invoice';
+
+const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
+
+// ════════════════════════════════════════════
+//  Helper components
+// ════════════════════════════════════════════
+
+const InfoItem: React.FC<{ label: string; value: React.ReactNode; span?: number }> = ({ label, value }) => (
+  <div style={{ marginBottom: 12 }}>
+    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 2 }}>{label}</Text>
+    <Text strong style={{ fontSize: 14 }}>{value || '—'}</Text>
+  </div>
+);
+
+const formatCurrency = (amount: number | null | undefined, currency = 'VND') => {
+  if (amount == null) return '—';
+  return `${amount.toLocaleString('vi-VN')} ${currency === 'VND' ? '₫' : currency}`;
+};
+
+const validationStatusIcon = (status: string) => {
+  switch (status) {
+    case 'Pass': return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
+    case 'Fail': return <CloseCircleOutlined style={{ color: '#ff4d4f' }} />;
+    case 'Warning': return <WarningOutlined style={{ color: '#faad14' }} />;
+    default: return <InfoCircleOutlined style={{ color: '#8c8c8c' }} />;
+  }
+};
+
+const actionColorMap: Record<string, string> = {
+  UPLOAD: '#1677ff',
+  EDIT: '#722ed1',
+  SUBMIT: '#13c2c2',
+  APPROVE: '#52c41a',
+  REJECT: '#ff4d4f',
+  OVERRIDE: '#fa8c16',
+};
+
+const actionLabelMap: Record<string, string> = {
+  UPLOAD: 'Tải lên',
+  EDIT: 'Chỉnh sửa',
+  SUBMIT: 'Gửi duyệt',
+  APPROVE: 'Phê duyệt',
+  REJECT: 'Từ chối',
+  OVERRIDE: 'Ghi đè rủi ro',
+};
+
+const changeValueColor = (field: string, value: string): string | undefined => {
+  const f = field.toLowerCase();
+  if (f === 'status' || f === 'Status') {
+    const map: Record<string, string> = { Draft: '#8c8c8c', Pending: '#1677ff', Approved: '#52c41a', Rejected: '#ff4d4f' };
+    return map[value];
+  }
+  if (f.includes('risk') || f === 'RiskLevel') {
+    const map: Record<string, string> = { Green: '#52c41a', Yellow: '#faad14', Orange: '#fa8c16', Red: '#ff4d4f' };
+    return map[value];
+  }
+  return undefined;
+};
+
+// ════════════════════════════════════════════
+//  Main Component
+// ════════════════════════════════════════════
+
+const InvoiceDetail: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'CompanyAdmin' || user?.role === 'SuperAdmin';
+
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectComment, setRejectComment] = useState('');
+
+  // ─── Data Fetching ───
+  const { data: invoice, isLoading, isError, error } = useQuery({
+    queryKey: ['invoice-detail', id],
+    queryFn: () => invoiceService.getInvoiceDetail(id!),
+    enabled: !!id,
+  });
+
+  // ─── Mutations ───
+  const submitMutation = useMutation({
+    mutationFn: () => invoiceService.submitInvoice(id!),
+    onSuccess: () => {
+      message.success('Hóa đơn đã được gửi duyệt!');
+      queryClient.invalidateQueries({ queryKey: ['invoice-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    },
+    onError: (err: any) => message.error(err?.response?.data?.message || 'Có lỗi xảy ra'),
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: () => invoiceService.approveInvoice(id!),
+    onSuccess: () => {
+      message.success('Hóa đơn đã được phê duyệt!');
+      queryClient.invalidateQueries({ queryKey: ['invoice-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    },
+    onError: (err: any) => message.error(err?.response?.data?.message || 'Có lỗi xảy ra'),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: () => invoiceService.rejectInvoice(id!, rejectReason, rejectComment),
+    onSuccess: () => {
+      message.success('Hóa đơn đã bị từ chối.');
+      setRejectModalOpen(false);
+      setRejectReason('');
+      setRejectComment('');
+      queryClient.invalidateQueries({ queryKey: ['invoice-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    },
+    onError: (err: any) => message.error(err?.response?.data?.message || 'Có lỗi xảy ra'),
+  });
+
+  // ─── Loading / Error states ───
+  if (isLoading) return <div style={{ textAlign: 'center', padding: 80 }}><Spin size="large" /></div>;
+  if (isError || !invoice) {
+    return (
+      <Result
+        status="404"
+        title="Không tìm thấy hóa đơn"
+        subTitle={(error as any)?.response?.data?.message || 'Hóa đơn không tồn tại hoặc bạn không có quyền xem.'}
+        extra={<Button type="primary" onClick={() => navigate('/app/invoices')}>Quay lại danh sách</Button>}
+      />
+    );
+  }
+
+  // ─── Workflow buttons ───
+  const renderWorkflowActions = () => {
+    const actions: React.ReactNode[] = [];
+
+    if (invoice.status === 'Draft') {
+      actions.push(
+        <Button
+          key="submit"
+          type="primary"
+          icon={<SendOutlined />}
+          onClick={() => {
+            Modal.confirm({
+              title: 'Gửi duyệt hóa đơn?',
+              content: 'Hóa đơn sẽ chuyển sang trạng thái "Chờ duyệt" và chờ Admin phê duyệt.',
+              okText: 'Gửi duyệt',
+              cancelText: 'Hủy',
+              onOk: () => submitMutation.mutate(),
+            });
+          }}
+          loading={submitMutation.isPending}
+          style={{ borderRadius: 10, fontWeight: 600, height: 40, background: '#13c2c2', borderColor: '#13c2c2' }}
+        >
+          Gửi duyệt
+        </Button>
+      );
+    }
+
+    if (invoice.status === 'Pending' && isAdmin) {
+      actions.push(
+        <Button
+          key="approve"
+          type="primary"
+          icon={<CheckCircleOutlined />}
+          onClick={() => {
+            Modal.confirm({
+              title: 'Phê duyệt hóa đơn?',
+              content: 'Hóa đơn sẽ được chuyển sang trạng thái "Đã duyệt".',
+              okText: 'Phê duyệt',
+              cancelText: 'Hủy',
+              onOk: () => approveMutation.mutate(),
+            });
+          }}
+          loading={approveMutation.isPending}
+          style={{ borderRadius: 10, fontWeight: 600, height: 40, background: '#52c41a', borderColor: '#52c41a' }}
+        >
+          Phê duyệt
+        </Button>,
+        <Button
+          key="reject"
+          danger
+          icon={<CloseCircleOutlined />}
+          onClick={() => setRejectModalOpen(true)}
+          style={{ borderRadius: 10, fontWeight: 600, height: 40 }}
+        >
+          Từ chối
+        </Button>
+      );
+    }
+
+    return actions.length > 0 ? <Space>{actions}</Space> : null;
+  };
+
+  // ─── Line Items Table ───
+  const lineItemColumns = [
+    { title: 'STT', dataIndex: 'lineNumber', key: 'lineNumber', width: 60, align: 'center' as const },
+    { title: 'Tên hàng hóa / dịch vụ', dataIndex: 'itemName', key: 'itemName', ellipsis: true },
+    { title: 'ĐVT', dataIndex: 'unit', key: 'unit', width: 80, align: 'center' as const },
+    {
+      title: 'Số lượng', dataIndex: 'quantity', key: 'quantity', width: 100, align: 'right' as const,
+      render: (v: number) => v?.toLocaleString('vi-VN'),
+    },
+    {
+      title: 'Đơn giá', dataIndex: 'unitPrice', key: 'unitPrice', width: 130, align: 'right' as const,
+      render: (v: number) => formatCurrency(v, invoice.invoiceCurrency),
+    },
+    {
+      title: 'Thành tiền', dataIndex: 'totalAmount', key: 'totalAmount', width: 140, align: 'right' as const,
+      render: (v: number) => <Text strong>{formatCurrency(v, invoice.invoiceCurrency)}</Text>,
+    },
+    { title: 'Thuế suất', dataIndex: 'vatRate', key: 'vatRate', width: 90, align: 'center' as const, render: (v: number) => `${v}%` },
+    {
+      title: 'Tiền thuế', dataIndex: 'vatAmount', key: 'vatAmount', width: 130, align: 'right' as const,
+      render: (v: number, record: LineItemDto) => {
+        const computed = v || (record.totalAmount && record.vatRate ? Math.round(record.totalAmount * record.vatRate / 100) : 0);
+        return formatCurrency(computed, invoice.invoiceCurrency);
+      },
+    },
+  ];
+
+  // ─── Tabs ───
+  const tabItems = [
+    {
+      key: 'info',
+      label: <span><FileTextOutlined /> Thông tin</span>,
+      children: (
+        <div>
+          {/* Rejection alert */}
+          {invoice.status === 'Rejected' && invoice.rejectionReason && (
+            <Alert
+              message="Hóa đơn đã bị từ chối"
+              description={
+                <div>
+                  <Text strong>Lý do: </Text>{invoice.rejectionReason}
+                  {invoice.rejectedByName && (
+                    <div style={{ marginTop: 4 }}>
+                      <Text type="secondary">Bởi: {invoice.rejectedByName} — {invoice.rejectedAt ? dayjs(invoice.rejectedAt).format('DD/MM/YYYY HH:mm') : ''}</Text>
+                    </div>
+                  )}
+                </div>
+              }
+              type="error"
+              showIcon
+              style={{ marginBottom: 20, borderRadius: 10 }}
+            />
+          )}
+
+          <Row gutter={24}>
+            {/* Seller */}
+            <Col xs={24} md={12}>
+              <Card size="small" title={<span><BankOutlined /> Người bán</span>} bordered={false} style={{ marginBottom: 16, borderRadius: 12, background: '#f8fafc' }}>
+                <InfoItem label="Tên đơn vị" value={invoice.sellerName} />
+                <InfoItem label="Mã số thuế" value={invoice.sellerTaxCode} />
+                <InfoItem label="Địa chỉ" value={invoice.sellerAddress} />
+                {invoice.sellerBankAccount && (<InfoItem label="Tài khoản ngân hàng" value={`${invoice.sellerBankAccount} — ${invoice.sellerBankName}`} />)}
+              </Card>
+            </Col>
+
+            {/* Buyer */}
+            <Col xs={24} md={12}>
+              <Card size="small" title={<span><UserOutlined /> Người mua</span>} bordered={false} style={{ marginBottom: 16, borderRadius: 12, background: '#f8fafc' }}>
+                <InfoItem label="Tên đơn vị" value={invoice.buyerName} />
+                <InfoItem label="Mã số thuế" value={invoice.buyerTaxCode} />
+                <InfoItem label="Địa chỉ" value={invoice.buyerAddress} />
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Amounts */}
+          <Card size="small" title={<span><DollarOutlined /> Số tiền</span>} bordered={false} style={{ marginBottom: 16, borderRadius: 12, background: '#f0f9ff' }}>
+            <Row gutter={24}>
+              <Col xs={8}><InfoItem label="Tiền trước thuế" value={formatCurrency(invoice.totalAmountBeforeTax, invoice.invoiceCurrency)} /></Col>
+              <Col xs={8}><InfoItem label="Tiền thuế" value={formatCurrency(invoice.totalTaxAmount, invoice.invoiceCurrency)} /></Col>
+              <Col xs={8}>
+                <div style={{ marginBottom: 12 }}>
+                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 2 }}>Tổng tiền thanh toán</Text>
+                  <Text strong style={{ fontSize: 20, color: '#1677ff' }}>{formatCurrency(invoice.totalAmount, invoice.invoiceCurrency)}</Text>
+                </div>
+              </Col>
+            </Row>
+            {invoice.totalAmountInWords && (
+              <Text italic type="secondary" style={{ fontSize: 13 }}>Bằng chữ: {invoice.totalAmountInWords}</Text>
+            )}
+          </Card>
+
+          {/* Workflow timeline */}
+          <Card size="small" title={<span><CalendarOutlined /> Dòng thời gian</span>} bordered={false} style={{ borderRadius: 12 }}>
+            <Row gutter={24}>
+              <Col xs={8}><InfoItem label="Người tải lên" value={invoice.uploadedByName} /><InfoItem label="Ngày tải lên" value={dayjs(invoice.createdAt).format('DD/MM/YYYY HH:mm')} /></Col>
+              {invoice.submittedAt && <Col xs={8}><InfoItem label="Người gửi duyệt" value={invoice.submittedByName} /><InfoItem label="Ngày gửi duyệt" value={dayjs(invoice.submittedAt).format('DD/MM/YYYY HH:mm')} /></Col>}
+              {invoice.approvedAt && <Col xs={8}><InfoItem label="Người duyệt" value={invoice.approvedByName} /><InfoItem label="Ngày duyệt" value={dayjs(invoice.approvedAt).format('DD/MM/YYYY HH:mm')} /></Col>}
+            </Row>
+            {invoice.paymentMethod && <InfoItem label="Phương thức thanh toán" value={invoice.paymentMethod} />}
+            {invoice.notes && <InfoItem label="Ghi chú" value={invoice.notes} />}
+          </Card>
+        </div>
+      ),
+    },
+    {
+      key: 'items',
+      label: <span><ShoppingCartOutlined /> Hàng hóa ({invoice.lineItems.length})</span>,
+      children: (
+        <Table<LineItemDto>
+          columns={lineItemColumns}
+          dataSource={invoice.lineItems}
+          rowKey="lineNumber"
+          pagination={false}
+          size="small"
+          scroll={{ x: 900 }}
+          summary={() => (
+            <Table.Summary fixed>
+              <Table.Summary.Row>
+                <Table.Summary.Cell index={0} colSpan={5} align="right"><Text strong>Tổng cộng:</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={5} align="right"><Text strong>{formatCurrency(invoice.totalAmountBeforeTax, invoice.invoiceCurrency)}</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={6} />
+                <Table.Summary.Cell index={7} align="right"><Text strong>{formatCurrency(invoice.totalTaxAmount, invoice.invoiceCurrency)}</Text></Table.Summary.Cell>
+              </Table.Summary.Row>
+            </Table.Summary>
+          )}
+        />
+      ),
+    },
+    {
+      key: 'validation',
+      label: <span><SafetyCertificateOutlined /> Kiểm tra ({invoice.validationLayers.length})</span>,
+      children: (
+        <div>
+          {invoice.validationLayers.map((layer) => (
+            <Card
+              key={layer.layerName}
+              size="small"
+              style={{ marginBottom: 12, borderRadius: 10, borderLeft: `4px solid ${layer.validationStatus === 'Warning' ? '#faad14' : layer.isValid ? '#52c41a' : '#ff4d4f'}` }}
+            >
+              <Space>
+                {validationStatusIcon(layer.validationStatus)}
+                <Text strong>Layer {layer.layerOrder}: {layer.layerName}</Text>
+                <Tag color={layer.validationStatus === 'Warning' ? 'warning' : layer.isValid ? 'success' : 'error'}>{layer.validationStatus}</Tag>
+                <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(layer.checkedAt).format('DD/MM/YYYY HH:mm')}</Text>
+              </Space>
+              {layer.errorDetails && (
+                <div style={{ marginTop: 8 }}>
+                  <Text type="danger" style={{ fontSize: 13 }}>{layer.errorDetails}</Text>
+                </div>
+              )}
+            </Card>
+          ))}
+          {invoice.validationLayers.length === 0 && <Text type="secondary">Chưa có kết quả kiểm tra.</Text>}
+        </div>
+      ),
+    },
+    {
+      key: 'risk',
+      label: <span><WarningOutlined /> Rủi ro ({invoice.riskChecks.filter(c => c.checkStatus === 'WARNING').length})</span>,
+      children: (
+        <div>
+          {invoice.riskChecks.map((check, idx) => (
+            <Card
+              key={idx}
+              size="small"
+              style={{
+                marginBottom: 12, borderRadius: 10,
+                borderLeft: `4px solid ${check.riskLevel === 'Green' ? '#52c41a' : check.riskLevel === 'Yellow' ? '#faad14' : check.riskLevel === 'Orange' ? '#fa8c16' : '#ff4d4f'}`,
+              }}
+            >
+              <Row justify="space-between" align="middle">
+                <Col>
+                  <Space>
+                    <Text strong>{check.checkType}</Text>
+                    <Tag color={check.checkStatus === 'PASS' ? 'success' : check.checkStatus === 'WARNING' ? 'warning' : 'error'}>{check.checkStatus}</Tag>
+                    <StatusBadge type="risk" value={check.riskLevel} />
+                  </Space>
+                </Col>
+                <Col><Text type="secondary" style={{ fontSize: 12 }}>{dayjs(check.checkedAt).format('DD/MM/YYYY HH:mm')}</Text></Col>
+              </Row>
+              {check.errorMessage && <div style={{ marginTop: 8 }}><Text type="danger">{check.errorMessage}</Text></div>}
+              {!check.errorMessage && check.checkDetails && (() => {
+                try {
+                  const details = JSON.parse(check.checkDetails);
+                  const warnings: string[] = details.Warnings || [];
+                  const errors: string[] = details.Errors || [];
+                  return (
+                    <>
+                      {errors.map((msg, i) => <div key={`e${i}`} style={{ marginTop: i === 0 ? 8 : 2 }}><Text type="danger" style={{ fontSize: 13 }}>{msg}</Text></div>)}
+                      {warnings.map((msg, i) => <div key={`w${i}`} style={{ marginTop: i === 0 && errors.length === 0 ? 8 : 2 }}><Text style={{ fontSize: 13, color: '#faad14' }}>{msg}</Text></div>)}
+                    </>
+                  );
+                } catch { return null; }
+              })()}
+              {check.suggestion && <div style={{ marginTop: 4 }}><Text type="secondary" italic>{check.suggestion}</Text></div>}
+            </Card>
+          ))}
+          {invoice.riskChecks.filter(c => c.checkStatus === 'WARNING').length === 0 && <Text type="secondary">Không phát hiện rủi ro nào.</Text>}
+        </div>
+      ),
+    },
+    {
+      key: 'audit',
+      label: <span><AuditOutlined /> Nhật ký ({invoice.auditLogs.length})</span>,
+      children: (
+        <Timeline
+          items={invoice.auditLogs.map((log) => ({
+            color: actionColorMap[log.action] || '#8c8c8c',
+            children: (
+              <div key={log.auditId}>
+                <Space>
+                  <Tag color={actionColorMap[log.action] || 'default'}>{actionLabelMap[log.action] || log.action}</Tag>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(log.createdAt).format('DD/MM/YYYY HH:mm:ss')}</Text>
+                </Space>
+                <div style={{ marginTop: 4 }}>
+                  <Text style={{ fontSize: 13 }}>{log.userFullName || log.userEmail || 'N/A'}{log.userRole ? ` (${log.userRole})` : ''}</Text>
+                </div>
+                {log.reason && <div style={{ marginTop: 4 }}><Text type="danger" style={{ fontSize: 13 }}>Lý do: {log.reason}</Text></div>}
+                {log.comment && <div style={{ marginTop: 2 }}><Text type="secondary" style={{ fontSize: 13 }}>Ghi chú: {log.comment}</Text></div>}
+                {log.changes && log.changes.length > 0 && (
+                  <div style={{ marginTop: 6, background: '#f6f8fa', borderRadius: 8, padding: '8px 12px' }}>
+                    {log.changes.map((c, idx) => {
+                      const oldVal = c.old_value != null && c.old_value !== '' ? String(c.old_value) : null;
+                      const newVal = c.new_value != null && c.new_value !== '' ? String(c.new_value) : null;
+                      return (
+                        <div key={idx} style={{ fontSize: 12 }}>
+                          <Text code>{c.field}</Text>:{' '}
+                          {oldVal && <><Text delete type="secondary">{oldVal}</Text>{' → '}</>}
+                          {!oldVal && newVal && <>{' → '}</>}
+                          <Text style={{ color: changeValueColor(c.field, newVal || '') || '#52c41a', fontWeight: 500 }}>{newVal || 'Không có'}</Text>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ),
+          }))}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <div className="animate-fade-in-up">
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+        <div>
+          <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} style={{ marginBottom: 8, padding: 0, color: '#64748b' }}>
+            Quay lại danh sách
+          </Button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Title level={3} style={{ margin: 0 }}>
+              {invoice.invoiceNumber}
+              {invoice.serialNumber && <Text type="secondary" style={{ fontSize: 16, fontWeight: 400 }}> — {invoice.serialNumber}</Text>}
+            </Title>
+            <StatusBadge type="status" value={invoice.status} />
+            <StatusBadge type="risk" value={invoice.riskLevel} />
+          </div>
+          <Space style={{ marginTop: 8 }} size={16}>
+            <Text type="secondary"><CalendarOutlined /> {dayjs(invoice.invoiceDate).format('DD/MM/YYYY')}</Text>
+            {invoice.formNumber && <Text type="secondary">Mẫu: {invoice.formNumber}</Text>}
+            <Text type="secondary">Xử lý: {invoice.processingMethod}</Text>
+            {invoice.mccqt && <Text type="secondary">MCCQT: {invoice.mccqt}</Text>}
+          </Space>
+        </div>
+        {renderWorkflowActions()}
+      </div>
+
+      {/* Content Tabs */}
+      <Card bordered={false} className="bg-dash-card rounded-[14px] shadow-dash" bodyStyle={{ padding: '16px 24px' }}>
+        <Tabs defaultActiveKey="info" items={tabItems} />
+      </Card>
+
+      {/* Reject Modal */}
+      <Modal
+        title={<span><ExclamationCircleOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />Từ chối hóa đơn</span>}
+        open={rejectModalOpen}
+        onCancel={() => setRejectModalOpen(false)}
+        onOk={() => rejectMutation.mutate()}
+        okText="Từ chối"
+        cancelText="Hủy"
+        okButtonProps={{ danger: true, loading: rejectMutation.isPending, disabled: !rejectReason.trim() }}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text strong style={{ display: 'block', marginBottom: 8 }}>Lý do từ chối <Text type="danger">*</Text></Text>
+          <TextArea
+            rows={3}
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Nhập lý do từ chối..."
+            maxLength={1000}
+            showCount
+          />
+        </div>
+        <div>
+          <Text strong style={{ display: 'block', marginBottom: 8 }}>Ghi chú bổ sung</Text>
+          <TextArea
+            rows={2}
+            value={rejectComment}
+            onChange={(e) => setRejectComment(e.target.value)}
+            placeholder="Ghi chú thêm (tùy chọn)..."
+            maxLength={500}
+          />
+        </div>
+      </Modal>
+    </div>
+  );
+};
+
+export default InvoiceDetail;

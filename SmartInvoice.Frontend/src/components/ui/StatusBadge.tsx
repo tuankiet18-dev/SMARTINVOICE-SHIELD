@@ -31,7 +31,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ type, value }) => {
     }
 
     return (
-        <span className={`px-4 py-1.5 rounded-full text-xs font-bold ${mapping.bgClass} ${mapping.textClass}`}>
+        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${mapping.bgClass} ${mapping.textClass}`}>
             {type === 'risk' ? value : mapping.label}
         </span>
     );

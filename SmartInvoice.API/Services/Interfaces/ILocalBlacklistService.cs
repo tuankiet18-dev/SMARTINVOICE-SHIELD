@@ -7,8 +7,9 @@ namespace SmartInvoice.API.Services.Interfaces
 {
     public interface ILocalBlacklistService
     {
-        Task<LocalBlacklistedCompany> GetByIdAsync(Guid id);
+        Task<LocalBlacklistedCompany?> GetByIdAsync(Guid id);
         Task<IEnumerable<LocalBlacklistedCompany>> GetAllAsync();
+        Task<LocalBlacklistedCompany?> GetByTaxCodeAsync(string taxCode);
         Task<LocalBlacklistedCompany> CreateAsync(LocalBlacklistedCompany entity);
         Task UpdateAsync(LocalBlacklistedCompany entity);
         Task DeleteAsync(Guid id);

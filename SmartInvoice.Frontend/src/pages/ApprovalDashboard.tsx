@@ -1,195 +1,246 @@
 import React, { useState } from 'react';
 import {
-    Card, Table, Tag, Input, Typography, Row, Col, Tabs, Button, Space, Modal, Form, message
+    Card, Table, Tag, Input, Typography, Row, Col, Tabs, Button, Space, message, Badge
 } from 'antd';
 import {
-    SearchOutlined, CheckCircleOutlined, WarningOutlined, ExclamationCircleOutlined, EyeOutlined, LoadingOutlined
+    SearchOutlined, CheckCircleOutlined, SyncOutlined, FilterOutlined, ExclamationCircleOutlined 
 } from '@ant-design/icons';
 import type { TabsProps } from 'antd';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoiceService } from '../services/invoice';
+import ApprovalDrawer from '../components/dashboard/ApprovalDrawer';
 
 const { Title, Text } = Typography;
-const { TextArea } = Input;
 
 const riskColors: Record<string, string> = {
     Green: '#2d9a5c', Yellow: '#e6a817', Orange: '#e17055', Red: '#d63031',
 };
 
-const mockApprovalData = [
-    { key: '1', invoiceNo: 'INV-2026-001290', seller: 'Công ty TNHH Thương mại ABC', amount: '25,400,000 ₫', date: '12/02/2026', risk: 'Yellow', reason: 'Sai lệch tiền thuế 5,000đ' },
-    { key: '2', invoiceNo: 'INV-2026-001289', seller: 'Công ty CP Công nghệ XYZ', amount: '8,750,000 ₫', date: '11/02/2026', risk: 'Orange', reason: 'Ngày lập và ký lệch 5 ngày' },
-    { key: '3', invoiceNo: 'INV-2026-001288', seller: 'DN Tư nhân Phát Đạt', amount: '42,100,000 ₫', date: '11/02/2026', risk: 'Yellow', reason: 'Khóa chữ ký số sắp hết hạn' },
-    { key: '4', invoiceNo: 'INV-2026-001287', seller: 'Công ty CP Vận tải An Bình', amount: '12,000,000 ₫', date: '10/02/2026', risk: 'Orange', reason: 'Tổng tiền vượt định mức ngành' },
+// Some mock data in case API is empty during testing
+const DUMMY_PENDING = [
+    { id: '1', invoiceNo: 'INV-2026-001290', seller: 'Công ty TNHH Thương mại ABC', amount: 25400000, date: '12/02/2026', risk: 'Yellow', reason: 'Sai lệch tiền thuế 5,000đ', status: 'Pending' },
+    { id: '2', invoiceNo: 'INV-2026-001289', seller: 'Công ty CP Công nghệ XYZ', amount: 8750000, date: '11/02/2026', risk: 'Green', reason: 'Hoàn toàn hợp lệ', status: 'Pending' },
+    { id: '3', invoiceNo: 'INV-2026-001287', seller: 'Công ty CP Vận tải An Bình', amount: 12000000, date: '10/02/2026', risk: 'Orange', reason: 'Tổng tiền vượt định mức ngành', status: 'Pending' },
 ];
 
 const ApprovalDashboard: React.FC = () => {
-    const [isOverrideModalVisible, setIsOverrideModalVisible] = useState(false);
+    const [selectedTab, setSelectedTab] = useState('Pending');
     const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
-    const [form] = Form.useForm();
-    const [localData, setLocalData] = useState<any[]>([]); // To manage state after override
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
-    const { data: apiData = [], isLoading, isError } = useQuery({
-        queryKey: ['invoices-approval'],
-        queryFn: () => invoiceService.getInvoices(),
+    const queryClient = useQueryClient();
+
+    const { data: apiDataResponse, isLoading } = useQuery({
+        queryKey: ['invoices', selectedTab],
+        queryFn: () => invoiceService.getInvoices(1, 50, undefined, selectedTab === 'All' ? undefined : selectedTab),
     });
 
-    // Determine which data to use: if API fails or is empty, use mock data. Otherwise use API data filtered for risks.
-    // In a real app, you would have a specific endpoint for "/api/invoices/pending-approval"
-    const dataToDisplay = apiData.length > 0 ? apiData.filter(i => i.risk === 'Yellow' || i.risk === 'Orange') : mockApprovalData;
+    const approveBulkMutation = useMutation({
+        mutationFn: async (ids: string[]) => {
+            // Using a loop for bulk approve, ideally we should have a bulk endpoint in backend
+            for(let id of ids) {
+                await invoiceService.approveInvoice(id);
+            }
+        },
+        onSuccess: () => {
+            message.success(`Đã tự động phê duyệt ${selectedRowKeys.length} hóa đơn`);
+            setSelectedRowKeys([]);
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        },
+        onError: (err: any) => {
+            message.error(`Lỗi duyệt hàng loạt: ${err.message}`);
+        }
+    });
 
-    // Merge remote and local state logic for the "override" demo to work smoothly
-    const currentData = localData.length > 0 ? localData : dataToDisplay;
+    // Map API data or fallback to dummy data if API returns empty during test
+    let dataToDisplay: any[] = [];
+    if (apiDataResponse?.items && apiDataResponse.items.length > 0) {
+        dataToDisplay = apiDataResponse.items.map((i: any) => ({
+            ...i,
+            key: i.invoiceId,
+            id: i.invoiceId,
+        }));
+    } else {
+        if (selectedTab === 'Pending') dataToDisplay = DUMMY_PENDING.map(d => ({ ...d, key: d.id }));
+    }
 
-
-    const handleOverrideClick = (record: any) => {
+    const openDrawer = (record: any) => {
         setSelectedInvoice(record);
-        setIsOverrideModalVisible(true);
-    };
-
-    const handleOverrideSubmit = () => {
-        form.validateFields().then(values => {
-            // Simulate API call to override risk
-            message.success(`Đã duyệt ngoại lệ hóa đơn ${selectedInvoice.invoiceNo}. Lý do: ${values.reason}`);
-            setLocalData(currentData.filter(item => item.key !== selectedInvoice.key));
-            setIsOverrideModalVisible(false);
-            form.resetFields();
-        });
+        setDrawerOpen(true);
     };
 
     const columns = [
         {
             title: 'Số hóa đơn',
-            dataIndex: 'invoiceNo',
-            key: 'invoiceNo',
-            render: (text: string) => <Text strong style={{ color: '#1a4b8c' }}>{text}</Text>,
+            dataIndex: 'invoiceNumber',
+            key: 'invoiceNumber',
+            render: (text: string, record: any) => <a onClick={() => openDrawer(record)}><Text strong style={{ color: '#1a4b8c' }}>{text || record.invoiceNo}</Text></a>,
         },
         {
             title: 'Người bán',
-            dataIndex: 'seller',
-            key: 'seller',
-        },
-        {
-            title: 'Nội dung Cảnh báo',
-            dataIndex: 'reason',
-            key: 'reason',
-            render: (text: string, record: any) => (
-                <Space>
-                    {record.risk === 'Orange' ? <ExclamationCircleOutlined style={{ color: '#e17055' }} /> : <WarningOutlined style={{ color: '#e6a817' }} />}
-                    <Text type="secondary">{text}</Text>
-                </Space>
-            ),
+            dataIndex: 'sellerName',
+            key: 'sellerName',
+            render: (text: string, record: any) => text || record.seller
         },
         {
             title: 'Tổng tiền',
-            dataIndex: 'amount',
-            key: 'amount',
+            dataIndex: 'totalAmount',
+            key: 'totalAmount',
             align: 'right' as const,
-            render: (text: string) => <Text strong>{text}</Text>,
+            render: (text: number, record: any) => <Text strong>{(text || record.amount)?.toLocaleString()} ₫</Text>,
         },
         {
-            title: 'Rủi ro',
-            dataIndex: 'risk',
-            key: 'risk',
-            width: 120,
-            render: (risk: string) => (
-                <Tag style={{
-                    background: `${riskColors[risk]}14`, color: riskColors[risk],
-                    border: `1px solid ${riskColors[risk]}30`, borderRadius: 6, fontWeight: 600, fontSize: 12,
-                }}>
-                    {risk}
-                </Tag>
-            ),
+            title: 'Cảnh báo rủi ro',
+            dataIndex: 'riskLevel',
+            key: 'riskLevel',
+            width: 140,
+            render: (riskLevel: string, record: any) => {
+                const risk = riskLevel || record.risk || 'Green';
+                return (
+                    <Tag style={{
+                        background: `${riskColors[risk]}14`, color: riskColors[risk],
+                        border: `1px solid ${riskColors[risk]}30`, borderRadius: 6, fontWeight: 600, fontSize: 12,
+                    }}>
+                        {risk} Risk
+                    </Tag>
+                );
+            },
+        },
+        {
+            title: 'Trạng thái',
+            dataIndex: 'status',
+            key: 'status',
+            render: (status: string) => {
+                if (status === 'Pending') return <Badge status="processing" text="Chờ duyệt" />;
+                if (status === 'Approved') return <Badge status="success" text="Đã duyệt" />;
+                if (status === 'Rejected') return <Badge status="error" text="Từ chối" />;
+                return <Badge status="default" text={status} />;
+            }
         },
         {
             title: 'Hành động',
             key: 'action',
-            width: 250,
-            render: (_, record) => (
-                <Space>
-                    <Button size="small" icon={<EyeOutlined />}>Chi tiết</Button>
-                    <Button
-                        type="primary"
-                        danger={record.risk === 'Orange'}
-                        style={record.risk === 'Yellow' ? { background: '#e6a817', borderColor: '#e6a817' } : {}}
-                        icon={<CheckCircleOutlined />}
-                        size="small"
-                        onClick={() => handleOverrideClick(record)}
-                    >
-                        Duyệt ngoại lệ
-                    </Button>
-                </Space>
+            width: 120,
+            render: (_: any, record: any) => (
+                <Button size="small" type="primary" ghost onClick={() => openDrawer(record)}>Chi tiết</Button>
             ),
         },
     ];
 
-    const items: TabsProps['items'] = [
-        {
-            key: '1',
-            label: 'Chờ duyệt (Lưu ý)',
-            children: <Table loading={isLoading} columns={columns} dataSource={currentData.filter(i => i.risk === 'Yellow')} pagination={false} />,
+    const handleBulkApprove = () => {
+        if (selectedRowKeys.length === 0) return;
+        approveBulkMutation.mutate(selectedRowKeys.map(k => k.toString()));
+    };
+
+    const rowSelection = {
+        selectedRowKeys,
+        onChange: (newSelectedRowKeys: React.Key[]) => {
+            setSelectedRowKeys(newSelectedRowKeys);
         },
-        {
-            key: '2',
-            label: 'Cảnh báo rủi ro cao',
-            children: <Table loading={isLoading} columns={columns} dataSource={currentData.filter(i => i.risk === 'Orange')} pagination={false} />,
-        },
+        getCheckboxProps: (record: any) => ({
+            disabled: record.status !== 'Pending', 
+        }),
+    };
+
+    const tabItems: TabsProps['items'] = [
+        { key: 'Pending', label: 'Chờ duyệt (Pending)' },
+        { key: 'Approved', label: 'Đã duyệt (Approved)' },
+        { key: 'Rejected', label: 'Từ chối (Rejected)' },
+        { key: 'All', label: 'Tất cả hóa đơn' }
     ];
 
     return (
         <div className="animate-fade-in-up">
-            <div style={{ marginBottom: 24 }}>
-                <Title level={4} style={{ margin: 0 }}>Bàn làm việc Quản lý (Approval Dashboard)</Title>
-                <Text type="secondary">Kiểm soát rủi ro và phê duyệt các trường hợp ngoại lệ (Exceptions)</Text>
+            <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                    <Title level={4} style={{ margin: 0 }}>Duyệt Ngoại Lệ (Approval Dashboard)</Title>
+                    <Text type="secondary">Quản lý hóa đơn chờ duyệt dựa trên mức độ rủi ro hệ thống.</Text>
+                </div>
+                <Space>
+                    <Button icon={<SyncOutlined />} onClick={() => queryClient.invalidateQueries({ queryKey: ['invoices'] })}>Làm mới</Button>
+                </Space>
             </div>
 
-            <Card bordered={false} style={{ borderRadius: 12 }}>
-                <Row style={{ marginBottom: 16 }}>
-                    <Col span={8}>
-                        <Input prefix={<SearchOutlined />} placeholder="Tìm kiếm hóa đơn cần duyệt..." />
-                    </Col>
-                </Row>
-                <Tabs defaultActiveKey="1" items={items} />
-            </Card>
+            {/* Thống kê nhanh */}
+            <Row gutter={16} style={{ marginBottom: 24 }}>
+                <Col span={6}>
+                    <Card style={{ borderRadius: 12, borderLeft: '4px solid #1677ff' }} bodyStyle={{ padding: '16px 20px' }}>
+                        <Text type="secondary">Tổng số chờ duyệt</Text>
+                        <Title level={2} style={{ margin: '4px 0 0' }}>{selectedTab === 'Pending' ? dataToDisplay.length : '--'}</Title>
+                    </Card>
+                </Col>
+                <Col span={6}>
+                    <Card style={{ borderRadius: 12, borderLeft: `4px solid ${riskColors.Green}` }} bodyStyle={{ padding: '16px 20px' }}>
+                        <Text type="secondary">An toàn (Green)</Text>
+                        <Title level={2} style={{ margin: '4px 0 0', color: riskColors.Green }}>
+                            {selectedTab === 'Pending' ? dataToDisplay.filter(i => (i.riskLevel || i.risk) === 'Green').length : '--'}
+                        </Title>
+                    </Card>
+                </Col>
+                <Col span={6}>
+                    <Card style={{ borderRadius: 12, borderLeft: `4px solid ${riskColors.Yellow}` }} bodyStyle={{ padding: '16px 20px' }}>
+                        <Text type="secondary">Cần lưu ý (Yellow)</Text>
+                        <Title level={2} style={{ margin: '4px 0 0', color: riskColors.Yellow }}>
+                            {selectedTab === 'Pending' ? dataToDisplay.filter(i => (i.riskLevel || i.risk) === 'Yellow').length : '--'}
+                        </Title>
+                    </Card>
+                </Col>
+                <Col span={6}>
+                    <Card style={{ borderRadius: 12, borderLeft: `4px solid ${riskColors.Red}` }} bodyStyle={{ padding: '16px 20px' }}>
+                        <Text type="secondary">Rủi ro (Orange/Red)</Text>
+                        <Title level={2} style={{ margin: '4px 0 0', color: riskColors.Red }}>
+                            {selectedTab === 'Pending' ? dataToDisplay.filter(i => ['Orange', 'Red'].includes(i.riskLevel || i.risk)).length : '--'}
+                        </Title>
+                    </Card>
+                </Col>
+            </Row>
 
-            <Modal
-                title={
+            <Card bordered={false} style={{ borderRadius: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <Tabs 
+                        activeKey={selectedTab} 
+                        onChange={(key) => {
+                            setSelectedTab(key);
+                            setSelectedRowKeys([]);
+                        }} 
+                        items={tabItems} 
+                        style={{ marginBottom: 0 }}
+                    />
                     <Space>
-                        <ExclamationCircleOutlined style={{ color: '#faad14', fontSize: 20 }} />
-                        <Text strong>Xác nhận Duyệt Ngoại Lệ (Override Risk)</Text>
+                        <Input prefix={<SearchOutlined />} placeholder="Tìm kiếm hóa đơn..." style={{ width: 250 }} />
+                        <Button icon={<FilterOutlined />}>Bộ lọc</Button>
                     </Space>
-                }
-                open={isOverrideModalVisible}
-                onOk={handleOverrideSubmit}
-                onCancel={() => {
-                    setIsOverrideModalVisible(false);
-                    form.resetFields();
-                }}
-                okText="Xác nhận & Ghi nhận Audit Log"
-                cancelText="Hủy"
-                okButtonProps={{ danger: true }}
-            >
-                <div style={{ marginBottom: 20, padding: 12, background: '#f5f5f5', borderRadius: 8 }}>
-                    <Text strong>Hóa đơn: </Text> <Text type="secondary">{selectedInvoice?.invoiceNo}</Text><br />
-                    <Text strong>Cảnh báo hệ thống: </Text> <Text type="danger">{selectedInvoice?.reason}</Text>
                 </div>
 
-                <Form form={form} layout="vertical">
-                    <Form.Item
-                        name="reason"
-                        label={<span><Text type="danger">*</Text> Lý do phê duyệt ngoại lệ (Bắt buộc)</span>}
-                        rules={[{ required: true, message: 'Vui lòng nhập lý do để lưu Audit Log!' }]}
-                    >
-                        <TextArea
-                            rows={4}
-                            placeholder="Nhập giải trình lý do duyệt bỏ qua cảnh báo hệ thống. Ví dụ: Kế toán đã liên hệ NCC xác nhận sai sót nhỏ trên hóa đơn nhưng không ảnh hưởng quyền lợi..."
-                        />
-                    </Form.Item>
-                </Form>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                    Lưu ý: Hành động này sẽ được ghi nhận vĩnh viễn vào hệ thống [InvoiceAuditLog] dưới quyền của bạn.
-                </Text>
-            </Modal>
+                {selectedTab === 'Pending' && selectedRowKeys.length > 0 && (
+                    <div style={{ marginBottom: 16, padding: '10px 16px', background: '#e6f4ff', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text strong style={{ color: '#1677ff' }}>Đã chọn {selectedRowKeys.length} hóa đơn</Text>
+                        <Button 
+                            type="primary" 
+                            icon={<CheckCircleOutlined />} 
+                            onClick={handleBulkApprove}
+                            loading={approveBulkMutation.isPending}
+                        >
+                            Duyệt tất cả đã chọn
+                        </Button>
+                    </div>
+                )}
+
+                <Table 
+                    rowSelection={selectedTab === 'Pending' ? rowSelection : undefined}
+                    loading={isLoading} 
+                    columns={columns} 
+                    dataSource={dataToDisplay} 
+                    pagination={{ pageSize: 15 }} 
+                />
+            </Card>
+
+            <ApprovalDrawer 
+                open={drawerOpen} 
+                onClose={() => setDrawerOpen(false)} 
+                invoice={selectedInvoice} 
+            />
         </div>
     );
 };

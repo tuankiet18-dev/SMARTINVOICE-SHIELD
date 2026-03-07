@@ -10,6 +10,7 @@ namespace SmartInvoice.API.DTOs.User
         public string FullName { get; set; } = null!;
         public string? EmployeeId { get; set; }
         public Guid CompanyId { get; set; }
+        public string? CompanyName { get; set; }
         public string Role { get; set; } = null!;
         public List<string>? Permissions { get; set; }
         public bool IsActive { get; set; }

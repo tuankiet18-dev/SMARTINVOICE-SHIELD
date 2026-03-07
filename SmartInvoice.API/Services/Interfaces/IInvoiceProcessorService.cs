@@ -25,6 +25,6 @@ namespace SmartInvoice.API.Services.Interfaces
         /// <summary>
         /// 4. Rà soát rủi ro logic, gọi API VietQR, kiểm tra tính toán
         /// </summary>
-        Task<ValidationResultDto> ValidateBusinessLogicAsync(XmlDocument xmlDoc);
+        Task<ValidationResultDto> ValidateBusinessLogicAsync(XmlDocument xmlDoc, Guid? companyId = null);
     }
 }

@@ -1,4 +1,8 @@
-import { apiClient } from '../lib/api-client';
+﻿import { apiClient } from '../lib/api-client';
+
+// ════════════════════════════════════════════
+//  Types
+// ════════════════════════════════════════════
 
 export interface InvoiceLineItem {
     stt: number;
@@ -31,8 +35,139 @@ export interface UploadUrlResponse {
     s3Key: string;
 }
 
+// --- List DTO ---
+export interface InvoiceDto {
+    invoiceId: string;
+    invoiceNumber: string;
+    serialNumber: string | null;
+    invoiceDate: string;
+    createdAt: string;
+    sellerName: string | null;
+    sellerTaxCode: string | null;
+    totalAmount: number;
+    invoiceCurrency: string;
+    status: string;
+    riskLevel: string;
+    processingMethod: string;
+    uploadedByName: string;
+}
+
+export interface PagedResult<T> {
+    items: T[];
+    totalCount: number;
+    pageIndex: number;
+    pageSize: number;
+    totalPages: number;
+}
+
+// --- Detail DTO ---
+export interface LineItemDto {
+    lineNumber: number;
+    itemName: string | null;
+    unit: string | null;
+    quantity: number;
+    unitPrice: number;
+    totalAmount: number;
+    vatRate: number;
+    vatAmount: number;
+}
+
+export interface ValidationLayerDto {
+    layerName: string;
+    layerOrder: number;
+    isValid: boolean;
+    validationStatus: string;
+    errorDetails: string | null;
+    checkedAt: string;
+}
+
+export interface RiskCheckDto {
+    checkType: string;
+    checkStatus: string;
+    riskLevel: string;
+    errorMessage: string | null;
+    suggestion: string | null;
+    checkDetails: string | null;
+    checkedAt: string;
+}
+
+export interface AuditLogDto {
+    auditId: string;
+    userEmail: string | null;
+    userRole: string | null;
+    userFullName: string | null;
+    ipAddress: string | null;
+    action: string;
+    createdAt: string;
+    changes: { field: string; old_value: unknown; new_value: unknown; change_type: string }[] | null;
+    reason: string | null;
+    comment: string | null;
+}
+
+export interface RiskReason {
+    layer: string | null;
+    code: string | null;
+    severity: string | null;
+    message: string | null;
+    auto_detected: boolean;
+    checked_at: string | null;
+}
+
+export interface InvoiceDetailDto {
+    invoiceId: string;
+    invoiceNumber: string;
+    serialNumber: string | null;
+    formNumber: string | null;
+    invoiceDate: string;
+    status: string;
+    riskLevel: string;
+    processingMethod: string;
+    invoiceCurrency: string;
+    exchangeRate: number;
+    mccqt: string | null;
+
+    sellerName: string | null;
+    sellerTaxCode: string | null;
+    sellerAddress: string | null;
+    sellerBankAccount: string | null;
+    sellerBankName: string | null;
+
+    buyerName: string | null;
+    buyerTaxCode: string | null;
+    buyerAddress: string | null;
+
+    totalAmountBeforeTax: number | null;
+    totalTaxAmount: number | null;
+    totalAmount: number;
+    totalAmountInWords: string | null;
+
+    paymentMethod: string | null;
+    notes: string | null;
+
+    uploadedByName: string | null;
+    createdAt: string;
+    submittedByName: string | null;
+    submittedAt: string | null;
+    approvedByName: string | null;
+    approvedAt: string | null;
+    rejectedByName: string | null;
+    rejectedAt: string | null;
+    rejectionReason: string | null;
+
+    riskReasons: RiskReason[] | null;
+
+    lineItems: LineItemDto[];
+    validationLayers: ValidationLayerDto[];
+    riskChecks: RiskCheckDto[];
+    auditLogs: AuditLogDto[];
+}
+
+// ════════════════════════════════════════════
+//  Service
+// ════════════════════════════════════════════
+
 export const invoiceService = {
-    // B1: Lấy Pre-signed URL từ Backend
+    // --- Upload ---
     async getUploadUrl(fileName: string, contentType: string): Promise<UploadUrlResponse> {
         const response = await apiClient.post<UploadUrlResponse>('/invoices/generate-upload-url', {
             fileName,
@@ -41,52 +176,79 @@ export const invoiceService = {
         return response.data;
     },
 
-    // B2: Upload file trực tiếp lên S3 bằng Fetch (Khuyến nghị dùng native fetch để không dính Authorization Header của Axios)
     async uploadToS3(uploadUrl: string, file: File): Promise<void> {
         const response = await fetch(uploadUrl, {
             method: 'PUT',
             body: file,
-            headers: {
-                'Content-Type': file.type,
-            },
+            headers: { 'Content-Type': file.type },
         });
-
-        if (!response.ok) {
-            throw new Error('Failed to upload file to S3');
-        }
+        if (!response.ok) throw new Error('Failed to upload file to S3');
     },
 
-    // B3: Gọi Backend đọc S3Key và trích xuất dữ liệu
     async processXml(s3Key: string): Promise<ValidationResult> {
-        const response = await apiClient.post<ValidationResult>('/invoices/process-xml', {
-            s3Key,
-        });
+        const response = await apiClient.post<ValidationResult>('/invoices/process-xml', { s3Key });
         return response.data;
     },
 
-    // B4: Upload thẳng file cho Backend (Không qua S3) dành cho việc test nhanh
     async uploadToLocal(file: File): Promise<ValidationResult> {
         const formData = new FormData();
         formData.append('file', file);
-
         const response = await apiClient.post<ValidationResult>('/invoices/test-process-local', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            }
+            headers: { 'Content-Type': 'multipart/form-data' },
         });
         return response.data;
     },
 
-    // B5: Fetch list of invoices
-    async getInvoices(page: number = 1, size: number = 10, keyword?: string, status?: string, riskLevel?: string, fromDate?: string, toDate?: string): Promise<any> {
-        let url = `/invoices?page=${page}&size=${size}`;
-        if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
-        if (status) url += `&status=${status}`;
-        if (riskLevel) url += `&riskLevel=${riskLevel}`;
-        if (fromDate) url += `&fromDate=${fromDate}`;
-        if (toDate) url += `&toDate=${toDate}`;
-        
-        const response = await apiClient.get<any>(url);
+    // --- List ---
+    async getInvoices(
+        page: number = 1,
+        size: number = 10,
+        keyword?: string,
+        status?: string,
+        riskLevel?: string,
+        fromDate?: string,
+        toDate?: string
+    ): Promise<PagedResult<InvoiceDto>> {
+        const params = new URLSearchParams();
+        params.set('page', String(page));
+        params.set('size', String(size));
+        if (keyword) params.set('keyword', keyword);
+        if (status) params.set('status', status);
+        if (riskLevel) params.set('riskLevel', riskLevel);
+        if (fromDate) params.set('fromDate', fromDate);
+        if (toDate) params.set('toDate', toDate);
+
+        const response = await apiClient.get<PagedResult<InvoiceDto>>(`/invoices?${params.toString()}`);
         return response.data;
-    }
+    },
+
+    // --- Detail ---
+    async getInvoiceDetail(id: string): Promise<InvoiceDetailDto> {
+        const response = await apiClient.get<InvoiceDetailDto>(`/invoices/${id}`);
+        return response.data;
+    },
+
+    // --- Workflow ---
+    async submitInvoice(id: string, comment?: string): Promise<void> {
+        await apiClient.post(`/invoices/${id}/submit`, { comment });
+    },
+
+    async approveInvoice(id: string, comment?: string): Promise<void> {
+        await apiClient.post(`/invoices/${id}/approve`, { comment });
+    },
+
+    async rejectInvoice(id: string, reason: string, comment?: string): Promise<void> {
+        await apiClient.post(`/invoices/${id}/reject`, { reason, comment });
+    },
+
+    // --- Delete ---
+    async deleteInvoice(id: string): Promise<void> {
+        await apiClient.delete(`/invoices/${id}`);
+    },
+
+    // --- Audit Logs ---
+    async getAuditLogs(id: string): Promise<AuditLogDto[]> {
+        const response = await apiClient.get<AuditLogDto[]>(`/invoices/${id}/audit-logs`);
+        return response.data;
+    },
 };

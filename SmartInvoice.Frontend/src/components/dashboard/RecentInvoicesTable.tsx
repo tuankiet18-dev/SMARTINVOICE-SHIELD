@@ -28,8 +28,9 @@ const columns = [
         title: 'Số hóa đơn',
         dataIndex: 'invoiceNo',
         key: 'invoiceNo',
+        width: 160,
         render: (text: string, record: any) => (
-            <div>
+            <div style={{ whiteSpace: 'nowrap' }}>
                 <Text className="text-dash-textMain font-bold block">{text}</Text>
                 {record.type && (
                     <Text className="text-dash-textMuted text-xs">{record.type} • {record.method}</Text>
@@ -41,11 +42,12 @@ const columns = [
         title: 'Người bán',
         dataIndex: 'seller',
         key: 'seller',
+        ellipsis: true,
         render: (text: string, record: any) => (
             <div>
-                <Text className="text-dash-textMain font-medium text-sm block">{text}</Text>
+                <Text className="text-dash-textMain font-medium text-sm block" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</Text>
                 {record.mst && (
-                    <Text className="text-dash-textMuted text-xs">MST: {record.mst}</Text>
+                    <Text className="text-dash-textMuted text-xs" style={{ whiteSpace: 'nowrap' }}>MST: {record.mst}</Text>
                 )}
             </div>
         ),
@@ -54,24 +56,29 @@ const columns = [
         title: 'Tổng tiền',
         dataIndex: 'amount',
         key: 'amount',
-        render: (text: string | number) => <Text className="text-dash-textMain font-bold">{text}</Text>,
+        width: 150,
+        align: 'right' as const,
+        render: (text: string | number) => <Text className="text-dash-textMain font-bold" style={{ whiteSpace: 'nowrap' }}>{text}</Text>,
     },
     {
         title: 'Ngày lập',
         dataIndex: 'date',
         key: 'date',
-        render: (text: string) => <Text className="text-dash-textMuted font-medium text-sm">{text}</Text>,
+        width: 110,
+        render: (text: string) => <Text className="text-dash-textMuted font-medium text-sm" style={{ whiteSpace: 'nowrap' }}>{text}</Text>,
     },
     {
         title: 'Trạng thái',
         dataIndex: 'status',
         key: 'status',
+        width: 120,
         render: (status: string) => <StatusBadge type="status" value={status} />,
     },
     {
         title: 'Rủi ro',
         dataIndex: 'risk',
         key: 'risk',
+        width: 100,
         render: (risk: string) => <StatusBadge type="risk" value={risk} />,
     },
 ];
@@ -96,8 +103,10 @@ const RecentInvoicesTable: React.FC<RecentInvoicesTableProps> = ({ invoices, isL
                 <Table
                     columns={columns}
                     dataSource={invoices}
+                    rowKey="invoiceId"
                     loading={isLoading}
                     pagination={false}
+                    scroll={{ x: 800 }}
                     rowClassName={() => 'hover:bg-dash-bg/50 transition-colors'}
                     components={{
                         header: {

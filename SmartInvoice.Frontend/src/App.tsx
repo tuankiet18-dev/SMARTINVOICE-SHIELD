@@ -11,6 +11,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import InvoiceList from './pages/InvoiceList';
+import InvoiceDetail from './pages/InvoiceDetail';
 import UploadInvoice from './pages/UploadInvoice';
 import ValidationPage from './pages/ValidationPage';
 import ReportsPage from './pages/ReportsPage';
@@ -39,6 +40,7 @@ const App = () => (
                 <Route index element={<Navigate to="/app/dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="invoices" element={<InvoiceList />} />
+                <Route path="invoices/:id" element={<InvoiceDetail />} />
                 <Route path="upload" element={<UploadInvoice />} />
                 <Route path="validation" element={<ValidationPage />} />
                 <Route path="reports" element={<ReportsPage />} />

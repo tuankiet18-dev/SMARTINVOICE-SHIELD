@@ -16,7 +16,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 using SmartInvoice.API.Enums;
-using SmartInvoice.API.DTOs.Invoice;
 
 namespace SmartInvoice.API.Controller
 {
@@ -37,13 +36,35 @@ namespace SmartInvoice.API.Controller
             _invoiceService = invoiceService;
         }
 
-        // API 1: Lấy link upload (Frontend gọi cái này trước)
+        // ════════════════════════════════════════════
+        //  HELPER: Extract user claims
+        // ════════════════════════════════════════════
+
+        private (Guid UserId, Guid CompanyId, string UserRole, string UserEmail) GetUserInfo()
+        {
+            var userIdStr = User.FindFirst("UserId")?.Value;
+            var companyIdStr = User.FindFirst("CompanyId")?.Value;
+            var userRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "Member";
+            var userEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value ?? "unknown";
+
+            if (string.IsNullOrEmpty(userIdStr) || string.IsNullOrEmpty(companyIdStr))
+                throw new UnauthorizedAccessException("User identity or company information is missing in token.");
+
+            return (Guid.Parse(userIdStr), Guid.Parse(companyIdStr), userRole, userEmail);
+        }
+
+        private string? GetClientIp() =>
+            HttpContext.Connection.RemoteIpAddress?.ToString();
+
+        // ════════════════════════════════════════════
+        //  UPLOAD & PROCESS
+        // ════════════════════════════════════════════
+
         [HttpPost("generate-upload-url")]
         [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public IActionResult GetUploadUrl([FromBody] UploadRequestDto request)
         {
             var result = _storageService.GeneratePresignedUrl(request.FileName, request.ContentType);
-            // Trả về URL để FE dùng PUT upload file, kèm S3Key để FE gửi lại sau khi upload xong
             return Ok(new { UploadUrl = result.Url, S3Key = result.Key });
         }
 
@@ -52,24 +73,17 @@ namespace SmartInvoice.API.Controller
         public async Task<IActionResult> ProcessXml([FromBody] ProcessXmlRequestDto request)
         {
             if (string.IsNullOrEmpty(request.S3Key))
-            {
                 return BadRequest(new { Message = "S3Key is required." });
-            }
 
             try
             {
-                var userIdStr = User.FindFirst("UserId")?.Value;
-                var companyIdStr = User.FindFirst("CompanyId")?.Value;
-
-                if (string.IsNullOrEmpty(userIdStr) || string.IsNullOrEmpty(companyIdStr))
-                {
-                    return Unauthorized(new { Message = "User identity or company information is missing in token." });
-                }
-
-                var finalResult = await _invoiceService.ProcessInvoiceXmlAsync(request.S3Key, userIdStr, companyIdStr);
-
-                // Always return Ok (200) since the processing was technically completed and recorded
+                var (userId, companyId, _, _) = GetUserInfo();
+                var finalResult = await _invoiceService.ProcessInvoiceXmlAsync(request.S3Key, userId.ToString(), companyId.ToString());
                 return Ok(finalResult);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "User identity or company information is missing in token." });
             }
             catch (Exception ex)
             {
@@ -77,7 +91,6 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        // API HỖ TRỢ TEST NHANH TRÊN SWAGGER (Bỏ qua S3)
         [HttpPost("test-process-local")]
         [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public async Task<IActionResult> TestProcessLocal(IFormFile file)
@@ -89,9 +102,7 @@ namespace SmartInvoice.API.Controller
             try
             {
                 using (var stream = new FileStream(tempFilePath, FileMode.Create))
-                {
                     await file.CopyToAsync(stream);
-                }
 
                 var structResult = _invoiceProcessor.ValidateStructure(tempFilePath);
                 if (!structResult.IsValid) return BadRequest(structResult);
@@ -105,11 +116,8 @@ namespace SmartInvoice.API.Controller
 
                 var logicResult = await _invoiceProcessor.ValidateBusinessLogicAsync(xmlDoc);
                 logicResult.SignerSubject = sigResult.SignerSubject;
-
-                // Move data extraction before BadRequest to ensure details are returned
                 logicResult.ExtractedData = _invoiceProcessor.ExtractData(xmlDoc);
 
-                // Always return Ok (200) for successful simulation
                 return Ok(logicResult);
             }
             catch (Exception ex)
@@ -123,62 +131,9 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        // API 2: Tạo hóa đơn (Gọi sau khi upload xong)
-        [HttpPost]
-        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
-        public async Task<IActionResult> CreateInvoice()
-        {
-            // Tạm thời hard-code để test, sau này sẽ lấy từ Body gửi lên
-            var invoice = new Invoice
-            {
-                InvoiceId = Guid.NewGuid(),
-                InvoiceNumber = "INV-TEST-01",
-                Status = "Pending",
-                CompanyId = Guid.NewGuid(), // Fake ID: Will need a real company in DB to save
-                UploadedBy = Guid.Empty // Placeholder: Will be replaced by actual user ID from context
-            };
-
-            await _invoiceService.CreateInvoiceAsync(invoice);
-
-            return Ok(invoice);
-        }
-
-        // API 3: Lấy danh sách hóa đơn (Frontend gọi để hiển thị lên bảng)
-        // [HttpGet]
-        // public IActionResult GetInvoices()
-        // {
-        //     // Tạm thời trả về mock data theo chuẩn cấu trúc của DB nếu thực tế chưa có CSDL (để phục vụ giao diện FE trước)
-        //     var mockInvoices = Enumerable.Range(1, 20).Select(i =>
-        //     {
-        //         var risks = new[] { "Green", "Green", "Green", "Yellow", "Orange", "Red", "Green", "Yellow" };
-        //         var statuses = new[] { "Approved", "Pending", "Draft", "Approved", "Rejected", "Approved", "Pending", "Approved" };
-        //         var types = new[] { "01GTKT", "02GTTT", "01GTKT", "01GTKT", "02GTTT" };
-        //         var sellers = new[]
-        //         {
-        //             "Công ty TNHH Thương mại ABC",
-        //             "Công ty CP Công nghệ XYZ",
-        //             "DN Tư nhân Phát Đạt",
-        //             "Công ty TNHH SX Minh Tâm",
-        //             "Công ty CP Vận tải An Bình"
-        //         };
-
-        //         return new
-        //         {
-        //             key = i.ToString(),
-        //             invoiceNo = $"INV-2026-{(1284 - i).ToString("D6")}",
-        //             type = types[i % types.Length],
-        //             seller = sellers[i % sellers.Length],
-        //             mst = $"0{new Random().Next(100000000, 999999999)}",
-        //             amount = $"{(new Random().Next(1, 90) * 1000000).ToString("N0")} ₫",
-        //             date = $"{(12 - (i / 3)).ToString("D2")}/02/2026",
-        //             status = statuses[i % statuses.Length],
-        //             risk = risks[i % risks.Length],
-        //             method = i % 4 == 0 ? "OCR" : "XML"
-        //         };
-        //     }).ToList();
-
-        //     return Ok(mockInvoices);
-        // }
+        // ════════════════════════════════════════════
+        //  LIST & DETAIL
+        // ════════════════════════════════════════════
 
         [HttpGet]
         [Authorize(Policy = Constants.Permissions.InvoiceView)]
@@ -186,20 +141,13 @@ namespace SmartInvoice.API.Controller
         {
             try
             {
-                var userIdStr = User.FindFirst("UserId")?.Value;
-                var companyIdStr = User.FindFirst("CompanyId")?.Value;
-                var userRole = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
-
-                if (string.IsNullOrEmpty(userIdStr) || string.IsNullOrEmpty(companyIdStr))
-                {
-                    return Unauthorized(new { Message = "User identity or company information is missing in token." });
-                }
-
-                Guid userId = Guid.Parse(userIdStr);
-                Guid companyId = Guid.Parse(companyIdStr);
-
-                var result = await _invoiceService.GetInvoicesAsync(query, companyId, userId, userRole ?? "Member");
+                var (userId, companyId, userRole, _) = GetUserInfo();
+                var result = await _invoiceService.GetInvoicesAsync(query, companyId, userId, userRole);
                 return Ok(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "User identity or company information is missing in token." });
             }
             catch (Exception ex)
             {
@@ -208,18 +156,22 @@ namespace SmartInvoice.API.Controller
         }
 
         [HttpGet("{id}")]
+        [Authorize(Policy = Constants.Permissions.InvoiceView)]
         public async Task<IActionResult> GetInvoiceById(Guid id)
         {
             try
             {
-                var invoice = await _invoiceService.GetInvoiceByIdAsync(id);
+                var (userId, companyId, userRole, _) = GetUserInfo();
+                var detail = await _invoiceService.GetInvoiceDetailAsync(id, companyId, userId, userRole);
 
-                if (invoice == null)
-                {
+                if (detail == null)
                     return NotFound(new { Message = $"Không tìm thấy hóa đơn với ID: {id}" });
-                }
 
-                return Ok(invoice);
+                return Ok(detail);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "User identity or company information is missing in token." });
             }
             catch (Exception ex)
             {
@@ -227,24 +179,27 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        [HttpPost("upload")]
-        public IActionResult UploadInvoice(IFormFile file)
-        {
-            return Problem("Chức năng đang phát triển", statusCode: 501);
-        }
+        // ════════════════════════════════════════════
+        //  CRUD
+        // ════════════════════════════════════════════
 
         [HttpPut("{id}")]
+        [Authorize(Policy = Constants.Permissions.InvoiceEdit)]
         public async Task<IActionResult> UpdateInvoice(Guid id, [FromBody] UpdateInvoiceDto request)
         {
             try
             {
-                await _invoiceService.UpdateInvoiceAsync(id, request);
-
+                var (userId, _, userRole, userEmail) = GetUserInfo();
+                await _invoiceService.UpdateInvoiceAsync(id, request, userId, userEmail, userRole, GetClientIp());
                 return Ok(new { Message = "Cập nhật thành công" });
             }
-            catch (KeyNotFoundException) // Bắt cái lỗi mình ném ra ở Service
+            catch (KeyNotFoundException)
             {
                 return NotFound(new { Message = "Không tìm thấy hóa đơn" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -253,18 +208,22 @@ namespace SmartInvoice.API.Controller
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Policy = Constants.Permissions.InvoiceEdit)]
         public async Task<IActionResult> DeleteInvoice(Guid id)
         {
             try
             {
-                var isDeleted = await _invoiceService.DeleteInvoiceAsync(id);
+                var (userId, companyId, userRole, _) = GetUserInfo();
+                var isDeleted = await _invoiceService.DeleteInvoiceAsync(id, companyId, userId, userRole);
 
                 if (!isDeleted)
-                {
                     return NotFound(new { Message = $"Không tìm thấy hóa đơn với ID: {id}" });
-                }
 
                 return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -272,31 +231,100 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        [HttpPost("{id}/validate")]
-        public IActionResult ValidateInvoice(Guid id)
-        {
-            return Problem("Chức năng đang phát triển", statusCode: 501);
-        }
+        // ════════════════════════════════════════════
+        //  WORKFLOW
+        // ════════════════════════════════════════════
 
         [HttpPost("{id}/submit")]
-        public IActionResult SubmitInvoice(Guid id)
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
+        public async Task<IActionResult> SubmitInvoice(Guid id, [FromBody] SubmitInvoiceDto? request)
         {
-            return Problem("Chức năng đang phát triển", statusCode: 501);
+            try
+            {
+                var (userId, companyId, userRole, userEmail) = GetUserInfo();
+                await _invoiceService.SubmitInvoiceAsync(id, companyId, userId, userEmail, userRole, request?.Comment, GetClientIp());
+                return Ok(new { Message = "Hóa đơn đã được gửi duyệt thành công." });
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { Message = "Không tìm thấy hóa đơn." });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Forbid();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
         }
 
         [HttpPost("{id}/approve")]
-        public IActionResult ApproveInvoice(Guid id)
+        [Authorize(Policy = Constants.Permissions.InvoiceApprove)]
+        public async Task<IActionResult> ApproveInvoice(Guid id, [FromBody] ApproveInvoiceDto? request)
         {
-            return Problem("Chức năng đang phát triển", statusCode: 501);
+            try
+            {
+                var (userId, companyId, userRole, userEmail) = GetUserInfo();
+                await _invoiceService.ApproveInvoiceAsync(id, companyId, userId, userEmail, userRole, request?.Comment, GetClientIp());
+                return Ok(new { Message = "Hóa đơn đã được duyệt thành công." });
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { Message = "Không tìm thấy hóa đơn." });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
         }
 
         [HttpPost("{id}/reject")]
-        public IActionResult RejectInvoice(Guid id, [FromBody] object reason) // object tạm, sau này thay bằng DTO
+        [Authorize(Policy = Constants.Permissions.InvoiceReject)]
+        public async Task<IActionResult> RejectInvoice(Guid id, [FromBody] RejectInvoiceDto request)
         {
-            return Problem("Chức năng đang phát triển", statusCode: 501);
+            try
+            {
+                var (userId, companyId, userRole, userEmail) = GetUserInfo();
+                await _invoiceService.RejectInvoiceAsync(id, companyId, userId, userEmail, userRole, request.Reason, request.Comment, GetClientIp());
+                return Ok(new { Message = "Hóa đơn đã bị từ chối." });
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { Message = "Không tìm thấy hóa đơn." });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
         }
 
+        // ════════════════════════════════════════════
+        //  AUDIT LOG
+        // ════════════════════════════════════════════
+
         [HttpGet("{id}/audit-logs")]
+        [Authorize(Policy = Constants.Permissions.InvoiceView)]
         public async Task<IActionResult> GetAuditLogs(Guid id)
         {
             try

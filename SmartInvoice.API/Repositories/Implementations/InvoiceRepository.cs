@@ -21,14 +21,20 @@ namespace SmartInvoice.API.Repositories.Implementations
                 .Include(i => i.ValidationLayers)
                 .Include(i => i.RiskCheckResults)
                 .Include(i => i.AuditLogs)
+                    .ThenInclude(a => a.User)
                 .Include(i => i.InvoiceLineItems)
                 .Include(i => i.OriginalFile)
-                .FirstOrDefaultAsync(i => i.InvoiceId == id);
+                .Include(i => i.Uploader)
+                .Include(i => i.Submitter)
+                .Include(i => i.Approver)
+                .Include(i => i.Rejector)
+                .FirstOrDefaultAsync(i => i.InvoiceId == id && !i.IsDeleted);
         }
 
-        public async Task<bool> ExistsByDetailsAsync(string sellerTaxCode, string serialNumber, string invoiceNumber)
+        public async Task<bool> ExistsByDetailsAsync(string sellerTaxCode, string serialNumber, string invoiceNumber, Guid companyId)
         {
             return await _context.Invoices.AnyAsync(i =>
+                i.CompanyId == companyId &&
                 i.SellerTaxCode == sellerTaxCode &&
                 i.SerialNumber == serialNumber &&
                 i.InvoiceNumber == invoiceNumber);
@@ -44,7 +50,7 @@ namespace SmartInvoice.API.Repositories.Implementations
             var query = _context.Invoices.AsQueryable();
 
             // 1. Tenant Isolation: MUST be restricted to CompanyId
-            query = query.Where(i => i.CompanyId == companyId);
+            query = query.Where(i => i.CompanyId == companyId && !i.IsDeleted);
 
             // 2. Role-Based Access Control (RBAC)
             if (userRole == "Member")
