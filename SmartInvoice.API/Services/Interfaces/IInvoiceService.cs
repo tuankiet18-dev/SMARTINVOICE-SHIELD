@@ -22,6 +22,7 @@ namespace SmartInvoice.API.Services.Interfaces
 
                 // ─── Workflow ───
                 Task SubmitInvoiceAsync(Guid invoiceId, Guid companyId, Guid userId, string userEmail, string userRole, string? comment, string? ipAddress);
+                Task<BatchSubmitResultDto> SubmitBatchAsync(List<Guid> invoiceIds, Guid companyId, Guid userId, string userEmail, string userRole, string? comment, string? ipAddress);
                 Task ApproveInvoiceAsync(Guid invoiceId, Guid companyId, Guid userId, string userEmail, string userRole, string? comment, string? ipAddress);
                 Task RejectInvoiceAsync(Guid invoiceId, Guid companyId, Guid userId, string userEmail, string userRole, string reason, string? comment, string? ipAddress);
 

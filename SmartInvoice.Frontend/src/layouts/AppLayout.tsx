@@ -32,20 +32,29 @@ const AppLayout: React.FC = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
 
-  const menuItems = [{ key: '/app/dashboard', icon: <DashboardOutlined />, label: 'Tổng quan' },
-  { key: '/app/invoices', icon: <FileTextOutlined />, label: 'Hóa đơn' },
-  { key: '/app/upload', icon: <UploadOutlined />, label: 'Tải lên' },
-  { key: '/app/validation', icon: <SafetyCertificateOutlined />, label: 'Rà soát rủi ro' },
-  { key: '/app/reports', icon: <BarChartOutlined />, label: 'Báo cáo' },
-  { key: '/app/approval-dashboard', icon: <AppstoreOutlined />, label: 'Duyệt ngoại lệ' },
-  { key: '/app/team', icon: <TeamOutlined />, label: 'Quản lý Team' },
-  { key: 'divider-1', type: 'divider' as const },
-  { key: '/app/audit-log', icon: <AuditOutlined />, label: 'Nhật ký Audit' },
-  { key: 'divider-2', type: 'divider' as const },
-  { key: '/app/tenants', icon: <BlockOutlined />, label: 'Tenant (SA)' },
-  { key: '/app/global-blacklist', icon: <StopOutlined />, label: 'Blacklist (SA)' },
-  { key: '/app/system-config', icon: <ToolOutlined />, label: 'Cấu hình (SA)' },
-  { key: '/app/settings', icon: <SettingOutlined />, label: 'Cài đặt' },
+  const isCompanyAdmin = user?.role === 'CompanyAdmin' || user?.role === 'SuperAdmin';
+  const isSuperAdmin = user?.role === 'SuperAdmin';
+
+  const menuItems = [
+    { key: '/app/dashboard', icon: <DashboardOutlined />, label: 'Tổng quan' },
+    { key: '/app/invoices', icon: <FileTextOutlined />, label: 'Hóa đơn' },
+    { key: '/app/upload', icon: <UploadOutlined />, label: 'Tải lên' },
+    { key: '/app/validation', icon: <SafetyCertificateOutlined />, label: 'Rà soát rủi ro' },
+    { key: '/app/reports', icon: <BarChartOutlined />, label: 'Báo cáo' },
+    ...(isCompanyAdmin ? [
+      { key: '/app/approval-dashboard', icon: <AppstoreOutlined />, label: 'Duyệt ngoại lệ' },
+      { key: '/app/team', icon: <TeamOutlined />, label: 'Quản lý Team' },
+      { key: 'divider-1', type: 'divider' as const },
+      { key: '/app/audit-log', icon: <AuditOutlined />, label: 'Nhật ký Audit' },
+    ] : []),
+    ...(isSuperAdmin ? [
+      { key: 'divider-2', type: 'divider' as const },
+      { key: '/app/tenants', icon: <BlockOutlined />, label: 'Tenant (SA)' },
+      { key: '/app/global-blacklist', icon: <StopOutlined />, label: 'Blacklist (SA)' },
+      { key: '/app/system-config', icon: <ToolOutlined />, label: 'Cấu hình (SA)' },
+    ] : []),
+    { key: 'divider-settings', type: 'divider' as const },
+    { key: '/app/settings', icon: <SettingOutlined />, label: 'Cài đặt' },
   ];
 
   const userMenuItems = [

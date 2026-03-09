@@ -402,7 +402,7 @@ namespace SmartInvoice.API.Services.Implementations
                 {
                     if (string.IsNullOrEmpty(mccqt))
                     {
-                        result.AddError("[LỖI PHÁP LÝ] Hóa đơn Máy tính tiền bắt buộc phải có Mã của Cơ quan thuế (MCCQT)!");
+                        result.AddError("Hóa đơn khởi tạo từ máy tính tiền bắt buộc phải có Mã của Cơ quan thuế (MCCQT).");
                         isDataValid = false;
                     }
                 }
@@ -418,7 +418,7 @@ namespace SmartInvoice.API.Services.Implementations
                 {
                     if (!string.IsNullOrEmpty(sellerTax) && !actualSignerSubject.Contains(sellerTax))
                     {
-                        result.AddError($"[CẢNH BÁO AN NINH - SPOOFING DETECTED] MST trên hóa đơn: {sellerTax}, Người ký thực sự: {actualSignerSubject}. Hóa đơn bị ký bởi đơn vị KHÁC.");
+                        result.AddError($"Chữ ký số không hợp lệ: MST người bán trên hóa đơn ({sellerTax}) không khớp với người ký thực tế ({actualSignerSubject}).");
                         return result;
                     }
                 }
@@ -438,14 +438,14 @@ namespace SmartInvoice.API.Services.Implementations
                             // TH1: Có MST Người Mua → bắt buộc phải khớp
                             if (!string.Equals(buyerTax.Trim(), company.TaxCode?.Trim(), StringComparison.OrdinalIgnoreCase))
                             {
-                                result.AddError($"[LỖI QUYỀN SỞ HỮU] MST Người Mua trên hóa đơn ({buyerTax}) không khớp với MST công ty của bạn ({company.TaxCode}). Chỉ được upload hóa đơn đầu vào thuộc công ty mình.");
+                                result.AddError($"Mã số thuế người mua trên hóa đơn ({buyerTax}) không khớp với công ty hiện tại. Vui lòng kiểm tra lại.");
                                 return result;
                             }
                         }
                         else
                         {
                             // TH2: Không có MST Người Mua → cảnh báo, cần Admin duyệt kỹ
-                            result.AddWarning("[CẢNH BÁO QUYỀN SỞ HỮU] Hóa đơn không có MST Người Mua (ví dụ: hóa đơn bán lẻ BigC, xăng dầu...). Không thể tự động xác minh quyền sở hữu. Quản trị viên cần kiểm tra thủ công trước khi duyệt.");
+                            result.AddWarning("Hóa đơn không có thông tin Mã số thuế người mua (thường gặp ở hóa đơn bán lẻ). Cần thêm lý do giải trình khi gửi duyệt.");
                         }
                     }
                 }
@@ -455,12 +455,22 @@ namespace SmartInvoice.API.Services.Implementations
                 {
                     if (companyId.HasValue)
                     {
-                        bool isDuplicate = await _unitOfWork.Invoices.ExistsByDetailsAsync(sellerTax, khhDon, shDon, companyId.Value);
+                        var existingInvoice = await _unitOfWork.Invoices.GetExistingInvoiceAsync(sellerTax, khhDon, shDon, companyId.Value);
 
-                        if (isDuplicate)
+                        if (existingInvoice != null)
                         {
-                            result.AddError($"[RỦI RO TRÙNG LẶP] Hóa đơn số {shDon}, ký hiệu {khhDon} của MST {sellerTax} đã tồn tại trong hệ thống của công ty.");
-                            return result;
+                            if (existingInvoice.Status == "Rejected")
+                            {
+                                // Flag as replacement, no error
+                                result.IsReplacement = true;
+                                result.ReplacedInvoiceId = existingInvoice.InvoiceId;
+                                result.NewVersion = existingInvoice.Version + 1;
+                            }
+                            else
+                            {
+                                result.AddError($"Hóa đơn số {shDon} (Ký hiệu: {khhDon}) của MST {sellerTax} đã tồn tại trong hệ thống.");
+                                return result;
+                            }
                         }
                     }
                 }

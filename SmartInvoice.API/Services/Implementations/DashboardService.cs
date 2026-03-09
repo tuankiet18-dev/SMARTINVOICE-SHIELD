@@ -14,7 +14,7 @@ public class DashboardService : IDashboardService
         _db = db;
     }
 
-    public async Task<DashboardStatsDto> GetDashboardStatsAsync(Guid companyId, string period = "30d")
+    public async Task<DashboardStatsDto> GetDashboardStatsAsync(Guid companyId, string userRole, Guid userId, string period = "30d")
     {
         var now = DateTime.UtcNow;
 
@@ -37,6 +37,12 @@ public class DashboardService : IDashboardService
         // Base query — tenant-scoped, not deleted
         var invoices = _db.Invoices
             .Where(i => i.CompanyId == companyId && !i.IsDeleted);
+
+        // RBAC: Member only sees their own uploaded invoices stats
+        if (userRole == "Member")
+        {
+            invoices = invoices.Where(i => i.UploadedBy == userId);
+        }
 
         // ══════════════════════════════════════════════════════════════
         // QUERY 1: Counts grouped by RiskLevel + Status

@@ -145,7 +145,7 @@ builder.Services.AddAuthorization(options =>
 // 6. Config CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowReactApp",
+    options.AddPolicy("AllowAmplify",
         builder =>
         {
             builder.WithOrigins("http://localhost:3000")
@@ -243,7 +243,7 @@ app.UseCors(x => x
     .SetIsOriginAllowed(origin => true) // Allow any origin
     .AllowCredentials());
 
-// app.UseCors("AllowReactApp");
+// app.UseCors("AllowAmplify");
 
 app.UseAuthentication();
 app.UseAuthorization();

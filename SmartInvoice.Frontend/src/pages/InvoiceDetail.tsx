@@ -109,6 +109,8 @@ const InvoiceDetail: React.FC = () => {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectComment, setRejectComment] = useState('');
+  const [submitModalOpen, setSubmitModalOpen] = useState(false);
+  const [submitComment, setSubmitComment] = useState('');
 
   // ─── Data Fetching ───
   const { data: invoice, isLoading, isError, error } = useQuery({
@@ -119,9 +121,11 @@ const InvoiceDetail: React.FC = () => {
 
   // ─── Mutations ───
   const submitMutation = useMutation({
-    mutationFn: () => invoiceService.submitInvoice(id!),
+    mutationFn: (comment?: string) => invoiceService.submitInvoice(id!, comment),
     onSuccess: () => {
       message.success('Hóa đơn đã được gửi duyệt!');
+      setSubmitModalOpen(false);
+      setSubmitComment('');
       queryClient.invalidateQueries({ queryKey: ['invoice-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
     },
@@ -167,6 +171,7 @@ const InvoiceDetail: React.FC = () => {
   // ─── Workflow buttons ───
   const renderWorkflowActions = () => {
     const actions: React.ReactNode[] = [];
+    const isYellow = invoice.riskLevel === 'Yellow';
 
     if (invoice.status === 'Draft') {
       actions.push(
@@ -175,18 +180,25 @@ const InvoiceDetail: React.FC = () => {
           type="primary"
           icon={<SendOutlined />}
           onClick={() => {
-            Modal.confirm({
-              title: 'Gửi duyệt hóa đơn?',
-              content: 'Hóa đơn sẽ chuyển sang trạng thái "Chờ duyệt" và chờ Admin phê duyệt.',
-              okText: 'Gửi duyệt',
-              cancelText: 'Hủy',
-              onOk: () => submitMutation.mutate(),
-            });
+            if (isYellow) {
+              // Yellow: show dedicated modal requiring giải trình
+              setSubmitComment('');
+              setSubmitModalOpen(true);
+            } else {
+              // Green: simple confirm, no comment needed
+              Modal.confirm({
+                title: 'Gửi duyệt hóa đơn?',
+                content: 'Hóa đơn sẽ chuyển sang trạng thái "Chờ duyệt" và chờ Admin phê duyệt.',
+                okText: 'Gửi duyệt',
+                cancelText: 'Hủy',
+                onOk: () => submitMutation.mutate(undefined),
+              });
+            }
           }}
           loading={submitMutation.isPending}
           style={{ borderRadius: 10, fontWeight: 600, height: 40, background: 'linear-gradient(135deg, #4880FF, #6C5CE7)', border: 'none', boxShadow: '0 2px 8px rgba(72,128,255,0.35)' }}
         >
-          Gửi duyệt
+          {isYellow ? '⚠️ Gửi duyệt + Giải trình' : 'Gửi duyệt'}
         </Button>
       );
     }
@@ -511,6 +523,31 @@ const InvoiceDetail: React.FC = () => {
       <Card bordered={false} className="bg-dash-card rounded-[14px] shadow-dash" bodyStyle={{ padding: '16px 24px' }}>
         <Tabs defaultActiveKey="info" items={tabItems} />
       </Card>
+
+      {/* Submit with giải trình Modal - for Yellow invoices */}
+      <Modal
+        title={<Space><WarningOutlined style={{ color: '#faad14' }} /><span>Gửi duyệt hóa đơn cảnh báo (Yellow)</span></Space>}
+        open={submitModalOpen}
+        onCancel={() => setSubmitModalOpen(false)}
+        onOk={() => submitMutation.mutate(submitComment || undefined)}
+        okText="Xác nhận gửi duyệt"
+        cancelText="Hủy"
+        okButtonProps={{ loading: submitMutation.isPending }}
+      >
+        <Alert
+          message={`Hóa đơn này có rủi ro <Yellow> — cần giải trình để Admin xét duyệt.`}
+          type="warning" showIcon style={{ marginBottom: 16 }}
+        />
+        <Text strong style={{ display: 'block', marginBottom: 8 }}>Lý do giải trình <Text type="secondary">(có thể bỏ trống)</Text></Text>
+        <TextArea
+          rows={4}
+          value={submitComment}
+          onChange={e => setSubmitComment(e.target.value)}
+          placeholder="Ví dụ: Hóa đơn đổ xăng công tác, cây xăng không xuất hoá đơn có MST người mua..."
+          maxLength={500}
+          showCount
+        />
+      </Modal>
 
       {/* Reject Modal */}
       <Modal

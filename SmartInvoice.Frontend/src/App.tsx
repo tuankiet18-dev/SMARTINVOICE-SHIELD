@@ -37,6 +37,7 @@ const App = () => (
             <Route path="/register" element={<Register />} />
             <Route path="/app" element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
+                {/* Public / Common Member Routes */}
                 <Route index element={<Navigate to="/app/dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="invoices" element={<InvoiceList />} />
@@ -44,13 +45,21 @@ const App = () => (
                 <Route path="upload" element={<UploadInvoice />} />
                 <Route path="validation" element={<ValidationPage />} />
                 <Route path="reports" element={<ReportsPage />} />
-                <Route path="audit-log" element={<AuditLogPage />} />
-                <Route path="approval-dashboard" element={<ApprovalDashboard />} />
-                <Route path="team" element={<TeamManagement />} />
-                <Route path="tenants" element={<TenantManagement />} />
-                <Route path="global-blacklist" element={<GlobalBlacklist />} />
-                <Route path="system-config" element={<SystemConfig />} />
                 <Route path="profile" element={<Profile />} />
+
+                {/* CompanyAdmin & SuperAdmin Routes */}
+                <Route element={<ProtectedRoute allowedRoles={['CompanyAdmin', 'SuperAdmin']} />}>
+                  <Route path="approval-dashboard" element={<ApprovalDashboard />} />
+                  <Route path="team" element={<TeamManagement />} />
+                  <Route path="audit-log" element={<AuditLogPage />} />
+                </Route>
+
+                {/* SuperAdmin Only Routes */}
+                <Route element={<ProtectedRoute allowedRoles={['SuperAdmin']} />}>
+                  <Route path="tenants" element={<TenantManagement />} />
+                  <Route path="global-blacklist" element={<GlobalBlacklist />} />
+                  <Route path="system-config" element={<SystemConfig />} />
+                </Route>
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

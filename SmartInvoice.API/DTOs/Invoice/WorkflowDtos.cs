@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Collections.Generic;
 
 namespace SmartInvoice.API.DTOs.Invoice;
 
@@ -9,6 +10,36 @@ public class SubmitInvoiceDto
     /// </summary>
     [MaxLength(500)]
     public string? Comment { get; set; }
+}
+
+public class SubmitBatchDto
+{
+    /// <summary>
+    /// Danh sách ID hóa đơn cần gửi duyệt hàng loạt.
+    /// </summary>
+    [Required]
+    [MinLength(1, ErrorMessage = "Cần ít nhất 1 hóa đơn để gửi duyệt.")]
+    public List<Guid> InvoiceIds { get; set; } = new();
+
+    /// <summary>
+    /// Ghi chú chung cho cả batch (tùy chọn).
+    /// </summary>
+    [MaxLength(500)]
+    public string? Comment { get; set; }
+}
+
+public class BatchSubmitResultDto
+{
+    public int SuccessCount { get; set; }
+    public int FailCount { get; set; }
+    public List<BatchSubmitItemResult> Results { get; set; } = new();
+}
+
+public class BatchSubmitItemResult
+{
+    public Guid InvoiceId { get; set; }
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
 }
 
 public class ApproveInvoiceDto

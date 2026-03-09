@@ -41,12 +41,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [period, setPeriod] = useState<DashboardPeriod>('30d');
 
-  // Redirect non-admin users to upload page
-  useEffect(() => {
-    if (user && user.role !== 'CompanyAdmin' && user.role !== 'SuperAdmin') {
-      navigate('/app/upload');
-    }
-  }, [user, navigate]);
+
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboard-stats', period],
@@ -107,7 +102,9 @@ const Dashboard: React.FC = () => {
     <div className="bg-dash-bg p-6 md:p-8 min-h-screen">
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl text-dash-textMain font-bold mb-1 tracking-tight">Tổng quan hệ thống</h1>
+          <h1 className="text-3xl text-dash-textMain font-bold mb-1 tracking-tight">
+            {user?.role === 'Member' ? 'Tổng quan cá nhân' : 'Tổng quan hệ thống'}
+          </h1>
           <p className="text-dash-textMuted font-medium text-sm">
             Cập nhật lúc {dayjs().format('DD/MM/YYYY HH:mm')}
           </p>

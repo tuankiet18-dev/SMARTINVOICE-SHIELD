@@ -34,12 +34,16 @@ public class DashboardController : ControllerBase
                 period = "30d";
 
             var companyIdClaim = User.FindFirst("CompanyId")?.Value;
-            if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId))
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+            var userRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "Member";
+
+            if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId) ||
+                string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
             {
-                return Unauthorized(new { message = "CompanyId claim is missing or invalid." });
+                return Unauthorized(new { message = "User identity or company information is missing in token." });
             }
 
-            var stats = await _dashboardService.GetDashboardStatsAsync(companyId, period);
+            var stats = await _dashboardService.GetDashboardStatsAsync(companyId, userRole, userId, period);
             return Ok(stats);
         }
         catch (Exception ex)

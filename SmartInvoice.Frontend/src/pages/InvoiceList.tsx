@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import dayjs from 'dayjs';
 import {
   Card, Table, Tag, Input, Select, DatePicker, Button, Space, Typography, Row, Col, Dropdown, Badge, message, Modal,
 } from 'antd';
 import {
   SearchOutlined, FilterOutlined, DownloadOutlined, PlusOutlined,
-  EyeOutlined, EditOutlined, MoreOutlined, DeleteOutlined, SendOutlined, CloseOutlined, ExclamationCircleOutlined,
+  EyeOutlined, EditOutlined, MoreOutlined, DeleteOutlined, SendOutlined, CloseOutlined, ExclamationCircleOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoiceService } from '../services/invoice';
 import StatusBadge from '../components/ui/StatusBadge';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
 
 const InvoiceList: React.FC = () => {
@@ -57,9 +57,9 @@ const InvoiceList: React.FC = () => {
   });
 
   const submitMutation = useMutation({
-    mutationFn: (id: string) => invoiceService.submitInvoice(id),
+    mutationFn: ({ id, comment }: { id: string; comment?: string }) => invoiceService.submitInvoice(id, comment),
     onSuccess: () => {
-      message.success('Đã gửi hóa đơn chờ duyệt thành công!');
+      message.success('Dã gửi hóa đơn chờ duyệt thành công!');
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
     },
     onError: (err: any) => {
@@ -79,19 +79,47 @@ const InvoiceList: React.FC = () => {
   });
 
   const handleSubmit = (record: any) => {
-    Modal.confirm({
-      title: 'Gửi hóa đơn chờ duyệt?',
-      icon: <ExclamationCircleOutlined />,
-      content: (
-        <div>
-          <p>Bạn sắp gửi hóa đơn <strong>{record.invoiceNumber}</strong> cho Admin duyệt.</p>
-          <p style={{ color: '#888' }}>Sau khi gửi, trạng thái sẽ chuyển từ <Tag color="default">Draft</Tag> sang <Tag color="processing">Pending</Tag></p>
-        </div>
-      ),
-      okText: 'Gửi duyệt',
-      cancelText: 'Hủy',
-      onOk: () => submitMutation.mutateAsync(record.invoiceId),
-    });
+    const isYellow = record.riskLevel === 'Yellow';
+
+    if (isYellow) {
+      // Yellow: requires comment/explanation
+      let comment = '';
+      Modal.confirm({
+        title: <Space><WarningOutlined style={{ color: '#faad14' }} /><span>Gửi duyệt hóa đơn cảnh báo</span></Space>,
+        icon: null,
+        content: (
+          <div>
+            <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+              Hóa đơn <strong>{record.invoiceNumber}</strong> có rủi ro <Tag color="warning">Yellow</Tag>.
+              Vui lòng nhập lý do giải trình để Admin xem xét.
+            </Paragraph>
+            <Input.TextArea
+              rows={3}
+              placeholder="Ví dụ: Hóa đơn xăng công tác, không có MST người mua..."
+              onChange={e => { comment = e.target.value; }}
+            />
+          </div>
+        ),
+        okText: 'Xác nhận gửi duyệt',
+        cancelText: 'Hủy',
+        onOk: () => submitMutation.mutateAsync({ id: record.invoiceId, comment: comment || undefined }),
+      });
+    } else {
+      // Green: simple confirm
+      Modal.confirm({
+        title: 'Gửi hóa đơn chờ duyệt?',
+        icon: <ExclamationCircleOutlined />,
+        content: (
+          <div>
+            <p>Bạn sắp gửi hóa đơn <strong>{record.invoiceNumber}</strong> cho Admin duyệt.</p>
+            <p style={{ color: '#888' }}>Sau khi gửi, trạng thái sẽ chuyển từ <Tag color="default">Draft</Tag> sang <Tag color="processing">Pending</Tag></p>
+          </div>
+        ),
+        okText: 'Gửi duyệt',
+        cancelText: 'Hủy',
+        onOk: () => submitMutation.mutateAsync({ id: record.invoiceId }),
+      });
+    }
   };
 
   const handleDelete = (record: any) => {
@@ -131,16 +159,88 @@ const InvoiceList: React.FC = () => {
   });
 
   const bulkSubmitMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      await Promise.all(ids.map(id => invoiceService.submitInvoice(id)));
+    mutationFn: async ({ ids, comment }: { ids: string[]; comment?: string }) => {
+      const result = await invoiceService.submitBatch(ids, comment);
+      return result;
     },
-    onSuccess: () => {
-      message.success(`Đã gửi duyệt ${selectedRowKeys.length} hóa đơn`);
+    onSuccess: (result) => {
+      message.success(`Đã gửi duyệt ${result.successCount} hóa đơn` + (result.failCount > 0 ? `, ${result.failCount} lỗi` : ''));
       setSelectedRowKeys([]);
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
     },
     onError: () => message.error('Có lỗi khi gửi duyệt hóa đơn'),
   });
+
+  const handleBulkSubmit = async () => {
+    const greens = selectedInvoices.filter((inv: any) => inv.status === 'Draft' && inv.riskLevel !== 'Yellow');
+    const yellows = selectedInvoices.filter((inv: any) => inv.status === 'Draft' && inv.riskLevel === 'Yellow');
+
+    // 1. Batch-submit all Green invoices at once via a single API call
+    if (greens.length > 0) {
+      Modal.confirm({
+        title: `Gửi duyệt ${greens.length} hóa đơn hợp lệ?`,
+        content: `${greens.length} hóa đơn Green sẽ chuyển sang trạng thái "Chờ duyệt".`,
+        okText: 'Gửi duyệt',
+        cancelText: 'Hủy',
+        onOk: async () => {
+          await bulkSubmitMutation.mutateAsync({ ids: greens.map((g: any) => g.invoiceId) });
+          // After greens done, prompt yellows sequentially
+          if (yellows.length > 0) promptYellowSequentially(yellows, 0);
+        },
+      });
+    } else if (yellows.length > 0) {
+      // No greens — go straight to prompting yellows
+      message.info(`${yellows.length} hóa đơn Yellow cần giải trình từng cái.`);
+      promptYellowSequentially(yellows, 0);
+    }
+  };
+
+  // Sequentially open a giải trình modal for each yellow invoice
+  const promptYellowSequentially = (yellows: any[], index: number) => {
+    if (index >= yellows.length) return;
+    const inv = yellows[index];
+    let comment = '';
+    Modal.confirm({
+      title: <Space><WarningOutlined style={{ color: '#faad14' }} /><span>Giải trình: {inv.invoiceNumber} ({index + 1}/{yellows.length})</span></Space>,
+      icon: null,
+      content: (
+        <div>
+          <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+            Hóa đơn <strong>{inv.invoiceNumber}</strong> có rủi ro <Tag color="warning">Yellow</Tag>.<br />
+            Nhập lý do giải trình để Admin xét duyệt.
+          </Paragraph>
+          <Input.TextArea
+            rows={3}
+            placeholder="Ví dụ: Hóa đơn xăng công tác, cây xăng không xuất hoá đơn có MST người mua..."
+            onChange={e => { comment = e.target.value; }}
+          />
+        </div>
+      ),
+      okText: index < yellows.length - 1 ? 'Xác nhận → tiếp theo' : 'Xác nhận gửi duyệt',
+      cancelText: 'Bỏ qua hóa đơn này',
+      onOk: async () => {
+        try {
+          await invoiceService.submitInvoice(inv.invoiceId, comment || undefined);
+          message.success(`Đã gửi duyệt: ${inv.invoiceNumber}`);
+        } catch (err: any) {
+          message.error(`Lỗi gửi duyệt ${inv.invoiceNumber}: ${err?.response?.data?.message || err.message}`);
+        }
+        // Regardless of success/fail, move to next yellow
+        promptYellowSequentially(yellows, index + 1);
+      },
+      onCancel: () => {
+        // Skip this yellow, continue with next
+        promptYellowSequentially(yellows, index + 1);
+      },
+      afterClose: () => {
+        // Refresh list after the last yellow is processed
+        if (index === yellows.length - 1) {
+          setSelectedRowKeys([]);
+          queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        }
+      },
+    });
+  };
 
   const columns = [
     {
@@ -278,15 +378,7 @@ const InvoiceList: React.FC = () => {
               type="primary"
               disabled={!allSelectedAreDraft}
               loading={bulkSubmitMutation.isPending}
-              onClick={() => {
-                Modal.confirm({
-                  title: `Gửi duyệt ${selectedRowKeys.length} hóa đơn?`,
-                  content: 'Tất cả hóa đơn đã chọn sẽ chuyển sang trạng thái "Chờ duyệt".',
-                  okText: 'Gửi duyệt',
-                  cancelText: 'Hủy',
-                  onOk: () => bulkSubmitMutation.mutate(selectedRowKeys as string[]),
-                });
-              }}
+              onClick={handleBulkSubmit}
               style={{ borderRadius: 8, fontWeight: 600 }}
             >
               Gửi duyệt

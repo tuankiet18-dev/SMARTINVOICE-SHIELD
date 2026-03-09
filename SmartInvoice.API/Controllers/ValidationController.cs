@@ -29,13 +29,23 @@ public class ValidationController : ControllerBase
     {
         // ── Tenant scoping ──────────────────────────────
         var companyIdClaim = User.FindFirst("CompanyId")?.Value;
-        if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId))
+        var userIdClaim = User.FindFirst("UserId")?.Value;
+        var userRole = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value ?? "Member";
+
+        if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId) ||
+            string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
             return Forbid();
 
         // ── Base query: invoices that have at least one validation layer ──
         var invoicesQuery = _db.Invoices
             .Where(i => i.CompanyId == companyId && !i.IsDeleted)
             .Where(i => i.ValidationLayers.Any());
+
+        // RBAC: Member only sees their own uploaded invoices
+        if (userRole == "Member")
+        {
+            invoicesQuery = invoicesQuery.Where(i => i.UploadedBy == userId);
+        }
 
         // ── Summary statistics (from full set, ignoring filters) ──────
         var allValidated = await invoicesQuery

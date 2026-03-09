@@ -37,7 +37,21 @@ namespace SmartInvoice.API.Repositories.Implementations
                 i.CompanyId == companyId &&
                 i.SellerTaxCode == sellerTaxCode &&
                 i.SerialNumber == serialNumber &&
-                i.InvoiceNumber == invoiceNumber);
+                i.InvoiceNumber == invoiceNumber &&
+                !i.IsDeleted);
+        }
+
+        public async Task<Invoice?> GetExistingInvoiceAsync(string sellerTaxCode, string serialNumber, string invoiceNumber, Guid companyId)
+        {
+            return await _context.Invoices
+                .Where(i =>
+                    i.CompanyId == companyId &&
+                    i.SellerTaxCode == sellerTaxCode &&
+                    i.SerialNumber == serialNumber &&
+                    i.InvoiceNumber == invoiceNumber &&
+                    !i.IsDeleted)
+                .OrderByDescending(i => i.Version)
+                .FirstOrDefaultAsync();
         }
 
         public async Task<bool> ExistsByNumberAsync(string invoiceNumber, Guid companyId)

@@ -28,6 +28,16 @@ export interface ValidationResult {
     warnings: string[];
     signerSubject: string | null;
     extractedData: InvoiceExtractedData | null;
+    // Returned by API after saving to DB
+    invoiceId?: string;
+    isReplacement?: boolean;
+    newVersion?: number;
+}
+
+export interface BatchSubmitResult {
+    successCount: number;
+    failCount: number;
+    results: { invoiceId: string; success: boolean; errorMessage?: string }[];
 }
 
 export interface UploadUrlResponse {
@@ -231,6 +241,11 @@ export const invoiceService = {
     // --- Workflow ---
     async submitInvoice(id: string, comment?: string): Promise<void> {
         await apiClient.post(`/invoices/${id}/submit`, { comment });
+    },
+
+    async submitBatch(invoiceIds: string[], comment?: string): Promise<BatchSubmitResult> {
+        const response = await apiClient.post<BatchSubmitResult>('/invoices/submit-batch', { invoiceIds: invoiceIds.map(id => id), comment });
+        return response.data;
     },
 
     async approveInvoice(id: string, comment?: string): Promise<void> {

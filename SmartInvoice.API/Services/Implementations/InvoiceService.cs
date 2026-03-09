@@ -254,6 +254,66 @@ namespace SmartInvoice.API.Services.Implementations
         }
 
         // ════════════════════════════════════════════
+        //  WORKFLOW: SubmitBatch → All Pending
+        // ════════════════════════════════════════════
+
+        public async Task<BatchSubmitResultDto> SubmitBatchAsync(List<Guid> invoiceIds, Guid companyId, Guid userId, string userEmail, string userRole, string? comment, string? ipAddress)
+        {
+            var batchResult = new BatchSubmitResultDto();
+
+            foreach (var invoiceId in invoiceIds)
+            {
+                try
+                {
+                    var invoice = await _unitOfWork.Invoices.GetByIdAsync(invoiceId);
+                    if (invoice == null)
+                        throw new KeyNotFoundException($"Không tìm thấy hóa đơn ID: {invoiceId}");
+                    if (invoice.CompanyId != companyId)
+                        throw new UnauthorizedAccessException("Không có quyền truy cập hóa đơn này.");
+                    if (invoice.Status != "Draft")
+                        throw new InvalidOperationException($"Hóa đơn không ở trạng thái Nháp (Status hiện tại: {invoice.Status}).");
+
+                    var oldStatus = invoice.Status;
+                    invoice.Status = "Pending";
+                    invoice.SubmittedBy = userId;
+                    invoice.SubmittedAt = DateTime.UtcNow;
+                    invoice.UpdatedAt = DateTime.UtcNow;
+
+                    _unitOfWork.Invoices.Update(invoice);
+
+                    await _unitOfWork.InvoiceAuditLogs.AddAsync(new InvoiceAuditLog
+                    {
+                        AuditId = Guid.NewGuid(),
+                        InvoiceId = invoiceId,
+                        UserId = userId,
+                        UserEmail = userEmail,
+                        UserRole = userRole,
+                        Action = "SUBMIT",
+                        Changes = new List<AuditChange>
+                        {
+                            new() { Field = "Status", OldValue = oldStatus, NewValue = "Pending", ChangeType = "UPDATE" }
+                        },
+                        Comment = comment,
+                        IpAddress = ipAddress,
+                        CreatedAt = DateTime.UtcNow
+                    });
+
+                    await _unitOfWork.CompleteAsync();
+
+                    batchResult.SuccessCount++;
+                    batchResult.Results.Add(new BatchSubmitItemResult { InvoiceId = invoiceId, Success = true });
+                }
+                catch (Exception ex)
+                {
+                    batchResult.FailCount++;
+                    batchResult.Results.Add(new BatchSubmitItemResult { InvoiceId = invoiceId, Success = false, ErrorMessage = ex.Message });
+                }
+            }
+
+            return batchResult;
+        }
+
+        // ════════════════════════════════════════════
         //  WORKFLOW: Approve → Approved
         // ════════════════════════════════════════════
 
@@ -487,6 +547,11 @@ namespace SmartInvoice.API.Services.Implementations
                 if (sigResult.Warnings != null) finalResult.Warnings.AddRange(sigResult.Warnings);
                 if (logicResult.Warnings != null) finalResult.Warnings.AddRange(logicResult.Warnings);
 
+                // Sao chép thông tin versioning từ logicResult sang finalResult
+                finalResult.IsReplacement = logicResult.IsReplacement;
+                finalResult.ReplacedInvoiceId = logicResult.ReplacedInvoiceId;
+                finalResult.NewVersion = logicResult.NewVersion;
+
                 // Trích xuất dữ liệu
                 finalResult.ExtractedData = _invoiceProcessor.ExtractData(xmlDoc);
 
@@ -603,9 +668,24 @@ namespace SmartInvoice.API.Services.Implementations
                         ? (finalResult.Warnings.Any() ? "Hóa đơn có cảnh báo, cần xem xét" : null)
                         : "Hóa đơn có lỗi, cần kiểm tra lại",
 
+                    Version = finalResult.NewVersion,
+
                     UploadedBy = UserId,
                     CreatedAt = DateTime.UtcNow
                 };
+
+                if (finalResult.IsReplacement && finalResult.ReplacedInvoiceId.HasValue)
+                {
+                    invoice.ReplacedBy = finalResult.ReplacedInvoiceId;
+
+                    var oldInvoice = await _unitOfWork.Invoices.GetByIdAsync(finalResult.ReplacedInvoiceId.Value);
+                    if (oldInvoice != null)
+                    {
+                        oldInvoice.IsReplaced = true;
+                        oldInvoice.ReplacedBy = invoiceId;
+                        _unitOfWork.Invoices.Update(oldInvoice);
+                    }
+                }
 
                 // 3. Tạo InvoiceLineItems
                 if (finalResult.ExtractedData?.LineItems != null)
@@ -708,6 +788,9 @@ namespace SmartInvoice.API.Services.Implementations
                 await _unitOfWork.FileStorages.AddAsync(fileStorage);
                 await _unitOfWork.Invoices.AddAsync(invoice);
                 await _unitOfWork.CompleteAsync();
+
+                // Trả về invoiceId để frontend biết đây là record nào trong DB
+                finalResult.InvoiceId = invoiceId;
 
                 return finalResult;
             }

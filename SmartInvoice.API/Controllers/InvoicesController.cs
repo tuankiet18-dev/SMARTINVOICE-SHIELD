@@ -263,6 +263,29 @@ namespace SmartInvoice.API.Controller
             }
         }
 
+        [HttpPost("submit-batch")]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
+        public async Task<IActionResult> SubmitBatch([FromBody] SubmitBatchDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var (userId, companyId, userRole, userEmail) = GetUserInfo();
+                var result = await _invoiceService.SubmitBatchAsync(request.InvoiceIds, companyId, userId, userEmail, userRole, request.Comment, GetClientIp());
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
         [HttpPost("{id}/approve")]
         [Authorize(Policy = Constants.Permissions.InvoiceApprove)]
         public async Task<IActionResult> ApproveInvoice(Guid id, [FromBody] ApproveInvoiceDto? request)
