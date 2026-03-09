@@ -94,9 +94,15 @@ public class ValidationController : ControllerBase
             );
         }
 
-        if (!string.IsNullOrWhiteSpace(query.RiskLevel))
+        if (!string.IsNullOrWhiteSpace(query.LayerIssue))
         {
-            filteredQuery = filteredQuery.Where(i => i.RiskLevel == query.RiskLevel);
+            var layer = query.LayerIssue.ToLower();
+            int layerOrder = layer == "layer1" ? 1 : layer == "layer2" ? 2 : layer == "layer3" ? 3 : 0;
+            if (layerOrder > 0)
+            {
+                filteredQuery = filteredQuery.Where(i =>
+                    i.ValidationLayers.Any(v => v.LayerOrder == layerOrder && (v.ValidationStatus == "Fail" || v.ValidationStatus == "Warning")));
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(query.ValidationStatus))

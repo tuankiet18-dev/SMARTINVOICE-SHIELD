@@ -5,13 +5,13 @@ import {
   CloseCircleOutlined, FileSearchOutlined, SearchOutlined, FilterOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { validationService, type InvoiceValidationSummary } from '../services/validation';
 
 const { Title, Text } = Typography;
 
 const riskColors: Record<string, string> = {
-  Green: '#2d9a5c', Yellow: '#e6a817', Orange: '#e17055', Red: '#d63031',
+  Green: '#2d9a5c', Yellow: '#e6a817', Red: '#d63031',
 };
 
 const statusColors: Record<string, string> = {
@@ -27,17 +27,29 @@ const layerIcon = (status: string | null) => {
 
 const ValidationPage: React.FC = () => {
   const navigate = useNavigate();
-  const [showFilters, setShowFilters] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [searchText, setSearchText] = useState('');
-  const [keyword, setKeyword] = useState<string>();
-  const [riskLevel, setRiskLevel] = useState<string>();
-  const [validationStatus, setValidationStatus] = useState<string>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showFilters, setShowFilters] = useState(() => !!(searchParams.get('layerIssue') || searchParams.get('validationStatus')));
+
+  const keyword = searchParams.get('keyword') || undefined;
+  const layerIssue = searchParams.get('layerIssue') || undefined;
+  const validationStatus = searchParams.get('validationStatus') || undefined;
+  const page = Number(searchParams.get('page')) || 1;
+  const pageSize = Number(searchParams.get('pageSize')) || 20;
+
+  const [searchText, setSearchText] = useState(keyword || '');
+
+  const updateParams = (updates: Record<string, string | undefined>) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') newParams.set(key, value);
+      else newParams.delete(key);
+    });
+    setSearchParams(newParams, { replace: true });
+  };
 
   const { data, isLoading } = useQuery({
-    queryKey: ['validation-overview', page, pageSize, keyword, riskLevel, validationStatus],
-    queryFn: () => validationService.getOverview({ page, pageSize, keyword, riskLevel, validationStatus }),
+    queryKey: ['validation-overview', page, pageSize, keyword, layerIssue, validationStatus],
+    queryFn: () => validationService.getOverview({ page, pageSize, keyword, layerIssue, validationStatus }),
   });
 
   const columns = [
@@ -78,35 +90,6 @@ const ValidationPage: React.FC = () => {
       align: 'center' as const,
       width: 120,
       render: (v: string | null) => layerIcon(v),
-    },
-    {
-      title: 'Rủi ro',
-      dataIndex: 'riskLevel',
-      key: 'risk',
-      width: 100,
-      render: (risk: string | null) => {
-        if (!risk) return <Text type="secondary">—</Text>;
-        return (
-          <Tag style={{
-            background: `${riskColors[risk] || '#94a3b8'}14`,
-            color: riskColors[risk] || '#94a3b8',
-            border: `1px solid ${riskColors[risk] || '#94a3b8'}30`,
-            borderRadius: 6, fontWeight: 600,
-          }}>
-            {risk}
-          </Tag>
-        );
-      },
-    },
-    {
-      title: <Tooltip title="Số lớp kiểm tra có lỗi hoặc cảnh báo + số kiểm tra rủi ro phát hiện vấn đề">Vấn đề</Tooltip>,
-      dataIndex: 'issueCount',
-      key: 'issues',
-      width: 80,
-      align: 'center' as const,
-      render: (v: number) => v > 0
-        ? <Badge count={v} style={{ background: v > 2 ? '#d63031' : '#e6a817' }} />
-        : <Text type="secondary">—</Text>,
     },
     {
       title: 'Kết quả',
@@ -214,12 +197,11 @@ const ValidationPage: React.FC = () => {
           {/* ── Risk Distribution Summary ──────────────────── */}
           <Row gutter={16} style={{ marginBottom: 24 }}>
             {[
-              { label: 'An toàn', count: data.greenCount, color: '#2d9a5c', pct: data.totalValidated ? Math.round(data.greenCount * 100 / data.totalValidated) : 0 },
+              { label: 'Đạt', count: data.greenCount, color: '#2d9a5c', pct: data.totalValidated ? Math.round(data.greenCount * 100 / data.totalValidated) : 0 },
               { label: 'Lưu ý', count: data.yellowCount, color: '#e6a817', pct: data.totalValidated ? Math.round(data.yellowCount * 100 / data.totalValidated) : 0 },
-              { label: 'Cảnh báo', count: data.orangeCount, color: '#e17055', pct: data.totalValidated ? Math.round(data.orangeCount * 100 / data.totalValidated) : 0 },
-              { label: 'Nguy hiểm', count: data.redCount, color: '#d63031', pct: data.totalValidated ? Math.round(data.redCount * 100 / data.totalValidated) : 0 },
+              { label: 'Không đạt', count: data.redCount, color: '#d63031', pct: data.totalValidated ? Math.round(data.redCount * 100 / data.totalValidated) : 0 },
             ].map((item, i) => (
-              <Col xs={12} sm={6} key={i}>
+              <Col xs={24} sm={8} key={i}>
                 <Card bordered={false} className="bg-dash-card rounded-[14px] shadow-dash" bodyStyle={{ padding: 16, textAlign: 'center' }}>
                   <div style={{
                     width: 48, height: 48, borderRadius: '50%',
@@ -248,11 +230,11 @@ const ValidationPage: React.FC = () => {
                     placeholder="Tìm kiếm theo số hóa đơn, tên công ty, MST..."
                     value={searchText}
                     onChange={e => setSearchText(e.target.value)}
-                    onSearch={val => { setKeyword(val || undefined); setPage(1); }}
+                    onSearch={val => updateParams({ keyword: val || undefined, page: '1' })}
                     enterButton={<SearchOutlined />}
                     style={{ borderRadius: 10 }}
                     allowClear
-                    onClear={() => { setSearchText(''); setKeyword(undefined); setPage(1); }}
+                    onClear={() => { setSearchText(''); updateParams({ keyword: undefined, page: '1' }); }}
                   />
                 </Col>
                 <Col>
@@ -271,16 +253,15 @@ const ValidationPage: React.FC = () => {
                 <Row gutter={12} style={{ marginTop: 12 }}>
                   <Col xs={24} sm={12}>
                     <Select
-                      placeholder="Mức rủi ro"
+                      placeholder="Lọc theo lỗi / cảnh báo tại lớp"
                       style={{ width: '100%' }}
                       allowClear
-                      value={riskLevel}
-                      onChange={val => { setRiskLevel(val); setPage(1); }}
+                      value={layerIssue}
+                      onChange={val => updateParams({ layerIssue: val, page: '1' })}
                       options={[
-                        { value: 'Green', label: 'Green — An toàn' },
-                        { value: 'Yellow', label: 'Yellow — Lưu ý' },
-                        { value: 'Orange', label: 'Orange — Cảnh báo' },
-                        { value: 'Red', label: 'Red — Nguy hiểm' },
+                        { value: 'layer1', label: 'Lớp 1: Cấu trúc (XSD)' },
+                        { value: 'layer2', label: 'Lớp 2: Chữ ký số' },
+                        { value: 'layer3', label: 'Lớp 3: Nghiệp vụ' },
                       ]}
                     />
                   </Col>
@@ -290,7 +271,7 @@ const ValidationPage: React.FC = () => {
                       style={{ width: '100%' }}
                       allowClear
                       value={validationStatus}
-                      onChange={val => { setValidationStatus(val); setPage(1); }}
+                      onChange={val => updateParams({ validationStatus: val, page: '1' })}
                       options={[
                         { value: 'Pass', label: 'Đạt (Pass)' },
                         { value: 'Warning', label: 'Cảnh báo (Warning)' },
@@ -324,7 +305,7 @@ const ValidationPage: React.FC = () => {
                 total={data.totalCount}
                 showSizeChanger
                 showTotal={(total) => `Tổng ${total} hóa đơn`}
-                onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+                onChange={(p, ps) => updateParams({ page: String(p), pageSize: String(ps) })}
               />
             </div>
           </Card>

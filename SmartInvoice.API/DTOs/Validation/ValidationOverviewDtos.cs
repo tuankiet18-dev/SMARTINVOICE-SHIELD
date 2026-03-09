@@ -11,8 +11,8 @@ public class ValidationOverviewQueryDto
     /// <summary>Search by invoice number or seller name/tax code.</summary>
     public string? Keyword { get; set; }
 
-    /// <summary>Filter by risk level: Green, Yellow, Orange, Red.</summary>
-    public string? RiskLevel { get; set; }
+    /// <summary>Filter by layer with issues: layer1, layer2, layer3.</summary>
+    public string? LayerIssue { get; set; }
 
     /// <summary>Filter by validation status: Pass, Warning, Fail.</summary>
     public string? ValidationStatus { get; set; }

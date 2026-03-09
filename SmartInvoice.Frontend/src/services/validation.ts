@@ -40,7 +40,7 @@ export interface ValidationOverviewQuery {
   page?: number;
   pageSize?: number;
   keyword?: string;
-  riskLevel?: string;
+  layerIssue?: string;
   validationStatus?: string;
 }
 
@@ -52,7 +52,7 @@ export const validationService = {
     if (query.page) params.append('page', String(query.page));
     if (query.pageSize) params.append('pageSize', String(query.pageSize));
     if (query.keyword) params.append('keyword', query.keyword);
-    if (query.riskLevel) params.append('riskLevel', query.riskLevel);
+    if (query.layerIssue) params.append('layerIssue', query.layerIssue);
     if (query.validationStatus) params.append('validationStatus', query.validationStatus);
     const { data } = await apiClient.get<ValidationOverview>(`/validation/overview?${params}`);
     return data;

@@ -7,7 +7,7 @@ import {
   SearchOutlined, FilterOutlined, DownloadOutlined, PlusOutlined,
   EyeOutlined, EditOutlined, MoreOutlined, DeleteOutlined, SendOutlined, CloseOutlined, ExclamationCircleOutlined,
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoiceService } from '../services/invoice';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -17,22 +17,37 @@ const { RangePicker } = DatePicker;
 
 const InvoiceList: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(() => !!(searchParams.get('status') || searchParams.get('riskLevel') || searchParams.get('dateFrom')));
 
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
-  const [keyword, setKeyword] = useState<string>();
-  const [searchText, setSearchText] = useState('');
-  const [status, setStatus] = useState<string>();
-  const [riskLevel, setRiskLevel] = useState<string>();
-  const [dateRange, setDateRange] = useState<[string, string]>();
+  // Derive filter state from URL search params
+  const keyword = searchParams.get('keyword') || undefined;
+  const status = searchParams.get('status') || undefined;
+  const riskLevel = searchParams.get('riskLevel') || undefined;
+  const dateFrom = searchParams.get('dateFrom') || undefined;
+  const dateTo = searchParams.get('dateTo') || undefined;
+  const dateRange: [string, string] | undefined = dateFrom && dateTo ? [dateFrom, dateTo] : undefined;
+  const page = Number(searchParams.get('page')) || 1;
+  const pageSize = Number(searchParams.get('pageSize')) || 10;
+
+  const [searchText, setSearchText] = useState(keyword || '');
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
+  const updateParams = (updates: Record<string, string | undefined>) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') newParams.set(key, value);
+      else newParams.delete(key);
+    });
+    setSearchParams(newParams, { replace: true });
+  };
+
   const { data: invoiceData, isLoading } = useQuery({
-    queryKey: ['invoices', pagination.current, pagination.pageSize, keyword, status, riskLevel, dateRange],
+    queryKey: ['invoices', page, pageSize, keyword, status, riskLevel, dateRange],
     queryFn: () => invoiceService.getInvoices(
-      pagination.current,
-      pagination.pageSize,
+      page,
+      pageSize,
       keyword,
       status,
       riskLevel,
@@ -313,11 +328,11 @@ const InvoiceList: React.FC = () => {
                 placeholder="Tìm kiếm theo số hóa đơn, MST, tên người bán..."
                 value={searchText}
                 onChange={e => setSearchText(e.target.value)}
-                onSearch={val => { setKeyword(val || undefined); setPagination(prev => ({ ...prev, current: 1 })); }}
+                onSearch={val => updateParams({ keyword: val || undefined, page: '1' })}
                 enterButton={<SearchOutlined />}
                 style={{ borderRadius: 10 }}
                 allowClear
-                onClear={() => { setSearchText(''); setKeyword(undefined); setPagination(prev => ({ ...prev, current: 1 })); }}
+                onClear={() => { setSearchText(''); updateParams({ keyword: undefined, page: '1' }); }}
               />
             </Col>
             <Col>
@@ -337,7 +352,7 @@ const InvoiceList: React.FC = () => {
               <Col xs={24} sm={8}>
                 <Select placeholder="Trạng thái" style={{ width: '100%' }} allowClear
                   value={status}
-                  onChange={val => { setStatus(val); setPagination(prev => ({ ...prev, current: 1 })); }}
+                  onChange={val => updateParams({ status: val, page: '1' })}
                   options={[
                     { value: 'Draft', label: 'Nháp' },
                     { value: 'Pending', label: 'Chờ duyệt' },
@@ -349,24 +364,23 @@ const InvoiceList: React.FC = () => {
               <Col xs={24} sm={8}>
                 <Select placeholder="Mức rủi ro" style={{ width: '100%' }} allowClear
                   value={riskLevel}
-                  onChange={val => { setRiskLevel(val); setPagination(prev => ({ ...prev, current: 1 })); }}
+                  onChange={val => updateParams({ riskLevel: val, page: '1' })}
                   options={[
                     { value: 'Green', label: '🟢 An toàn' },
                     { value: 'Yellow', label: '🟡 Lưu ý' },
-                    { value: 'Orange', label: '🟠 Cảnh báo' },
                     { value: 'Red', label: '🔴 Nguy hiểm' },
                   ]}
                 />
               </Col>
               <Col xs={24} sm={8}>
                 <RangePicker style={{ width: '100%' }} placeholder={['Từ ngày', 'Đến ngày']}
+                  value={dateFrom && dateTo ? [dayjs(dateFrom), dayjs(dateTo)] : undefined}
                   onChange={dates => {
                     if (dates && dates[0] && dates[1]) {
-                      setDateRange([dates[0].toISOString(), dates[1].toISOString()]);
+                      updateParams({ dateFrom: dates[0].toISOString(), dateTo: dates[1].toISOString(), page: '1' });
                     } else {
-                      setDateRange(undefined);
+                      updateParams({ dateFrom: undefined, dateTo: undefined, page: '1' });
                     }
-                    setPagination(prev => ({ ...prev, current: 1 }));
                   }}
                 />
               </Col>
@@ -383,10 +397,10 @@ const InvoiceList: React.FC = () => {
             onClick: () => navigate(`/app/invoices/${record.invoiceId}`),
             style: { cursor: 'pointer' },
           })}
-          onChange={(newPagination) => setPagination({ current: newPagination.current || 1, pageSize: newPagination.pageSize || 10 })}
+          onChange={(newPagination) => updateParams({ page: String(newPagination.current || 1), pageSize: String(newPagination.pageSize || 10) })}
           pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
+            current: page,
+            pageSize: pageSize,
             total: totalInvoices,
             showSizeChanger: true,
             showTotal: (total) => `Tổng ${total} hóa đơn`,

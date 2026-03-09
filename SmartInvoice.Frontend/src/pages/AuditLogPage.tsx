@@ -5,7 +5,7 @@ import {
   CloseCircleOutlined, UserOutlined, SearchOutlined, FilterOutlined, ClearOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { auditLogService, type SystemAuditLog } from '../services/audit-log';
 
@@ -22,24 +22,68 @@ const actionConfig: Record<string, { color: string; tagColor: string; icon: Reac
 
 const getActionInfo = (action: string) => actionConfig[action] || { color: '#94a3b8', tagColor: 'default', icon: <EditOutlined />, label: action };
 
+const statusColorMap: Record<string, { bg: string; text: string }> = {
+  Draft: { bg: '#E2E8F014', text: '#8c8c8c' },
+  Pending: { bg: '#1677ff14', text: '#1677ff' },
+  Approved: { bg: '#52c41a14', text: '#52c41a' },
+  Rejected: { bg: '#ff4d4f14', text: '#ff4d4f' },
+};
+
+const riskColorMap: Record<string, { bg: string; text: string }> = {
+  Green: { bg: '#52c41a14', text: '#52c41a' },
+  Yellow: { bg: '#faad1414', text: '#faad14' },
+  Red: { bg: '#ff4d4f14', text: '#ff4d4f' },
+};
+
+const renderChangeValue = (field: string, value: string) => {
+  const f = field.toLowerCase();
+  let config: { bg: string; text: string } | undefined;
+  let label = value;
+  if (f === 'status') {
+    config = statusColorMap[value];
+  } else if (f.includes('risk')) {
+    config = riskColorMap[value];
+  }
+  if (config) {
+    return (
+      <span style={{
+        display: 'inline-block', padding: '1px 8px', borderRadius: 10,
+        fontSize: 11, fontWeight: 600, background: config.bg, color: config.text,
+      }}>{label}</span>
+    );
+  }
+  return <span style={{ color: '#2d9a5c' }}>{value}</span>;
+};
+
 const AuditLogPage: React.FC = () => {
   const navigate = useNavigate();
-  const [showFilters, setShowFilters] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [searchText, setSearchText] = useState('');
-  const [keyword, setKeyword] = useState<string>();
-  const [action, setAction] = useState<string>();
-  const [dateRange, setDateRange] = useState<[string, string]>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showFilters, setShowFilters] = useState(() => !!(searchParams.get('action') || searchParams.get('dateFrom')));
+
+  const keyword = searchParams.get('keyword') || undefined;
+  const action = searchParams.get('action') || undefined;
+  const dateFrom = searchParams.get('dateFrom') || undefined;
+  const dateTo = searchParams.get('dateTo') || undefined;
+  const dateRange: [string, string] | undefined = dateFrom && dateTo ? [dateFrom, dateTo] : undefined;
+  const page = Number(searchParams.get('page')) || 1;
+  const pageSize = Number(searchParams.get('pageSize')) || 20;
+
+  const [searchText, setSearchText] = useState(keyword || '');
+
+  const updateParams = (updates: Record<string, string | undefined>) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') newParams.set(key, value);
+      else newParams.delete(key);
+    });
+    setSearchParams(newParams, { replace: true });
+  };
 
   const hasActiveFilters = !!(keyword || action || dateRange);
 
   const clearAllFilters = () => {
     setSearchText('');
-    setKeyword(undefined);
-    setAction(undefined);
-    setDateRange(undefined);
-    setPage(1);
+    setSearchParams({}, { replace: true });
   };
 
   const { data, isLoading } = useQuery({
@@ -114,11 +158,16 @@ const AuditLogPage: React.FC = () => {
                 const oldDisplay = formatChangeValue(c.old_value, c.change_type);
                 const newDisplay = formatChangeValue(c.new_value, c.change_type);
                 return (
-                  <div key={i} style={{ color: '#64748b' }}>
+                  <div key={i} style={{ color: '#64748b', marginBottom: 4 }}>
                     <strong>{c.field}</strong>:{' '}
-                    {oldDisplay && <span style={{ textDecoration: 'line-through', color: '#d63031' }}>{oldDisplay}</span>}
-                    {oldDisplay && ' → '}
-                    <span style={{ color: '#2d9a5c' }}>{newDisplay || 'Không có'}</span>
+                    {oldDisplay && (
+                      <span style={{ textDecoration: 'line-through', color: '#94a3b8', marginRight: 6 }}>
+                        {oldDisplay}
+                      </span>
+                    )}
+                    {oldDisplay && <span style={{ color: '#94a3b8', marginRight: 6 }}>→</span>}
+                    {!oldDisplay && newDisplay && <span style={{ color: '#94a3b8', marginRight: 6 }}>→</span>}
+                    {newDisplay ? renderChangeValue(c.field, c.new_value) : <span style={{ color: '#94a3b8' }}>Không có</span>}
                   </div>
                 );
               })}
@@ -157,11 +206,11 @@ const AuditLogPage: React.FC = () => {
                 placeholder="Tìm kiếm theo số hóa đơn, email, lý do..."
                 value={searchText}
                 onChange={e => setSearchText(e.target.value)}
-                onSearch={val => { setKeyword(val || undefined); setPage(1); }}
+                onSearch={val => updateParams({ keyword: val || undefined, page: '1' })}
                 enterButton={<SearchOutlined />}
                 style={{ borderRadius: 10 }}
                 allowClear
-                onClear={() => { setSearchText(''); setKeyword(undefined); setPage(1); }}
+                onClear={() => { setSearchText(''); updateParams({ keyword: undefined, page: '1' }); }}
               />
             </Col>
             <Col>
@@ -195,7 +244,7 @@ const AuditLogPage: React.FC = () => {
                   style={{ width: '100%' }}
                   allowClear
                   value={action}
-                  onChange={val => { setAction(val); setPage(1); }}
+                  onChange={val => updateParams({ action: val, page: '1' })}
                   options={[
                     { value: 'UPLOAD', label: 'Tải lên' },
                     { value: 'EDIT', label: 'Chỉnh sửa' },
@@ -209,13 +258,13 @@ const AuditLogPage: React.FC = () => {
                 <RangePicker
                   style={{ width: '100%' }}
                   placeholder={['Từ ngày', 'Đến ngày']}
+                  value={dateFrom && dateTo ? [dayjs(dateFrom), dayjs(dateTo)] : undefined}
                   onChange={dates => {
                     if (dates && dates[0] && dates[1]) {
-                      setDateRange([dates[0].toISOString(), dates[1].toISOString()]);
+                      updateParams({ dateFrom: dates[0].toISOString(), dateTo: dates[1].toISOString(), page: '1' });
                     } else {
-                      setDateRange(undefined);
+                      updateParams({ dateFrom: undefined, dateTo: undefined, page: '1' });
                     }
-                    setPage(1);
                   }}
                 />
               </Col>
@@ -242,7 +291,7 @@ const AuditLogPage: React.FC = () => {
             total={totalCount}
             showSizeChanger
             showTotal={(total) => `Tổng ${total} bản ghi`}
-            onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+            onChange={(p, ps) => updateParams({ page: String(p), pageSize: String(ps) })}
           />
         </div>
       </Card>

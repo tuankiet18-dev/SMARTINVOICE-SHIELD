@@ -15,10 +15,9 @@ const statusMap: Record<string, { label: string; bgClass: string; textClass: str
 };
 
 const riskMap: Record<string, { label: string; bgClass: string; textClass: string }> = {
-    Green: { label: 'An toàn (Green)', bgClass: 'bg-[#00B69B]/10', textClass: 'text-dash-success' },
+    Green: { label: 'Đạt (Green)', bgClass: 'bg-[#00B69B]/10', textClass: 'text-dash-success' },
     Yellow: { label: 'Lưu ý (Yellow)', bgClass: 'bg-[#FF9500]/10', textClass: 'text-dash-warning' },
-    Orange: { label: 'Cảnh báo (Orange)', bgClass: 'bg-[#FD7E14]/10', textClass: 'text-[#FD7E14]' },
-    Red: { label: 'Nguy hiểm (Red)', bgClass: 'bg-[#FC2A46]/10', textClass: 'text-dash-danger' },
+    Red: { label: 'Không đạt (Red)', bgClass: 'bg-[#FC2A46]/10', textClass: 'text-dash-danger' },
 };
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ type, value }) => {

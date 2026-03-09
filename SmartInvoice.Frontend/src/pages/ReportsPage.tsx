@@ -13,19 +13,20 @@ const exportHistory = [
 ];
 
 const ReportsPage: React.FC = () => {
-  const { data: apiData = [], isLoading } = useQuery({
+  const { data: apiData, isLoading } = useQuery({
     queryKey: ['invoices-reports'],
-    queryFn: () => invoiceService.getInvoices(),
+    queryFn: () => invoiceService.getInvoices(1, 100),
   });
 
-  const totalValue = apiData.length > 0
-    ? apiData.reduce((sum, item) => sum + parseInt(item.amount.replace(/\D/g, '')), 0)
+  const items = apiData?.items ?? [];
+  const totalValue = items.length > 0
+    ? items.reduce((sum, item) => sum + (item.totalAmount || 0), 0)
     : 2450000000;
 
-  const validCount = apiData.length > 0 ? apiData.filter(i => i.risk === 'Green').length : 18;
-  const totalCount = apiData.length > 0 ? apiData.length : 20;
+  const validCount = items.length > 0 ? items.filter(i => i.riskLevel === 'Green').length : 18;
+  const totalCount = items.length > 0 ? items.length : 20;
   const validRatio = Math.round((validCount / totalCount) * 100) || 92;
-  const needReviewCount = apiData.length > 0 ? apiData.filter(i => i.risk === 'Yellow' || i.risk === 'Orange').length : 23;
+  const needReviewCount = items.length > 0 ? items.filter(i => i.riskLevel === 'Yellow').length : 23;
 
   return (
     <div className="animate-fade-in-up">

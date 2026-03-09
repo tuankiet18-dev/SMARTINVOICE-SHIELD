@@ -16,7 +16,7 @@ interface ApprovalDrawerProps {
 }
 
 const riskColors: Record<string, string> = {
-    Green: '#2d9a5c', Yellow: '#e6a817', Orange: '#e17055', Red: '#d63031',
+    Green: '#2d9a5c', Yellow: '#e6a817', Red: '#d63031',
 };
 
 const ApprovalDrawer: React.FC<ApprovalDrawerProps> = ({ open, onClose, invoice }) => {
@@ -148,7 +148,6 @@ const ApprovalDrawer: React.FC<ApprovalDrawerProps> = ({ open, onClose, invoice 
                     <Card size="small" style={{ marginBottom: 16, borderColor: riskColors[risk], backgroundColor: `${riskColors[risk]}0A` }}>
                         <Space align="start">
                             {risk === 'Red' && <CloseCircleOutlined style={{ color: riskColors.Red, fontSize: 20, marginTop: 4 }} />}
-                            {risk === 'Orange' && <ExclamationCircleOutlined style={{ color: riskColors.Orange, fontSize: 20, marginTop: 4 }} />}
                             {risk === 'Yellow' && <InfoCircleOutlined style={{ color: riskColors.Yellow, fontSize: 20, marginTop: 4 }} />}
                             {risk === 'Green' && <CheckCircleOutlined style={{ color: riskColors.Green, fontSize: 20, marginTop: 4 }} />}
                             

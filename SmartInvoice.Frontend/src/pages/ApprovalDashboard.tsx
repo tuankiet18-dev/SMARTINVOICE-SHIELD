@@ -13,14 +13,14 @@ import ApprovalDrawer from '../components/dashboard/ApprovalDrawer';
 const { Title, Text } = Typography;
 
 const riskColors: Record<string, string> = {
-    Green: '#2d9a5c', Yellow: '#e6a817', Orange: '#e17055', Red: '#d63031',
+    Green: '#2d9a5c', Yellow: '#e6a817', Red: '#d63031',
 };
 
 // Some mock data in case API is empty during testing
 const DUMMY_PENDING = [
     { id: '1', invoiceNo: 'INV-2026-001290', seller: 'Công ty TNHH Thương mại ABC', amount: 25400000, date: '12/02/2026', risk: 'Yellow', reason: 'Sai lệch tiền thuế 5,000đ', status: 'Pending' },
     { id: '2', invoiceNo: 'INV-2026-001289', seller: 'Công ty CP Công nghệ XYZ', amount: 8750000, date: '11/02/2026', risk: 'Green', reason: 'Hoàn toàn hợp lệ', status: 'Pending' },
-    { id: '3', invoiceNo: 'INV-2026-001287', seller: 'Công ty CP Vận tải An Bình', amount: 12000000, date: '10/02/2026', risk: 'Orange', reason: 'Tổng tiền vượt định mức ngành', status: 'Pending' },
+    { id: '3', invoiceNo: 'INV-2026-001287', seller: 'Công ty CP Vận tải An Bình', amount: 12000000, date: '10/02/2026', risk: 'Red', reason: 'Tổng tiền vượt định mức ngành', status: 'Pending' },
 ];
 
 const ApprovalDashboard: React.FC = () => {
@@ -188,9 +188,9 @@ const ApprovalDashboard: React.FC = () => {
                 </Col>
                 <Col span={6}>
                     <Card style={{ borderRadius: 12, borderLeft: `4px solid ${riskColors.Red}` }} bodyStyle={{ padding: '16px 20px' }}>
-                        <Text type="secondary">Rủi ro (Orange/Red)</Text>
+                        <Text type="secondary">Rủi ro (Red)</Text>
                         <Title level={2} style={{ margin: '4px 0 0', color: riskColors.Red }}>
-                            {selectedTab === 'Pending' ? dataToDisplay.filter(i => ['Orange', 'Red'].includes(i.riskLevel || i.risk)).length : '--'}
+                            {selectedTab === 'Pending' ? dataToDisplay.filter(i => (i.riskLevel || i.risk) === 'Red').length : '--'}
                         </Title>
                     </Card>
                 </Col>
