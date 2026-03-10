@@ -18,11 +18,9 @@ namespace SmartInvoice.API.Repositories.Implementations
         public IDocumentTypeRepository DocumentTypes { get; private set; }
         public IExportHistoryRepository ExportHistories { get; private set; }
         public IFileStorageRepository FileStorages { get; private set; }
-        public IInvoiceLineItemRepository InvoiceLineItems { get; private set; }
         public INotificationRepository Notifications { get; private set; }
-        public IRiskCheckResultRepository RiskCheckResults { get; private set; }
         public ISystemConfigurationRepository SystemConfigurations { get; private set; }
-        public IValidationLayerRepository ValidationLayers { get; private set; }
+        public IInvoiceCheckResultRepository InvoiceCheckResults { get; private set; }
 
         public UnitOfWork(AppDbContext context)
         {
@@ -36,12 +34,9 @@ namespace SmartInvoice.API.Repositories.Implementations
             DocumentTypes = new DocumentTypeRepository(_context);
             ExportHistories = new ExportHistoryRepository(_context);
             FileStorages = new FileStorageRepository(_context);
-            InvoiceAuditLogs = new InvoiceAuditLogRepository(_context);
-            InvoiceLineItems = new InvoiceLineItemRepository(_context);
             Notifications = new NotificationRepository(_context);
-            RiskCheckResults = new RiskCheckResultRepository(_context);
             SystemConfigurations = new SystemConfigurationRepository(_context);
-            ValidationLayers = new ValidationLayerRepository(_context);
+            InvoiceCheckResults = new InvoiceCheckResultRepository(_context);
         }
 
         private Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? _currentTransaction;

@@ -29,11 +29,9 @@ public class AppDbContext : DbContext
     public DbSet<DocumentType> DocumentTypes { get; set; }
     public DbSet<FileStorage> FileStorages { get; set; }
     public DbSet<Invoice> Invoices { get; set; }
-    public DbSet<SmartInvoice.API.Entities.InvoiceLineItem> InvoiceLineItems { get; set; } // NEW
-    public DbSet<LocalBlacklistedCompany> LocalBlacklists { get; set; } // NEW
-    public DbSet<ValidationLayer> ValidationLayers { get; set; }
+    public DbSet<SmartInvoice.API.Entities.InvoiceCheckResult> InvoiceCheckResults { get; set; } // REPLACED
+    public DbSet<LocalBlacklistedCompany> LocalBlacklists { get; set; }
     public DbSet<InvoiceAuditLog> InvoiceAuditLogs { get; set; }
-    public DbSet<RiskCheckResult> RiskCheckResults { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<ExportHistory> ExportHistories { get; set; }
     public DbSet<AIProcessingLog> AIProcessingLogs { get; set; }
@@ -76,22 +74,51 @@ public class AppDbContext : DbContext
             .HasForeignKey(i => i.OriginalFileId)
             .OnDelete(DeleteBehavior.Restrict); // Don't delete invoice if file is deleted (keep record)
 
-        // InvoiceLineItems (NEW)
-        modelBuilder.Entity<SmartInvoice.API.Entities.InvoiceLineItem>()
-            .HasOne(li => li.Invoice)
-            .WithMany(i => i.InvoiceLineItems)
-            .HasForeignKey(li => li.InvoiceId)
-            .OnDelete(DeleteBehavior.Cascade); // Delete invoice -> delete line items
+        modelBuilder.Entity<Invoice>(b =>
+        {
+            b.OwnsOne(i => i.Seller, s =>
+            {
+                s.Property(p => p.Name).HasColumnName("SellerName");
+                s.Property(p => p.TaxCode).HasColumnName("SellerTaxCode");
+                s.Property(p => p.Address).HasColumnName("SellerAddress");
+                s.Property(p => p.BankAccount).HasColumnName("SellerBankAccount");
+                s.Property(p => p.BankName).HasColumnName("SellerBankName");
+                s.Property(p => p.Phone).HasColumnName("SellerPhone");
+                s.Property(p => p.Email).HasColumnName("SellerEmail");
+            });
 
-        // LocalBlacklistedCompany (NEW)
+            b.OwnsOne(i => i.Buyer, buyer =>
+            {
+                buyer.Property(p => p.Name).HasColumnName("BuyerName");
+                buyer.Property(p => p.TaxCode).HasColumnName("BuyerTaxCode");
+                buyer.Property(p => p.Address).HasColumnName("BuyerAddress");
+                buyer.Property(p => p.Phone).HasColumnName("BuyerPhone");
+                buyer.Property(p => p.Email).HasColumnName("BuyerEmail");
+                buyer.Property(p => p.ContactPerson).HasColumnName("BuyerContactPerson");
+            });
+
+            b.OwnsOne(i => i.Workflow, w =>
+            {
+                w.Property(p => p.UploadedBy).HasColumnName("UploadedBy");
+                w.Property(p => p.SubmittedBy).HasColumnName("SubmittedBy");
+                w.Property(p => p.SubmittedAt).HasColumnName("SubmittedAt");
+                w.Property(p => p.ApprovedBy).HasColumnName("ApprovedBy");
+                w.Property(p => p.ApprovedAt).HasColumnName("ApprovedAt");
+                w.Property(p => p.RejectedBy).HasColumnName("RejectedBy");
+                w.Property(p => p.RejectedAt).HasColumnName("RejectedAt");
+                w.Property(p => p.RejectionReason).HasColumnName("RejectionReason");
+            });
+        });
+
+        // LocalBlacklistedCompany
         modelBuilder.Entity<LocalBlacklistedCompany>()
             .HasIndex(b => b.TaxCode)
             .IsUnique();
 
-        // ValidationLayers
-        modelBuilder.Entity<ValidationLayer>()
+        // InvoiceCheckResults
+        modelBuilder.Entity<InvoiceCheckResult>()
             .HasOne(vl => vl.Invoice)
-            .WithMany(i => i.ValidationLayers)
+            .WithMany(i => i.CheckResults)
             .HasForeignKey(vl => vl.InvoiceId)
             .OnDelete(DeleteBehavior.Cascade);
 
@@ -107,23 +134,16 @@ public class AppDbContext : DbContext
         // =================================================================================
 
         // Invoices
+        // Covering Index for Dashboard Filtering and Sorting
         modelBuilder.Entity<Invoice>()
-            .HasIndex(i => new { i.CompanyId, i.InvoiceDate }); // Descending typically handled by DB, EF default is ASC
+            .HasIndex(i => new { i.CompanyId, i.Status, i.RiskLevel, i.InvoiceDate });
 
-        modelBuilder.Entity<Invoice>()
-            .HasIndex(i => new { i.CompanyId, i.Status });
-
+        // General chronological search per company
         modelBuilder.Entity<Invoice>()
             .HasIndex(i => new { i.CompanyId, i.CreatedAt });
 
-        modelBuilder.Entity<Invoice>()
-            .HasIndex(i => new { i.CompanyId, i.RiskLevel });
-
-        modelBuilder.Entity<Invoice>()
-            .HasIndex(i => i.InvoiceNumber);
-
-        modelBuilder.Entity<Invoice>()
-            .HasIndex(i => i.SellerTaxCode);
+        // Indexes for Seller search and Unique Invoice Enforcement will be handled manually in the migration
+        // due to EF Core limitations with composite indexes on Owned Entities.
 
         // FileStorages
         modelBuilder.Entity<FileStorage>()

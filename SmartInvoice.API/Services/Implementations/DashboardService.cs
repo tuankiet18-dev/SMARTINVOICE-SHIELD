@@ -38,10 +38,9 @@ public class DashboardService : IDashboardService
         var invoices = _db.Invoices
             .Where(i => i.CompanyId == companyId && !i.IsDeleted);
 
-        // RBAC: Member only sees their own uploaded invoices stats
         if (userRole == "Member")
         {
-            invoices = invoices.Where(i => i.UploadedBy == userId);
+            invoices = invoices.Where(i => i.Workflow.UploadedBy == userId);
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -212,7 +211,7 @@ public class DashboardService : IDashboardService
             {
                 InvoiceId = i.InvoiceId,
                 InvoiceNo = i.InvoiceNumber ?? "N/A",
-                Seller = i.SellerName ?? "N/A",
+                Seller = i.Seller.Name ?? "N/A",
                 Amount = i.TotalAmount.ToString("N0") + " ₫",
                 Date = i.InvoiceDate.ToString("dd/MM/yyyy"),
                 Status = i.Status,

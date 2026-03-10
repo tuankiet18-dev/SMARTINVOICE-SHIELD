@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Collections.Generic;
 using SmartInvoice.API.Entities.JsonModels;
+using Microsoft.EntityFrameworkCore;
 
 namespace SmartInvoice.API.Entities;
 
@@ -10,10 +11,8 @@ public class Invoice
 {
     public Invoice()
     {
-        ValidationLayers = new List<ValidationLayer>();
-        RiskCheckResults = new List<RiskCheckResult>();
+        CheckResults = new List<InvoiceCheckResult>();
         AuditLogs = new List<InvoiceAuditLog>();
-        InvoiceLineItems = new List<InvoiceLineItem>();
     }
 
     [Key]
@@ -56,36 +55,10 @@ public class Invoice
     public decimal ExchangeRate { get; set; } = 1;
 
     // --- Seller Info ---
-    [MaxLength(200)]
-    public string? SellerName { get; set; }
-
-    [MaxLength(14)]
-    public string? SellerTaxCode { get; set; }
-
-    public string? SellerAddress { get; set; }
-    [MaxLength(20)]
-    public string? SellerPhone { get; set; }
-    [MaxLength(100)]
-    public string? SellerEmail { get; set; }
-    [MaxLength(50)]
-    public string? SellerBankAccount { get; set; }
-    [MaxLength(200)]
-    public string? SellerBankName { get; set; }
+    public SellerInfo Seller { get; set; } = new();
 
     // --- Buyer Info ---
-    [MaxLength(200)]
-    public string? BuyerName { get; set; }
-
-    [MaxLength(14)]
-    public string? BuyerTaxCode { get; set; }
-
-    public string? BuyerAddress { get; set; }
-    [MaxLength(20)]
-    public string? BuyerPhone { get; set; }
-    [MaxLength(100)]
-    public string? BuyerEmail { get; set; }
-    [MaxLength(100)]
-    public string? BuyerContactPerson { get; set; }
+    public BuyerInfo Buyer { get; set; } = new();
 
     // --- Amounts ---
     [Column(TypeName = "decimal(18,2)")]
@@ -115,18 +88,12 @@ public class Invoice
     [Column(TypeName = "jsonb")]
     public InvoiceExtractedData? ExtractedData { get; set; }
 
-    [Column(TypeName = "jsonb")]
-    public ValidationResultModel? ValidationResult { get; set; }
-
     // --- WORKFLOW & RISK ---
     [MaxLength(20)]
     public string Status { get; set; } = "Draft"; // Draft, Pending, Approved, Rejected, Archived
 
     [MaxLength(20)]
     public string RiskLevel { get; set; } = "Green"; // Green, Yellow, Orange, Red
-
-    [Column(TypeName = "jsonb")]
-    public List<RiskReason>? RiskReasons { get; set; }
 
     // --- OCR METADATA ---
     public float? OcrConfidenceScore { get; set; }
@@ -138,27 +105,8 @@ public class Invoice
     public Invoice? ReplacementInvoice { get; set; }
     public int Version { get; set; } = 1;
 
-    // --- USER TRACKING ---
-    public Guid UploadedBy { get; set; }
-    [ForeignKey(nameof(UploadedBy))]
-    public User? Uploader { get; set; }
-
-    public Guid? SubmittedBy { get; set; }
-    [ForeignKey(nameof(SubmittedBy))]
-    public User? Submitter { get; set; }
-
-    public Guid? ApprovedBy { get; set; }
-    [ForeignKey(nameof(ApprovedBy))]
-    public User? Approver { get; set; }
-
-    public Guid? RejectedBy { get; set; }
-    [ForeignKey(nameof(RejectedBy))]
-    public User? Rejector { get; set; }
-
-    public DateTime? SubmittedAt { get; set; }
-    public DateTime? ApprovedAt { get; set; }
-    public DateTime? RejectedAt { get; set; }
-    public string? RejectionReason { get; set; }
+    // --- USER TRACKING & WORKFLOW ---
+    public InvoiceWorkflow Workflow { get; set; } = new();
 
     // --- Metadata ---
     public bool IsDeleted { get; set; } = false;
@@ -168,8 +116,49 @@ public class Invoice
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     // --- Navigation Properties ---
-    public virtual ICollection<ValidationLayer> ValidationLayers { get; set; }
-    public virtual ICollection<RiskCheckResult> RiskCheckResults { get; set; }
+    public virtual ICollection<InvoiceCheckResult> CheckResults { get; set; }
     public virtual ICollection<InvoiceAuditLog> AuditLogs { get; set; }
-    public virtual ICollection<InvoiceLineItem> InvoiceLineItems { get; set; }
+}
+
+[Owned]
+public class SellerInfo
+{
+    [MaxLength(200)] public string? Name { get; set; }
+    [MaxLength(14)] public string? TaxCode { get; set; }
+    public string? Address { get; set; }
+    [MaxLength(20)] public string? Phone { get; set; }
+    [MaxLength(100)] public string? Email { get; set; }
+    [MaxLength(50)] public string? BankAccount { get; set; }
+    [MaxLength(200)] public string? BankName { get; set; }
+}
+
+[Owned]
+public class BuyerInfo
+{
+    [MaxLength(200)] public string? Name { get; set; }
+    [MaxLength(14)] public string? TaxCode { get; set; }
+    public string? Address { get; set; }
+    [MaxLength(20)] public string? Phone { get; set; }
+    [MaxLength(100)] public string? Email { get; set; }
+    [MaxLength(100)] public string? ContactPerson { get; set; }
+}
+
+[Owned]
+public class InvoiceWorkflow
+{
+    public Guid UploadedBy { get; set; }
+    [ForeignKey(nameof(UploadedBy))] public User? Uploader { get; set; }
+
+    public Guid? SubmittedBy { get; set; }
+    [ForeignKey(nameof(SubmittedBy))] public User? Submitter { get; set; }
+    public DateTime? SubmittedAt { get; set; }
+
+    public Guid? ApprovedBy { get; set; }
+    [ForeignKey(nameof(ApprovedBy))] public User? Approver { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+
+    public Guid? RejectedBy { get; set; }
+    [ForeignKey(nameof(RejectedBy))] public User? Rejector { get; set; }
+    public DateTime? RejectedAt { get; set; }
+    public string? RejectionReason { get; set; }
 }
