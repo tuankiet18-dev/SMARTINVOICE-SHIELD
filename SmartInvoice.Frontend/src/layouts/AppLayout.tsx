@@ -15,9 +15,6 @@ import {
   AuditOutlined,
   TeamOutlined,
   AppstoreOutlined,
-  BlockOutlined,
-  ToolOutlined,
-  StopOutlined,
   BankOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
@@ -32,8 +29,7 @@ const AppLayout: React.FC = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
 
-  const isCompanyAdmin = user?.role === 'CompanyAdmin' || user?.role === 'SuperAdmin';
-  const isSuperAdmin = user?.role === 'SuperAdmin';
+  const isCompanyAdmin = user?.role === 'CompanyAdmin';
 
   const menuItems = [
     { key: '/app/dashboard', icon: <DashboardOutlined />, label: 'Tổng quan' },
@@ -46,12 +42,6 @@ const AppLayout: React.FC = () => {
       { key: '/app/team', icon: <TeamOutlined />, label: 'Quản lý Team' },
       { key: 'divider-1', type: 'divider' as const },
       { key: '/app/audit-log', icon: <AuditOutlined />, label: 'Nhật ký Audit' },
-    ] : []),
-    ...(isSuperAdmin ? [
-      { key: 'divider-2', type: 'divider' as const },
-      { key: '/app/tenants', icon: <BlockOutlined />, label: 'Tenant (SA)' },
-      { key: '/app/global-blacklist', icon: <StopOutlined />, label: 'Blacklist (SA)' },
-      { key: '/app/system-config', icon: <ToolOutlined />, label: 'Cấu hình (SA)' },
     ] : []),
     { key: 'divider-settings', type: 'divider' as const },
     { key: '/app/settings', icon: <SettingOutlined />, label: 'Cài đặt' },
@@ -99,29 +89,23 @@ const AppLayout: React.FC = () => {
           padding: collapsed ? '20px 12px' : '24px 20px',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'flex-start',
           gap: 12,
           borderBottom: '1px solid rgba(0,0,0,0.03)',
           marginBottom: 12,
+          height: 80,
         }}>
-          <div style={{
-            width: 38,
-            height: 38,
-            borderRadius: 12,
-            background: 'linear-gradient(135deg, #4880FF, #3366CC)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            boxShadow: '0 4px 12px rgba(72, 128, 255, 0.2)',
-          }}>
-            <SafetyCertificateOutlined style={{ color: '#fff', fontSize: 18 }} />
-          </div>
-          {!collapsed && (
-            <div>
-              <Text strong style={{ color: '#202224', fontSize: 16, display: 'block', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
-                SmartInvoice
-              </Text>
-              <Text style={{ color: '#828282', fontSize: 12, fontWeight: 500 }}>Shield</Text>
+          {collapsed ? (
+            <img src="/logo-transparent.png" alt="Logo" style={{ width: 38, height: 38, objectFit: 'contain' }} />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+               <img src="/logo-transparent.png" alt="SmartInvoice Logo" style={{ height: 38, width: 'auto', objectFit: 'contain' }} />
+               <div>
+                  <Text strong style={{ color: '#202224', fontSize: 16, display: 'block', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
+                     SmartInvoice
+                  </Text>
+                  <Text style={{ color: '#828282', fontSize: 12, fontWeight: 500 }}>Shield</Text>
+               </div>
             </div>
           )}
         </div>

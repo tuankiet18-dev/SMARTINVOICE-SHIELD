@@ -1,38 +1,20 @@
 import React, { useState } from "react";
+import { Form, Input, Select, Steps, Checkbox, message } from "antd";
 import {
-  Card,
-  Form,
-  Input,
-  Button,
-  Typography,
-  Steps,
-  Select,
-  Row,
-  Col,
-  Divider,
-  Checkbox,
-  Space,
-} from "antd";
-import {
-  SafetyCertificateOutlined,
   BankOutlined,
   UserOutlined,
+  SafetyCertificateOutlined,
   LockOutlined,
   MailOutlined,
   PhoneOutlined,
   IdcardOutlined,
   EnvironmentOutlined,
-  SolutionOutlined,
   CheckCircleOutlined,
   ArrowLeftOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-
-import { message } from "antd";
 import { authService, RegisterCompanyRequest } from "@/services/auth";
-
-const { Title, Text, Paragraph } = Typography;
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -57,7 +39,6 @@ const Register: React.FC = () => {
 
       if (!checkResult.isValid) {
         message.error(checkResult.errorMessage || "Mã số thuế không hợp lệ");
-        // Clear old valid data if it fails
         companyForm.setFieldsValue({
           companyName: undefined,
           address: undefined,
@@ -92,8 +73,6 @@ const Register: React.FC = () => {
       setLoading(true);
       const values = await companyForm.validateFields();
 
-      // We rely on the backend to validate the taxcode finally during registration,
-      // but ensure they at least fetched something.
       if (!values.companyName || !values.address) {
         message.warning("Vui lòng kiểm tra Mã số thuế trước khi tiếp tục.");
         return;
@@ -125,12 +104,10 @@ const Register: React.FC = () => {
 
       await authService.register(payload);
 
-      // Update persistent state for verification step
-      // Ensure adminEmail is available for the next step
       setFormData((prev: any) => ({
         ...prev,
         ...adminValues,
-        adminEmail: adminValues.adminEmail, // Explicitly set adminEmail
+        adminEmail: adminValues.adminEmail,
       }));
 
       message.success(
@@ -140,10 +117,8 @@ const Register: React.FC = () => {
     } catch (error: any) {
       if (error.response) {
         message.error(error.response.data?.message || "Đăng ký thất bại");
-        console.error("Register Error:", error.response.data);
       } else {
         message.error("Đăng ký thất bại. Vui lòng thử lại.");
-        console.error("Register Error:", error);
       }
     } finally {
       setLoading(false);
@@ -154,8 +129,7 @@ const Register: React.FC = () => {
     try {
       setLoading(true);
       const values = await verifyForm.validateFields();
-      // Use adminEmail from formData.
-      // Note: formData update from onFinishAdmin should be reflected here in the next render.
+
       if (!formData.adminEmail) {
         message.error(
           "Không tìm thấy email cần xác thực. Vui lòng đăng ký lại.",
@@ -175,307 +149,308 @@ const Register: React.FC = () => {
   };
 
   const stepItems = [
-    { title: "Thông tin công ty", icon: <BankOutlined /> },
-    { title: "Tài khoản Admin", icon: <UserOutlined /> },
+    { title: "Công ty", icon: <BankOutlined /> },
+    { title: "Quản trị viên", icon: <UserOutlined /> },
     { title: "Xác thực", icon: <SafetyCertificateOutlined /> },
     { title: "Hoàn tất", icon: <CheckCircleOutlined /> },
   ];
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(135deg, hsl(220 20% 96%) 0%, hsl(220 25% 94%) 100%)",
-        padding: "32px 16px",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 720,
-          margin: "0 auto 24px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+    <div className="min-h-screen bg-slate-50 font-sans flex flex-col items-center py-10 px-4 sm:px-6 relative overflow-hidden selection:bg-blue-100/50">
+      {/* Background blobs matching Landing Page */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-blue-600/10 rounded-full blur-[100px] pointer-events-none z-0"></div>
+
+      {/* Header */}
+      <div className="w-full max-w-3xl flex items-center justify-between mb-8 relative z-10">
         <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            cursor: "pointer",
-          }}
+          className="flex items-center gap-3 cursor-pointer"
           onClick={() => navigate("/")}
         >
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              background: "linear-gradient(135deg, #2db791, #1a8a6a)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <SafetyCertificateOutlined
-              style={{ color: "#fff", fontSize: 18 }}
-            />
+          <img
+            src="/logo-transparent.png"
+            alt="SmartInvoice Logo"
+            className="h-10 w-auto object-contain"
+          />
+          <div className="flex flex-col hidden sm:flex">
+            <span className="text-[17px] font-bold leading-none tracking-tight text-slate-900">
+              SmartInvoice
+            </span>
+            <span className="text-[10px] font-bold leading-none tracking-widest text-slate-500 mt-0.5">
+              SHIELD
+            </span>
           </div>
-          <Text strong style={{ fontSize: 16, color: "#1a4b8c" }}>
-            SmartInvoice Shield
-          </Text>
         </div>
-        <Button
-          type="link"
+        <button
           onClick={() => navigate("/login")}
-          style={{ color: "#1a4b8c" }}
+          className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
         >
           Đã có tài khoản? Đăng nhập
-        </Button>
+        </button>
       </div>
 
-      <Card
-        bordered={false}
-        style={{
-          maxWidth: 720,
-          margin: "0 auto",
-          borderRadius: 16,
-          boxShadow: "0 8px 30px rgba(0,0,0,0.08)",
-        }}
-        bodyStyle={{ padding: "36px 40px" }}
-      >
-        <Title level={3} style={{ marginBottom: 4 }}>
-          Đăng ký sử dụng dịch vụ
-        </Title>
-        <Text type="secondary" style={{ display: "block", marginBottom: 28 }}>
-          Tạo tài khoản công ty và quản trị viên để bắt đầu
-        </Text>
+      {/* Main Card */}
+      <div className="w-full max-w-3xl bg-white rounded-[2rem] shadow-2xl shadow-slate-200/50 border border-slate-100 p-8 sm:p-12 relative z-10">
+        <div className="mb-10 text-center sm:text-left">
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
+            Đăng ký sử dụng dịch vụ
+          </h2>
+          <p className="text-slate-500 font-medium text-[15px]">
+            Tạo tài khoản doanh nghiệp và quản trị viên để bắt đầu
+          </p>
+        </div>
 
-        <Steps
-          current={current}
-          items={stepItems}
-          style={{ marginBottom: 36 }}
-        />
+        <div className="mb-12 overflow-x-auto pb-2">
+          <Steps
+            current={current}
+            items={stepItems}
+            className="min-w-[400px]"
+          />
+        </div>
 
+        {/* Step 0: Company Info */}
         {current === 0 && (
           <Form
             form={companyForm}
             layout="vertical"
             onFinish={onFinishCompany}
+            size="large"
             requiredMark="optional"
           >
-            <Title level={5} style={{ marginBottom: 16 }}>
-              <BankOutlined style={{ marginRight: 8 }} />
-              Thông tin doanh nghiệp
-            </Title>
-            <Row gutter={16}>
-              <Col xs={24} sm={12}>
-                <Form.Item label="Mã số thuế (MST)" required>
-                  <Space.Compact style={{ width: "100%" }}>
-                    <Form.Item
-                      name="taxCode"
-                      noStyle
-                      rules={[{ required: true, message: "Vui lòng nhập MST" }]}
-                    >
-                      <Input
-                        prefix={<IdcardOutlined style={{ color: "#bfbfbf" }} />}
-                        placeholder="Nhập độ dài 10-13 số"
-                        style={{
-                          height: 44,
-                          borderTopLeftRadius: 10,
-                          borderBottomLeftRadius: 10,
-                        }}
-                      />
-                    </Form.Item>
-                    <Button
-                      type="primary"
-                      icon={<SearchOutlined />}
-                      onClick={handleCheckTaxCode}
-                      loading={checkingTaxCode}
-                      style={{
-                        height: 44,
-                        borderTopRightRadius: 10,
-                        borderBottomRightRadius: 10,
-                        background: "#1a4b8c",
-                      }}
-                    >
-                      Kiểm tra
-                    </Button>
-                  </Space.Compact>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    Nhập MST và ấn Kiểm tra để điền tự động
-                  </Text>
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="businessType"
-                  label="Loại hình doanh nghiệp"
-                  rules={[{ required: true, message: "Vui lòng chọn" }]}
-                >
-                  <Select
-                    placeholder="Chọn loại hình"
-                    style={{ borderRadius: 10 }}
-                    options={[
-                      { value: "tnhh", label: "Công ty TNHH" },
-                      { value: "cp", label: "Công ty Cổ phần" },
-                      { value: "tn", label: "Doanh nghiệp tư nhân" },
-                      { value: "hkd", label: "Hộ kinh doanh" },
-                      { value: "other", label: "Khác" },
-                    ]}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-6">
+              <BankOutlined className="text-blue-600" /> Thông tin doanh nghiệp
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+              <Form.Item
+                label={
+                  <span className="font-semibold text-slate-700">
+                    Mã số thuế (MST)
+                  </span>
+                }
+                required
+                className="mb-6"
+              >
+                <div className="flex w-full">
+                  <Form.Item
+                    name="taxCode"
+                    noStyle
+                    rules={[{ required: true, message: "Vui lòng nhập MST" }]}
+                  >
+                    <Input
+                      prefix={
+                        <IdcardOutlined className="text-slate-400 mr-1" />
+                      }
+                      placeholder="Nhập 10-13 số"
+                      className="flex-1 h-12 rounded-l-xl rounded-r-none bg-slate-50 border-slate-200 hover:border-blue-400 focus:border-blue-500 text-[15px]"
+                    />
+                  </Form.Item>
+                  <button
+                    type="button"
+                    onClick={handleCheckTaxCode}
+                    disabled={checkingTaxCode}
+                    className="h-12 px-6 bg-slate-900 text-white font-bold rounded-r-xl hover:bg-slate-800 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-70"
+                  >
+                    <SearchOutlined />{" "}
+                    {checkingTaxCode ? "Đang tra..." : "Kiểm tra"}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mt-2 font-medium">
+                  Nhập MST và ấn Kiểm tra để điền tự động thông tin bên dưới.
+                </p>
+              </Form.Item>
+
+              <Form.Item
+                name="businessType"
+                label={
+                  <span className="font-semibold text-slate-700">
+                    Loại hình doanh nghiệp
+                  </span>
+                }
+                rules={[{ required: true, message: "Vui lòng chọn loại hình" }]}
+                className="mb-6"
+              >
+                <Select
+                  placeholder="Chọn loại hình"
+                  className="h-12 [&>.ant-select-selector]:rounded-xl [&>.ant-select-selector]:bg-slate-50 [&>.ant-select-selector]:border-slate-200"
+                  options={[
+                    { value: "tnhh", label: "Công ty TNHH" },
+                    { value: "cp", label: "Công ty Cổ phần" },
+                    { value: "tn", label: "Doanh nghiệp tư nhân" },
+                    { value: "hkd", label: "Hộ kinh doanh" },
+                    { value: "other", label: "Khác" },
+                  ]}
+                />
+              </Form.Item>
+            </div>
 
             <Form.Item
               name="companyName"
-              label="Tên công ty / doanh nghiệp"
+              label={
+                <span className="font-semibold text-slate-700">
+                  Tên công ty / doanh nghiệp
+                </span>
+              }
               rules={[
                 {
                   required: true,
                   message: "Vui lòng kiểm tra MST để lấy tên công ty",
                 },
               ]}
+              className="mb-6"
             >
               <Input
                 disabled
-                prefix={<BankOutlined style={{ color: "#bfbfbf" }} />}
-                placeholder="Điền tự động từ MST"
-                style={{ borderRadius: 10, height: 44 }}
+                prefix={<BankOutlined className="text-slate-400 mr-1" />}
+                placeholder="Hệ thống tự động điền từ MST"
+                className="h-12 rounded-xl bg-slate-100 border-slate-200 text-slate-900 font-medium text-[15px]"
               />
             </Form.Item>
 
             <Form.Item
               name="address"
-              label="Địa chỉ trụ sở"
+              label={
+                <span className="font-semibold text-slate-700">
+                  Địa chỉ trụ sở
+                </span>
+              }
               rules={[
                 {
                   required: true,
                   message: "Vui lòng kiểm tra MST để lấy địa chỉ",
                 },
               ]}
+              className="mb-8"
             >
               <Input
                 disabled
-                prefix={<EnvironmentOutlined style={{ color: "#bfbfbf" }} />}
-                placeholder="Điền tự động từ MST"
-                style={{ borderRadius: 10, height: 44 }}
+                prefix={<EnvironmentOutlined className="text-slate-400 mr-1" />}
+                placeholder="Hệ thống tự động điền từ MST"
+                className="h-12 rounded-xl bg-slate-100 border-slate-200 text-slate-900 font-medium text-[15px]"
               />
             </Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              block
-              loading={loading}
-              style={{
-                height: 48,
-                borderRadius: 10,
-                fontWeight: 600,
-                fontSize: 15,
-                marginTop: 8,
-                background: "linear-gradient(135deg, #1a4b8c, #15396d)",
-              }}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-12 flex items-center justify-center text-[15px] font-bold text-white transition-all bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 hover:-translate-y-0.5 disabled:opacity-70 disabled:hover:translate-y-0"
             >
-              Tiếp tục →
-            </Button>
+              Tiếp tục <span className="ml-2">→</span>
+            </button>
           </Form>
         )}
 
+        {/* Step 1: Admin Info */}
         {current === 1 && (
           <Form
             form={adminForm}
             layout="vertical"
             onFinish={onFinishAdmin}
+            size="large"
             requiredMark="optional"
           >
-            <Title level={5} style={{ marginBottom: 16 }}>
-              <UserOutlined style={{ marginRight: 8 }} />
-              Tài khoản quản trị viên
-            </Title>
-            <Row gutter={16}>
-              <Col xs={24}>
-                <Form.Item
-                  name="adminFullName"
-                  label="Họ và tên quản trị viên"
-                  rules={[{ required: true, message: "Vui lòng nhập họ tên" }]}
-                >
-                  <Input
-                    prefix={<UserOutlined style={{ color: "#bfbfbf" }} />}
-                    placeholder="Phạm Văn A"
-                    style={{ borderRadius: 10, height: 44 }}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-6">
+              <UserOutlined className="text-blue-600" /> Tài khoản Quản trị viên
+            </h3>
+
             <Form.Item
-              name="adminEmail"
-              label="Email đăng nhập"
-              rules={[
-                { required: true, message: "Vui lòng nhập email" },
-                { type: "email", message: "Email không hợp lệ" },
-              ]}
+              name="adminFullName"
+              label={
+                <span className="font-semibold text-slate-700">Họ và tên</span>
+              }
+              rules={[{ required: true, message: "Vui lòng nhập họ tên" }]}
+              className="mb-6"
             >
               <Input
-                prefix={<MailOutlined style={{ color: "#bfbfbf" }} />}
-                placeholder="admin@company.vn"
-                style={{ borderRadius: 10, height: 44 }}
+                prefix={<UserOutlined className="text-slate-400 mr-1" />}
+                placeholder="VD: Phạm Văn A"
+                className="h-12 rounded-xl bg-slate-50 border-slate-200 hover:border-blue-400 focus:border-blue-500 text-[15px]"
               />
             </Form.Item>
-            <Form.Item
-              name="adminPhone"
-              label="Số điện thoại"
-              rules={[{ required: true, message: "Vui lòng nhập SĐT" }]}
-            >
-              <Input
-                prefix={<PhoneOutlined style={{ color: "#bfbfbf" }} />}
-                placeholder="0912 345 678"
-                style={{ borderRadius: 10, height: 44 }}
-              />
-            </Form.Item>
-            <Row gutter={16}>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="password"
-                  label="Mật khẩu"
-                  rules={[
-                    { required: true, message: "Vui lòng nhập mật khẩu" },
-                    { min: 8, message: "Tối thiểu 8 ký tự" },
-                  ]}
-                >
-                  <Input.Password
-                    prefix={<LockOutlined style={{ color: "#bfbfbf" }} />}
-                    placeholder="Tối thiểu 8 ký tự"
-                    style={{ borderRadius: 10, height: 44 }}
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="confirmPassword"
-                  label="Xác nhận mật khẩu"
-                  dependencies={["password"]}
-                  rules={[
-                    { required: true, message: "Vui lòng xác nhận mật khẩu" },
-                    ({ getFieldValue }) => ({
-                      validator(_, value) {
-                        if (!value || getFieldValue("password") === value)
-                          return Promise.resolve();
-                        return Promise.reject(new Error("Mật khẩu không khớp"));
-                      },
-                    }),
-                  ]}
-                >
-                  <Input.Password
-                    prefix={<LockOutlined style={{ color: "#bfbfbf" }} />}
-                    placeholder="Nhập lại mật khẩu"
-                    style={{ borderRadius: 10, height: 44 }}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+              <Form.Item
+                name="adminEmail"
+                label={
+                  <span className="font-semibold text-slate-700">
+                    Email đăng nhập
+                  </span>
+                }
+                rules={[
+                  { required: true, message: "Vui lòng nhập email" },
+                  { type: "email", message: "Email không hợp lệ" },
+                ]}
+                className="mb-6"
+              >
+                <Input
+                  prefix={<MailOutlined className="text-slate-400 mr-1" />}
+                  placeholder="admin@company.vn"
+                  className="h-12 rounded-xl bg-slate-50 border-slate-200 hover:border-blue-400 focus:border-blue-500 text-[15px]"
+                />
+              </Form.Item>
+
+              <Form.Item
+                name="adminPhone"
+                label={
+                  <span className="font-semibold text-slate-700">
+                    Số điện thoại
+                  </span>
+                }
+                rules={[{ required: true, message: "Vui lòng nhập SĐT" }]}
+                className="mb-6"
+              >
+                <Input
+                  prefix={<PhoneOutlined className="text-slate-400 mr-1" />}
+                  placeholder="0912 345 678"
+                  className="h-12 rounded-xl bg-slate-50 border-slate-200 hover:border-blue-400 focus:border-blue-500 text-[15px]"
+                />
+              </Form.Item>
+
+              <Form.Item
+                name="password"
+                label={
+                  <span className="font-semibold text-slate-700">Mật khẩu</span>
+                }
+                rules={[
+                  { required: true, message: "Vui lòng nhập mật khẩu" },
+                  { min: 8, message: "Tối thiểu 8 ký tự" },
+                ]}
+                className="mb-6"
+              >
+                <Input.Password
+                  prefix={<LockOutlined className="text-slate-400 mr-1" />}
+                  placeholder="Tối thiểu 8 ký tự"
+                  className="h-12 rounded-xl bg-slate-50 border-slate-200 hover:border-blue-400 focus:border-blue-500 text-[15px]"
+                />
+              </Form.Item>
+
+              <Form.Item
+                name="confirmPassword"
+                label={
+                  <span className="font-semibold text-slate-700">
+                    Xác nhận mật khẩu
+                  </span>
+                }
+                dependencies={["password"]}
+                rules={[
+                  { required: true, message: "Vui lòng xác nhận mật khẩu" },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue("password") === value)
+                        return Promise.resolve();
+                      return Promise.reject(new Error("Mật khẩu không khớp"));
+                    },
+                  }),
+                ]}
+                className="mb-6"
+              >
+                <Input.Password
+                  prefix={<LockOutlined className="text-slate-400 mr-1" />}
+                  placeholder="Nhập lại mật khẩu"
+                  className="h-12 rounded-xl bg-slate-50 border-slate-200 hover:border-blue-400 focus:border-blue-500 text-[15px]"
+                />
+              </Form.Item>
+            </div>
+
             <Form.Item
               name="agree"
               valuePropName="checked"
@@ -487,163 +462,134 @@ const Register: React.FC = () => {
                       : Promise.reject("Vui lòng đồng ý điều khoản"),
                 },
               ]}
+              className="mb-8"
             >
-              <Checkbox>
+              <Checkbox className="text-slate-500 font-medium text-[14px]">
                 Tôi đồng ý với{" "}
-                <a style={{ color: "#1a4b8c" }}>Điều khoản sử dụng</a> và{" "}
-                <a style={{ color: "#1a4b8c" }}>Chính sách bảo mật</a>
+                <a href="#" className="text-blue-600 hover:underline">
+                  Điều khoản sử dụng
+                </a>{" "}
+                và{" "}
+                <a href="#" className="text-blue-600 hover:underline">
+                  Chính sách bảo mật
+                </a>
               </Checkbox>
             </Form.Item>
-            <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-              <Button
-                style={{
-                  height: 48,
-                  borderRadius: 10,
-                  flex: "0 0 auto",
-                  paddingInline: 24,
-                }}
-                icon={<ArrowLeftOutlined />}
+
+            <div className="flex gap-4">
+              <button
+                type="button"
                 onClick={() => setCurrent(0)}
+                className="h-12 px-6 flex items-center justify-center text-[15px] font-bold text-slate-700 transition-all bg-white border-2 border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300"
               >
-                Quay lại
-              </Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                block
-                loading={loading}
-                style={{
-                  height: 48,
-                  borderRadius: 10,
-                  fontWeight: 600,
-                  fontSize: 15,
-                  background: "linear-gradient(135deg, #2db791, #1a8a6a)",
-                  border: "none",
-                }}
+                <ArrowLeftOutlined className="mr-2" /> Quay lại
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 h-12 flex items-center justify-center text-[15px] font-bold text-white transition-all bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 hover:-translate-y-0.5 disabled:opacity-70 disabled:hover:translate-y-0"
               >
                 Hoàn tất đăng ký
-              </Button>
+              </button>
             </div>
           </Form>
         )}
 
+        {/* Step 2: Verification */}
         {current === 2 && (
           <Form
             form={verifyForm}
             layout="vertical"
             onFinish={onFinishVerify}
+            size="large"
             requiredMark="optional"
           >
-            <div style={{ textAlign: "center", marginBottom: 24 }}>
-              <Title level={4}>Xác thực Email</Title>
-              <Text type="secondary">
+            <div className="text-center mb-10">
+              <h3 className="text-2xl font-black text-slate-900 mb-3">
+                Xác thực Email
+              </h3>
+              <p className="text-slate-500 font-medium">
                 Vui lòng nhập mã xác thực gồm 6 chữ số đã được gửi đến email{" "}
-                <strong>{formData.adminEmail}</strong>
-              </Text>
+                <br />
+                <strong className="text-slate-800">
+                  {formData.adminEmail}
+                </strong>
+              </p>
             </div>
+
             <Form.Item
               name="token"
               rules={[
                 { required: true, message: "Vui lòng nhập mã xác thực" },
                 { len: 6, message: "Mã xác thực phải có 6 chữ số" },
               ]}
+              className="mb-8 max-w-sm mx-auto"
             >
               <Input
-                placeholder="Nhập mã xác thực (6 số)"
-                style={{
-                  borderRadius: 10,
-                  height: 44,
-                  fontSize: 18,
-                  textAlign: "center",
-                  letterSpacing: 4,
-                }}
+                placeholder="Nhập 6 số"
                 maxLength={6}
+                className="h-14 rounded-xl bg-slate-50 border-slate-200 hover:border-blue-400 focus:border-blue-500 text-center text-xl font-bold tracking-[0.5em]"
               />
             </Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              block
-              loading={loading}
-              style={{
-                height: 48,
-                borderRadius: 10,
-                fontWeight: 600,
-                fontSize: 15,
-                background: "linear-gradient(135deg, #1a4b8c, #15396d)",
-              }}
-            >
-              Xác thực
-            </Button>
-            <div style={{ textAlign: "center", marginTop: 16 }}>
-              <Button
-                type="link"
-                onClick={() => {
-                  message.info("Chức năng gửi lại đang được phát triển");
-                }}
+
+            <div className="max-w-sm mx-auto">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full h-12 flex items-center justify-center text-[15px] font-bold text-white transition-all bg-slate-900 rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-900/20 hover:-translate-y-0.5 disabled:opacity-70 disabled:hover:translate-y-0 mb-4"
               >
-                Gửi lại mã
-              </Button>
+                Xác thực tài khoản
+              </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    message.info("Chức năng gửi lại đang được phát triển")
+                  }
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                >
+                  Gửi lại mã xác thực
+                </button>
+              </div>
             </div>
           </Form>
         )}
 
+        {/* Step 3: Success */}
         {current === 3 && (
-          <div style={{ textAlign: "center", padding: "40px 0 20px" }}>
-            <div
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: "50%",
-                background: "rgba(45,183,145,0.1)",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: 20,
-              }}
-            >
-              <CheckCircleOutlined style={{ fontSize: 36, color: "#2db791" }} />
+          <div className="text-center py-8">
+            <div className="w-24 h-24 rounded-full bg-emerald-50 border-8 border-emerald-100 flex items-center justify-center mx-auto mb-6">
+              <CheckCircleOutlined className="text-4xl text-emerald-500" />
             </div>
-            <Title level={3} style={{ marginBottom: 8 }}>
+
+            <h3 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">
               Đăng ký thành công!
-            </Title>
-            <Paragraph
-              type="secondary"
-              style={{ fontSize: 15, maxWidth: 420, margin: "0 auto 28px" }}
-            >
-              Tài khoản công ty và quản trị viên đã được tạo. Bạn có thể đăng
-              nhập ngay để bắt đầu sử dụng hệ thống.
-            </Paragraph>
-            <Button
-              type="primary"
-              size="large"
+            </h3>
+            <p className="text-slate-500 font-medium text-[16px] max-w-md mx-auto mb-10 leading-relaxed">
+              Tài khoản doanh nghiệp và quản trị viên của bạn đã được khởi tạo.
+              Bạn có thể đăng nhập ngay bây giờ để thiết lập hệ thống.
+            </p>
+
+            <button
               onClick={() => navigate("/login")}
-              style={{
-                height: 48,
-                borderRadius: 10,
-                fontWeight: 600,
-                paddingInline: 36,
-                background: "linear-gradient(135deg, #1a4b8c, #15396d)",
-              }}
+              className="inline-flex items-center justify-center px-10 h-14 text-[16px] font-bold text-white transition-all bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 hover:-translate-y-0.5"
             >
-              Đăng nhập ngay
-            </Button>
+              Đăng nhập vào hệ thống
+            </button>
           </div>
         )}
 
-        <Divider
-          plain
-          style={{ margin: "28px 0 12px", color: "#bfbfbf", fontSize: 12 }}
-        >
-          Tuân thủ NĐ 123/2020/NĐ-CP & TT 78/2021/TT-BTC
-        </Divider>
-        <Text
-          type="secondary"
-          style={{ display: "block", textAlign: "center", fontSize: 12 }}
-        >
-          © 2026 SmartInvoice Shield. AWS Cloud AI Journey.
-        </Text>
-      </Card>
+        {/* Footer Compliance Text */}
+        <div className="mt-12 pt-6 border-t border-slate-100 text-center">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+            Tuân thủ NĐ 123/2020/NĐ-CP & TT 78/2021/TT-BTC
+          </p>
+          <p className="text-xs font-semibold text-slate-400">
+            © 2026 SmartInvoice Shield. Built on AWS.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

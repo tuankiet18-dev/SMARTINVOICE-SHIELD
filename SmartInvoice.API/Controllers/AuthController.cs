@@ -137,6 +137,22 @@ namespace SmartInvoice.API.Controllers
             }
         }
 
+        [HttpPost("seed-superadmin")]
+        [AllowAnonymous] // TEMPORARY: Remove or secure this after use
+        public async Task<IActionResult> SeedSuperAdmin([FromBody] SeedSuperAdminRequest request)
+        {
+            try
+            {
+                await _authService.SeedSuperAdminAsync(request);
+                return Ok(new { Message = "SuperAdmin created successfully. Please login." });
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? $"{ex.Message} -> {ex.InnerException.Message}" : ex.Message;
+                return BadRequest(new { Message = message });
+            }
+        }
+
         private void SetRefreshTokenCookie(string refreshToken)
         {
             var cookieOptions = new CookieOptions

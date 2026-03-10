@@ -492,5 +492,107 @@ namespace SmartInvoice.API.Services.Implementations
                 throw new Exception($"Verification failed: {ex.Message}");
             }
         }
+
+        public async Task SeedSuperAdminAsync(SeedSuperAdminRequest request)
+        {
+            var normalizedEmail = request.Email.ToLower().Trim();
+
+            // 1. Check if user exists locally
+            var existingUser = await _unitOfWork.Users.GetByEmailAsync(normalizedEmail);
+            if (existingUser != null) throw new Exception("Admin email already exists locally.");
+
+            await _unitOfWork.BeginTransactionAsync();
+            bool cognitoCreated = false;
+
+            try
+            {
+                // 2. Create a dummy "System Administration" company
+                var companyId = Guid.NewGuid();
+                var company = new Company
+                {
+                    CompanyId = companyId,
+                    CompanyName = "System Administration",
+                    TaxCode = "SUPERADMIN_SYS",
+                    Address = "System Managed",
+                    Email = normalizedEmail,
+                    PhoneNumber = "0000000000",
+                    SubscriptionTier = SubscriptionTier.Enterprise.ToString(),
+                    IsActive = true
+                };
+                await _unitOfWork.Companies.AddAsync(company);
+                await _unitOfWork.CompleteAsync();
+
+                // 3. Register in Cognito
+                var secretHash = CalculateSecretHash(normalizedEmail);
+                var signUpRequest = new SignUpRequest
+                {
+                    ClientId = _clientId,
+                    SecretHash = secretHash,
+                    Username = normalizedEmail,
+                    Password = request.Password,
+                    UserAttributes = new List<AttributeType>
+                    {
+                        new AttributeType { Name = "email", Value = normalizedEmail },
+                        new AttributeType { Name = "name", Value = request.FullName },
+                        new AttributeType { Name = "custom:company_id", Value = companyId.ToString() },
+                        new AttributeType { Name = "custom:role", Value = UserRole.SuperAdmin.ToString() }
+                    }
+                };
+
+                var signUpResponse = await _cognitoClient.SignUpAsync(signUpRequest);
+                var cognitoSub = signUpResponse.UserSub;
+                cognitoCreated = true;
+
+                // 4. Auto-Confirm User in Cognito (Requires Admin Confirm SignUp)
+                var confirmRequest = new AdminConfirmSignUpRequest
+                {
+                    UserPoolId = _userPoolId,
+                    Username = normalizedEmail
+                };
+                await _cognitoClient.AdminConfirmSignUpAsync(confirmRequest);
+
+                // 5. Create Local User with SuperAdmin Role
+                var user = new User
+                {
+                    Email = normalizedEmail,
+                    CognitoSub = cognitoSub,
+                    FullName = request.FullName,
+                    CompanyId = companyId,
+                    Role = UserRole.SuperAdmin.ToString(),
+                    Permissions = new List<string> { "*" }, // SuperAdmin gets everything conventionally or a specific wildcard
+                    IsActive = true, // Force active
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await _unitOfWork.Users.AddAsync(user);
+                await _unitOfWork.CompleteAsync();
+
+                await _unitOfWork.CommitTransactionAsync();
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+
+                if (cognitoCreated)
+                {
+                    try
+                    {
+                        var deleteRequest = new AdminDeleteUserRequest
+                        {
+                            UserPoolId = _userPoolId,
+                            Username = normalizedEmail
+                        };
+                        await _cognitoClient.AdminDeleteUserAsync(deleteRequest);
+                    }
+                    catch { /* Ignore rollback failure */ }
+                }
+
+                if (ex is UsernameExistsException)
+                    throw new Exception("Email already registered in Cognito.");
+
+                throw;
+            }
+        }
     }
 }
