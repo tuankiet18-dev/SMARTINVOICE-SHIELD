@@ -679,10 +679,20 @@ namespace SmartInvoice.API.Services.Implementations
 
                         if (code == "00")
                         {
-                            // Doanh nghiệp tồn tại -> Lưu cache 7 ngày
-                            var cacheEntryOptions = new MemoryCacheEntryOptions()
-                                .SetAbsoluteExpiration(TimeSpan.FromDays(7));
-                            _cache.Set(cacheKey, true, cacheEntryOptions);
+                            var data = root.GetProperty("data");
+                            var status = data.TryGetProperty("status", out var statusElement) ? statusElement.GetString() : null;
+
+                            if (status != null && status.Contains("đang hoạt động", StringComparison.OrdinalIgnoreCase))
+                            {
+                                // Doanh nghiệp tồn tại và đang hoạt động -> Lưu cache 7 ngày
+                                var cacheEntryOptions = new MemoryCacheEntryOptions()
+                                    .SetAbsoluteExpiration(TimeSpan.FromDays(7));
+                                _cache.Set(cacheKey, true, cacheEntryOptions);
+                            }
+                            else
+                            {
+                                validationResult.AddWarning($"[API WARNING] Mã số thuế {taxCode} không ở trạng thái đang hoạt động (Trạng thái: {status})");
+                            }
                         }
                         else
                         {
