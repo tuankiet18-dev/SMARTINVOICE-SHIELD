@@ -27,8 +27,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
 
     if (allowedRoles && allowedRoles.length > 0 && user) {
         if (!allowedRoles.includes(user.role)) {
-            // Role not authorized
-            // You can redirect to an unauthorized page or dashboard
+            // SuperAdmin should always be redirected to /admin
+            if (user.role === 'SuperAdmin') {
+                return <Navigate to="/admin" replace />;
+            }
+            // All other roles go back to app dashboard
             return <Navigate to="/app/dashboard" replace />;
         }
     }

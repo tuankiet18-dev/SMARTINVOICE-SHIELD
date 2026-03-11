@@ -22,10 +22,18 @@ export interface InvoiceExtractedData {
     exchange_rate: number | null;
 }
 
+export interface ValidationErrorDetail {
+    errorCode: string | null;
+    errorMessage: string | null;
+    suggestion: string | null;
+}
+
 export interface ValidationResult {
     isValid: boolean;
-    errors: string[];
-    warnings: string[];
+    errors: string[]; // For backward compatibility
+    warnings: string[]; // For backward compatibility
+    errorDetails: ValidationErrorDetail[];
+    warningDetails: ValidationErrorDetail[];
     signerSubject: string | null;
     extractedData: InvoiceExtractedData | null;
     // Returned by API after saving to DB
@@ -87,7 +95,10 @@ export interface ValidationLayerDto {
     layerOrder: number;
     isValid: boolean;
     validationStatus: string;
-    errorDetails: string | null;
+    errorCode: string | null;
+    errorMessage: string | null;
+    errorDetails: string | null; // This is a JSON string of ValidationErrorDetail[]
+    layerData: string | null;
     checkedAt: string;
 }
 

@@ -51,10 +51,6 @@ public class FileStorage : ISoftDelete
     [MaxLength(100)]
     public string? S3VersionId { get; set; }
 
-    // Temporary URL
-    public string? S3Url { get; set; }
-    public DateTime? S3UrlExpiresAt { get; set; }
-
     // --- Processing Status ---
     public bool IsProcessed { get; set; } = false;
     public DateTime? ProcessedAt { get; set; }

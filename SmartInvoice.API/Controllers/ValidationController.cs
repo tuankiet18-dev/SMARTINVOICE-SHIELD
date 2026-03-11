@@ -39,12 +39,12 @@ public class ValidationController : ControllerBase
         // ── Base query: invoices that have at least one validation layer ──
         var invoicesQuery = _db.Invoices
             .Where(i => i.CompanyId == companyId && !i.IsDeleted)
-            .Where(i => i.ValidationLayers.Any());
+            .Where(i => i.CheckResults.Any(c => c.Category != "AUTO_UPLOAD_VALIDATION"));
 
         // RBAC: Member only sees their own uploaded invoices
         if (userRole == "Member")
         {
-            invoicesQuery = invoicesQuery.Where(i => i.UploadedBy == userId);
+            invoicesQuery = invoicesQuery.Where(i => i.Workflow.UploadedBy == userId);
         }
 
         // ── Summary statistics (from full set, ignoring filters) ──────
@@ -53,9 +53,10 @@ public class ValidationController : ControllerBase
             {
                 i.InvoiceId,
                 i.RiskLevel,
-                Layers = i.ValidationLayers
-                    .OrderBy(v => v.LayerOrder)
-                    .Select(v => new { v.LayerOrder, v.ValidationStatus })
+                Layers = i.CheckResults
+                    .Where(c => c.Category != "AUTO_UPLOAD_VALIDATION")
+                    .OrderBy(v => v.CheckOrder)
+                    .Select(v => new { v.CheckOrder, ValidationStatus = v.Status })
                     .ToList()
             })
             .ToListAsync();
@@ -74,9 +75,9 @@ public class ValidationController : ControllerBase
             else passCount++;
 
             // Per-layer pass counts (Pass or Warning = "đạt" for that layer)
-            var l1 = inv.Layers.FirstOrDefault(l => l.LayerOrder == 1);
-            var l2 = inv.Layers.FirstOrDefault(l => l.LayerOrder == 2);
-            var l3 = inv.Layers.FirstOrDefault(l => l.LayerOrder == 3);
+            var l1 = inv.Layers.FirstOrDefault(l => l.CheckOrder == 1);
+            var l2 = inv.Layers.FirstOrDefault(l => l.CheckOrder == 2);
+            var l3 = inv.Layers.FirstOrDefault(l => l.CheckOrder == 3);
             if (l1 != null && l1.ValidationStatus != "Fail") layer1Pass++;
             if (l2 != null && l2.ValidationStatus != "Fail") layer2Pass++;
             if (l3 != null && l3.ValidationStatus != "Fail") layer3Pass++;
@@ -99,8 +100,8 @@ public class ValidationController : ControllerBase
             var kw = query.Keyword.Trim().ToLower();
             filteredQuery = filteredQuery.Where(i =>
                 (i.InvoiceNumber != null && i.InvoiceNumber.ToLower().Contains(kw)) ||
-                (i.SellerName != null && i.SellerName.ToLower().Contains(kw)) ||
-                (i.SellerTaxCode != null && i.SellerTaxCode.ToLower().Contains(kw))
+                (i.Seller.Name != null && i.Seller.Name.ToLower().Contains(kw)) ||
+                (i.Seller.TaxCode != null && i.Seller.TaxCode.ToLower().Contains(kw))
             );
         }
 
@@ -111,7 +112,7 @@ public class ValidationController : ControllerBase
             if (layerOrder > 0)
             {
                 filteredQuery = filteredQuery.Where(i =>
-                    i.ValidationLayers.Any(v => v.LayerOrder == layerOrder && (v.ValidationStatus == "Fail" || v.ValidationStatus == "Warning")));
+                    i.CheckResults.Any(v => v.CheckOrder == layerOrder && v.Category != "AUTO_UPLOAD_VALIDATION" && (v.Status == "Fail" || v.Status == "Warning")));
             }
         }
 
@@ -119,14 +120,14 @@ public class ValidationController : ControllerBase
         {
             var vs = query.ValidationStatus;
             if (vs == "Fail")
-                filteredQuery = filteredQuery.Where(i => i.ValidationLayers.Any(v => v.ValidationStatus == "Fail"));
+                filteredQuery = filteredQuery.Where(i => i.CheckResults.Any(v => v.Category != "AUTO_UPLOAD_VALIDATION" && v.Status == "Fail"));
             else if (vs == "Warning")
                 filteredQuery = filteredQuery.Where(i =>
-                    !i.ValidationLayers.Any(v => v.ValidationStatus == "Fail") &&
-                    i.ValidationLayers.Any(v => v.ValidationStatus == "Warning"));
+                    !i.CheckResults.Any(v => v.Category != "AUTO_UPLOAD_VALIDATION" && v.Status == "Fail") &&
+                    i.CheckResults.Any(v => v.Category != "AUTO_UPLOAD_VALIDATION" && v.Status == "Warning"));
             else // Pass
                 filteredQuery = filteredQuery.Where(i =>
-                    i.ValidationLayers.All(v => v.ValidationStatus == "Pass"));
+                    i.CheckResults.Where(v => v.Category != "AUTO_UPLOAD_VALIDATION").All(v => v.Status == "Pass"));
         }
 
         int totalCount = await filteredQuery.CountAsync();
@@ -140,26 +141,26 @@ public class ValidationController : ControllerBase
             {
                 InvoiceId = i.InvoiceId,
                 InvoiceNumber = i.InvoiceNumber ?? "",
-                SellerName = i.SellerName,
-                SellerTaxCode = i.SellerTaxCode,
+                SellerName = i.Seller.Name,
+                SellerTaxCode = i.Seller.TaxCode,
                 RiskLevel = i.RiskLevel,
-                IssueCount = i.ValidationLayers.Count(v => v.ValidationStatus == "Warning" || v.ValidationStatus == "Fail")
-                           + i.RiskCheckResults.Count(r => r.CheckStatus == "FAIL" || r.CheckStatus == "WARNING"),
-                ValidatedAt = i.ValidationLayers
+                IssueCount = i.CheckResults.Count(c => c.Status == "Fail" || c.Status == "Warning" || c.Status == "FAIL" || c.Status == "WARNING"),
+                ValidatedAt = i.CheckResults
+                    .Where(v => v.Category != "AUTO_UPLOAD_VALIDATION")
                     .OrderByDescending(v => v.CheckedAt)
                     .Select(v => (DateTime?)v.CheckedAt)
                     .FirstOrDefault(),
-                Layer1Status = i.ValidationLayers
-                    .Where(v => v.LayerOrder == 1)
-                    .Select(v => v.ValidationStatus)
+                Layer1Status = i.CheckResults
+                    .Where(v => v.CheckOrder == 1 && v.Category != "AUTO_UPLOAD_VALIDATION")
+                    .Select(v => v.Status)
                     .FirstOrDefault(),
-                Layer2Status = i.ValidationLayers
-                    .Where(v => v.LayerOrder == 2)
-                    .Select(v => v.ValidationStatus)
+                Layer2Status = i.CheckResults
+                    .Where(v => v.CheckOrder == 2 && v.Category != "AUTO_UPLOAD_VALIDATION")
+                    .Select(v => v.Status)
                     .FirstOrDefault(),
-                Layer3Status = i.ValidationLayers
-                    .Where(v => v.LayerOrder == 3)
-                    .Select(v => v.ValidationStatus)
+                Layer3Status = i.CheckResults
+                    .Where(v => v.CheckOrder == 3 && v.Category != "AUTO_UPLOAD_VALIDATION")
+                    .Select(v => v.Status)
                     .FirstOrDefault(),
             })
             .ToListAsync();
