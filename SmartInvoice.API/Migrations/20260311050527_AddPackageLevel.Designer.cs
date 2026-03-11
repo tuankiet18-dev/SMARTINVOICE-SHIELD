@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartInvoice.API.Data;
@@ -13,9 +14,11 @@ using SmartInvoice.API.Entities.JsonModels;
 namespace SmartInvoice.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260311050527_AddPackageLevel")]
+    partial class AddPackageLevel
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -128,9 +131,6 @@ namespace SmartInvoice.API.Migrations
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("CurrentCycleStart")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -138,9 +138,6 @@ namespace SmartInvoice.API.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<int>("ExtraInvoicesBalance")
-                        .HasColumnType("integer");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -189,9 +186,6 @@ namespace SmartInvoice.API.Migrations
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("UsedInvoicesThisMonth")
-                        .HasColumnType("integer");
 
                     b.Property<string>("Website")
                         .HasMaxLength(200)
@@ -909,13 +903,8 @@ namespace SmartInvoice.API.Migrations
                     b.Property<string>("FailReason")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("PackageId")
+                    b.Property<Guid>("PackageId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("PaymentType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1551,7 +1540,8 @@ namespace SmartInvoice.API.Migrations
                     b.HasOne("SmartInvoice.API.Entities.SubscriptionPackage", "Package")
                         .WithMany()
                         .HasForeignKey("PackageId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Company");
 

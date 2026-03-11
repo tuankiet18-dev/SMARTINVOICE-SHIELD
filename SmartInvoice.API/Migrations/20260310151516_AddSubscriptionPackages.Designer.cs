@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartInvoice.API.Data;
@@ -13,9 +14,11 @@ using SmartInvoice.API.Entities.JsonModels;
 namespace SmartInvoice.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260310151516_AddSubscriptionPackages")]
+    partial class AddSubscriptionPackages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -128,9 +131,6 @@ namespace SmartInvoice.API.Migrations
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("CurrentCycleStart")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -138,9 +138,6 @@ namespace SmartInvoice.API.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<int>("ExtraInvoicesBalance")
-                        .HasColumnType("integer");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -189,9 +186,6 @@ namespace SmartInvoice.API.Migrations
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("UsedInvoicesThisMonth")
-                        .HasColumnType("integer");
 
                     b.Property<string>("Website")
                         .HasMaxLength(200)
@@ -878,89 +872,6 @@ namespace SmartInvoice.API.Migrations
                     b.ToTable("Notifications");
                 });
 
-            modelBuilder.Entity("SmartInvoice.API.Entities.PaymentTransaction", b =>
-                {
-                    b.Property<Guid>("TransactionId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("BillingCycle")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("CompanyId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<string>("FailReason")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("PackageId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PaymentType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("VnpBankCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("VnpCardType")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("VnpPayDate")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("VnpResponseCode")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("VnpTransactionNo")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("VnpTxnRef")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.HasKey("TransactionId");
-
-                    b.HasIndex("PackageId");
-
-                    b.HasIndex("VnpTxnRef")
-                        .IsUnique();
-
-                    b.HasIndex("CompanyId", "CreatedAt");
-
-                    b.ToTable("PaymentTransactions");
-                });
-
             modelBuilder.Entity("SmartInvoice.API.Entities.RiskCheckResult", b =>
                 {
                     b.Property<Guid>("CheckId")
@@ -1062,9 +973,6 @@ namespace SmartInvoice.API.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<int>("PackageLevel")
-                        .HasColumnType("integer");
-
                     b.Property<string>("PackageName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1107,7 +1015,6 @@ namespace SmartInvoice.API.Migrations
                             MaxInvoicesPerMonth = 30,
                             MaxUsers = 1,
                             PackageCode = "FREE",
-                            PackageLevel = 1,
                             PackageName = "Gói Dùng Thử (Free)",
                             PricePerMonth = 0m,
                             PricePerSixMonths = 0m,
@@ -1129,7 +1036,6 @@ namespace SmartInvoice.API.Migrations
                             MaxInvoicesPerMonth = 200,
                             MaxUsers = 5,
                             PackageCode = "STARTER",
-                            PackageLevel = 2,
                             PackageName = "Gói Khởi Nghiệp (Starter)",
                             PricePerMonth = 199000m,
                             PricePerSixMonths = 995000m,
@@ -1151,7 +1057,6 @@ namespace SmartInvoice.API.Migrations
                             MaxInvoicesPerMonth = 1000,
                             MaxUsers = 15,
                             PackageCode = "PRO",
-                            PackageLevel = 3,
                             PackageName = "Gói Chuyên Nghiệp (Professional)",
                             PricePerMonth = 599000m,
                             PricePerSixMonths = 2995000m,
@@ -1173,7 +1078,6 @@ namespace SmartInvoice.API.Migrations
                             MaxInvoicesPerMonth = 99999,
                             MaxUsers = 999,
                             PackageCode = "ENTERPRISE",
-                            PackageLevel = 4,
                             PackageName = "Gói Doanh Nghiệp (Enterprise)",
                             PricePerMonth = 1999000m,
                             PricePerSixMonths = 9995000m,
@@ -1538,24 +1442,6 @@ namespace SmartInvoice.API.Migrations
                     b.Navigation("RelatedUser");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("SmartInvoice.API.Entities.PaymentTransaction", b =>
-                {
-                    b.HasOne("SmartInvoice.API.Entities.Company", "Company")
-                        .WithMany()
-                        .HasForeignKey("CompanyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SmartInvoice.API.Entities.SubscriptionPackage", "Package")
-                        .WithMany()
-                        .HasForeignKey("PackageId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Company");
-
-                    b.Navigation("Package");
                 });
 
             modelBuilder.Entity("SmartInvoice.API.Entities.RiskCheckResult", b =>
