@@ -1,4 +1,4 @@
-﻿import { apiClient } from '../lib/api-client';
+import { apiClient } from '../lib/api-client';
 
 // ════════════════════════════════════════════
 //  Types
@@ -146,6 +146,10 @@ export interface InvoiceDetailDto {
     invoiceCurrency: string;
     exchangeRate: number;
     mccqt: string | null;
+
+    // Invoice Dossier
+    hasOriginalFile: boolean;
+    hasVisualFile: boolean;
 
     sellerName: string | null;
     sellerTaxCode: string | null;

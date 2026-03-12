@@ -12,14 +12,14 @@ import {
   Alert,
   message,
   Result,
-  Drawer,
-  Descriptions,
   Table,
   Input,
   InputNumber,
   Tooltip,
   Modal,
   Checkbox,
+  Dropdown,
+  Tabs,
 } from "antd";
 import type { TableRowSelection } from "antd/es/table/interface";
 import {
@@ -38,6 +38,7 @@ import {
   SendOutlined,
   CheckSquareOutlined,
   EyeOutlined,
+  MoreOutlined,
 } from "@ant-design/icons";
 import { invoiceService, ValidationResult } from "../services/invoice";
 import { useNavigate } from "react-router-dom";
@@ -95,14 +96,11 @@ const UploadInvoice: React.FC = () => {
   const [fileList, setFileList] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<ProcessResult[]>([]);
-  const [drawerVisible, setDrawerVisible] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<ProcessResult | null>(
-    null,
-  );
   const [isBatchSubmitting, setIsBatchSubmitting] = useState(false);
   const [commentModalVisible, setCommentModalVisible] = useState(false);
   const [pendingSubmitId, setPendingSubmitId] = useState<string | null>(null);
   const [submitComment, setSubmitComment] = useState("");
+  const [activeTab, setActiveTab] = useState<"xml" | "ocr">("xml");
 
   const getDefaultSelected = (res: ProcessResult[]) =>
     res
@@ -114,21 +112,26 @@ const UploadInvoice: React.FC = () => {
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
-  const handleViewDetails = (item: ProcessResult) => {
-    setSelectedInvoice(item);
-    setDrawerVisible(true);
+  const handleOpenInvoiceDetail = (invoiceId: string) => {
+    // Navigate to invoice detail page with validation tab active
+    navigate(`/app/invoices/${invoiceId}?tab=validation`);
   };
 
   const uploadProps = {
     name: "file",
     multiple: true,
-    accept: ".xml,.pdf,.jpg,.jpeg,.png",
+    accept: activeTab === "xml" ? ".xml" : ".pdf,.jpg,.jpeg,.png",
     fileList,
     onChange(info: any) {
       setFileList(info.fileList);
     },
     beforeUpload: () => false,
     showUploadList: false,
+  };
+
+  const handleTabChange = (key: string) => {
+    setActiveTab(key as "xml" | "ocr");
+    handleReset();
   };
 
   const handleReset = () => {
@@ -164,15 +167,40 @@ const UploadInvoice: React.FC = () => {
           ),
         );
 
-        if (!fileObj.name.toLowerCase().endsWith(".xml")) {
+        // Check if file type matches the current tab
+        const isXmlFile = fileObj.name.toLowerCase().endsWith(".xml");
+        const isPdfOrImage =
+          [".pdf", ".jpg", ".jpeg", ".png"].some((ext) =>
+            fileObj.name.toLowerCase().endsWith(ext),
+          );
+
+        // If XML tab and file is not XML, skip
+        if (activeTab === "xml" && !isXmlFile) {
           setResults((prev) =>
             prev.map((item, idx) =>
               idx === i
                 ? {
                     ...item,
-                    status: "warning",
+                    status: "error",
                     errorMessage:
-                      "File PDF/Ảnh đang trong quá trình thử nghiệm OCR, cần kiểm tra thủ công.",
+                      "Chỉ chấp nhận file XML trong tab này. Vui lòng chọn file XML.",
+                  }
+                : item,
+            ),
+          );
+          continue;
+        }
+
+        // If OCR tab and file is not PDF/Image, skip
+        if (activeTab === "ocr" && !isPdfOrImage) {
+          setResults((prev) =>
+            prev.map((item, idx) =>
+              idx === i
+                ? {
+                    ...item,
+                    status: "error",
+                    errorMessage:
+                      "Chỉ chấp nhận file PDF, JPG, PNG trong tab này.",
                   }
                 : item,
             ),
@@ -437,94 +465,113 @@ const UploadInvoice: React.FC = () => {
     const isYellow = record.status === "warning" && record.invoiceId;
     const { submitStatus } = record;
 
+    // Build dropdown menu items
+    const menuItems = [];
+
+    // View details option
+    if (
+      record.status !== "pending" &&
+      record.status !== "processing" &&
+      record.invoiceId
+    ) {
+      menuItems.push({
+        key: "view",
+        icon: <EyeOutlined />,
+        label: "Xem chi tiết",
+        onClick: () => handleOpenInvoiceDetail(record.invoiceId!),
+      });
+    }
+
+    // Submit options
+    if (isSubmittable && submitStatus === "idle") {
+      menuItems.push({
+        key: "submit",
+        icon: <SendOutlined />,
+        label: isYellow ? "Gửi duyệt (có cảnh báo)" : "Gửi duyệt",
+        onClick: () => {
+          if (isYellow) openSubmitWithComment(record);
+          else handleSingleSubmit(record);
+        },
+      });
+    }
+
+    // Resubmit option
+    if (submitStatus === "failed") {
+      menuItems.push({
+        key: "resubmit",
+        icon: <SendOutlined />,
+        label: isYellow ? "Gửi lại (có cảnh báo)" : "Gửi lại",
+        onClick: () => {
+          if (isYellow) openSubmitWithComment(record);
+          else handleSingleSubmit(record);
+        },
+      });
+    }
+
+    // Dismiss option
+    if (record.status === "error" && submitStatus !== "submitted") {
+      menuItems.push({
+        key: "dismiss",
+        icon: <DeleteOutlined />,
+        label: "Ẩn khỏi danh sách",
+        danger: true,
+        onClick: () => handleDismiss(record),
+      });
+    }
+
+    // Render status or actions
+    if (submitStatus === "submitted") {
+      return (
+        <Tag icon={<CheckCircleOutlined />} color="success">
+          Đã gửi duyệt
+        </Tag>
+      );
+    }
+
+    if (submitStatus === "submitting") {
+      return (
+        <Tag icon={<LoadingOutlined />} color="processing">
+          Đang gửi
+        </Tag>
+      );
+    }
+
+    if (submitStatus === "failed") {
+      return (
+        <Tooltip title={record.submitError || "Gửi duyệt thất bại"}>
+          <Tag icon={<WarningOutlined />} color="error">
+            Gửi thất bại
+          </Tag>
+        </Tooltip>
+      );
+    }
+
+    if (menuItems.length === 0) {
+      return <Text type="secondary" style={{ fontSize: 12 }}>-</Text>;
+    }
+
     return (
-      <Space size={8} wrap>
-        {record.status !== "pending" && record.status !== "processing" && (
-          <Tooltip title="Xem chi tiết hóa đơn">
-            <Button
-              size="small"
-              type="text"
-              icon={<EyeOutlined style={{ color: "#1677ff" }} />}
-              onClick={() => handleViewDetails(record)}
-            />
-          </Tooltip>
-        )}
-
-        {submitStatus === "submitted" && (
-          <Text type="success" style={{ fontSize: 13 }}>
-            <CheckCircleOutlined /> Đã gửi duyệt
-          </Text>
-        )}
-
-        {isSubmittable && !isYellow && submitStatus === "idle" && (
-          <Tooltip title="Gửi hóa đơn chờ Admin duyệt">
-            <Button
-              size="small"
-              type="primary"
-              ghost
-              icon={<SendOutlined />}
-              onClick={() => handleSingleSubmit(record)}
-            >
-              Gửi duyệt
-            </Button>
-          </Tooltip>
-        )}
-
-        {isYellow && submitStatus === "idle" && (
-          <Tooltip title="Hóa đơn có cảnh báo — cần nhập giải trình trước khi gửi duyệt">
-            <Button
-              size="small"
-              icon={<SendOutlined />}
-              style={{
-                borderColor: "#faad14",
-                color: "#d48806",
-                background: "#fffbe6",
-                fontSize: 13,
-              }}
-              onClick={() => openSubmitWithComment(record)}
-            >
-              Giải trình &amp; Gửi
-            </Button>
-          </Tooltip>
-        )}
-
-        {submitStatus === "submitting" && (
-          <Text type="secondary" style={{ fontSize: 13 }}>
-            <LoadingOutlined /> Đang gửi...
-          </Text>
-        )}
-
-        {submitStatus === "failed" && (
-          <Tooltip title={`Lỗi gửi duyệt: ${record.submitError}`}>
-            <Button
-              size="small"
-              danger
-              type="dashed"
-              icon={<SendOutlined />}
-              onClick={() =>
-                isYellow
-                  ? openSubmitWithComment(record)
-                  : handleSingleSubmit(record)
-              }
-            >
-              Gửi lại
-            </Button>
-          </Tooltip>
-        )}
-
-        {record.status === "error" && submitStatus !== "submitted" && (
-          <Tooltip title="Ẩn hóa đơn lỗi này khỏi danh sách">
-            <Button
-              size="small"
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDismiss(record)}
-            />
-          </Tooltip>
-        )}
-      </Space>
+      <Dropdown
+        menu={{ items: menuItems }}
+        placement="bottomRight"
+        trigger={["click"]}
+      >
+        <Button
+          size="small"
+          type="text"
+          icon={<MoreOutlined />}
+          style={{ color: isYellow ? "#d48806" : undefined }}
+        />
+      </Dropdown>
     );
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
   const columns = [
@@ -532,7 +579,7 @@ const UploadInvoice: React.FC = () => {
       title: "Tên File",
       dataIndex: "fileName",
       key: "fileName",
-      width: 150,
+      width: 180,
       ellipsis: true,
       render: (text: string) => (
         <Text strong style={{ fontSize: 13 }}>
@@ -541,9 +588,20 @@ const UploadInvoice: React.FC = () => {
       ),
     },
     {
+      title: "Kích thước",
+      dataIndex: "fileSize",
+      key: "fileSize",
+      width: 80,
+      render: (size: number) => (
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {formatFileSize(size)}
+        </Text>
+      ),
+    },
+    {
       title: "Trạng thái",
       key: "status",
-      width: 160,
+      width: 120,
       render: (_: any, record: ProcessResult) =>
         renderStatusTag(record.status, record.result),
     },
@@ -616,11 +674,6 @@ const UploadInvoice: React.FC = () => {
                     cursor: "pointer",
                   }}
                 >
-                  {errorCode && (
-                    <Text type="danger" strong style={{ marginRight: 4 }}>
-                      [{errorCode}]
-                    </Text>
-                  )}
                   {firstMsg}
                   {extra}
                 </Paragraph>
@@ -691,11 +744,6 @@ const UploadInvoice: React.FC = () => {
                   }}
                   ellipsis={{ rows: 1 }}
                 >
-                  {errorCode && (
-                    <Text strong style={{ marginRight: 4, color: "#d48806" }}>
-                      [{errorCode}]
-                    </Text>
-                  )}
                   {firstMsg}
                   {extra}
                 </Paragraph>
@@ -710,7 +758,8 @@ const UploadInvoice: React.FC = () => {
     {
       title: "Hành động",
       key: "action",
-      width: 240,
+      width: 80,
+      align: "center" as const,
       render: (_: any, record: ProcessResult) => renderActionCell(record),
     },
   ];
@@ -818,87 +867,172 @@ const UploadInvoice: React.FC = () => {
             justify={fileList.length === 0 ? "center" : "start"}
           >
             <Col xs={24} lg={fileList.length > 0 ? 8 : 24}>
-              <Dragger
-                {...uploadProps}
-                style={
-                  fileList.length === 0
-                    ? {
-                        padding: "80px 20px",
-                        borderRadius: 16,
-                        background: "#f8fafc",
-                        border: "2px dashed #cbd5e1",
-                        width: "100%",
-                        maxWidth: 800,
-                        margin: "0 auto",
-                      }
-                    : {
-                        padding: "60px 10px",
-                        borderRadius: 8,
-                        background: "#fafbfc",
-                        height: "100%",
-                        borderColor: "#1677ff40",
-                      }
-                }
-              >
-                <p className="ant-upload-drag-icon">
-                  <CloudUploadOutlined
+              <Tabs activeKey={activeTab} onChange={handleTabChange} type="card">
+                <Tabs.TabPane
+                  key="xml"
+                  tab={
+                    <span>
+                      <FileTextOutlined /> Tải lên Hóa đơn gốc (XML)
+                    </span>
+                  }
+                >
+                  <Dragger
+                    {...uploadProps}
                     style={
                       fileList.length === 0
-                        ? { fontSize: 64, color: "#1677ff" }
-                        : { fontSize: 48, color: "#1677ff" }
+                        ? {
+                            padding: "80px 20px",
+                            borderRadius: 16,
+                            background: "#f8fafc",
+                            border: "2px dashed #cbd5e1",
+                            width: "100%",
+                            maxWidth: 800,
+                            margin: "0 auto",
+                          }
+                        : {
+                            padding: "60px 10px",
+                            borderRadius: 8,
+                            background: "#fafbfc",
+                            height: "100%",
+                            borderColor: "#1677ff40",
+                          }
                     }
-                  />
-                </p>
-                <p
-                  className="ant-upload-text"
-                  style={{
-                    fontSize: fileList.length === 0 ? 18 : 16,
-                    fontWeight: 500,
-                    marginBottom: 8,
-                    marginTop: 16,
-                  }}
-                >
-                  {fileList.length > 0 ? (
-                    "Thêm file khác"
-                  ) : (
-                    <>
-                      Kéo thả hoặc{" "}
-                      <span style={{ color: "#1677ff" }}>
-                        click vào khu vực này
-                      </span>{" "}
-                      để chọn file
-                    </>
-                  )}
-                </p>
-                <p
-                  className="ant-upload-hint"
-                  style={{ color: "#64748b", fontSize: 14 }}
-                >
-                  Hỗ trợ định dạng: XML, PDF, JPG, PNG.{" "}
-                  <Text strong>Tối đa 10MB/file.</Text>
-                </p>
+                  >
+                    <p className="ant-upload-drag-icon">
+                      <CloudUploadOutlined
+                        style={
+                          fileList.length === 0
+                            ? { fontSize: 64, color: "#1677ff" }
+                            : { fontSize: 48, color: "#1677ff" }
+                        }
+                      />
+                    </p>
+                    <p
+                      className="ant-upload-text"
+                      style={{
+                        fontSize: fileList.length === 0 ? 18 : 16,
+                        fontWeight: 500,
+                        marginBottom: 8,
+                        marginTop: 16,
+                      }}
+                    >
+                      {fileList.length > 0 ? (
+                        "Thêm file khác"
+                      ) : (
+                        <>
+                          Kéo thả hoặc{" "}
+                          <span style={{ color: "#1677ff" }}>
+                            click vào khu vực này
+                          </span>{" "}
+                          để chọn file
+                        </>
+                      )}
+                    </p>
+                    <p
+                      className="ant-upload-hint"
+                      style={{ color: "#64748b", fontSize: 14 }}
+                    >
+                      Hỗ trợ định dạng: .xml. <Text strong>Tối đa 10MB/file.</Text>
+                    </p>
 
-                {fileList.length === 0 && (
-                  <>
-                    <div style={{ marginTop: 32 }}>
-                      <Tag
-                        color="blue"
-                        style={{
-                          padding: "6px 16px",
-                          borderRadius: 20,
-                          fontSize: 13,
-                          border: "none",
-                          background: "#e6f4ff",
-                          color: "#1677ff",
-                        }}
-                      >
-                        💡 Khuyến nghị: Ưu tiên sử dụng file XML (QĐ
-                        1550/QĐ-TCT) để bóc tách chính xác 100%.
-                      </Tag>
-                    </div>
-                  </>
-                )}
-              </Dragger>
+                    {fileList.length === 0 && (
+                      <div style={{ marginTop: 32 }}>
+                        <Tag
+                          color="blue"
+                          style={{
+                            padding: "6px 16px",
+                            borderRadius: 20,
+                            fontSize: 13,
+                            border: "none",
+                            background: "#e6f4ff",
+                            color: "#1677ff",
+                          }}
+                        >
+                          💡 Khuyến nghị: Ưu tiên sử dụng file XML (QĐ 1550/QĐ-TCT)
+                          để bóc tách chính xác 100%.
+                        </Tag>
+                      </div>
+                    )}
+                  </Dragger>
+                </Tabs.TabPane>
+
+                <Tabs.TabPane
+                  key="ocr"
+                  tab={
+                    <span>
+                      <FileImageOutlined /> Tải lên PDF / Ảnh (AI Bóc tách)
+                    </span>
+                  }
+                >
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="Lưu ý quan trọng"
+                    description="Dữ liệu bóc tách bằng AI (OCR) có thể có sai sót so với bản gốc. Bắt buộc rà soát kỹ Số tiền, Mã số thuế và Ngày lập sau khi hệ thống xử lý xong."
+                    style={{ marginBottom: 16 }}
+                  />
+
+                  <Dragger
+                    {...uploadProps}
+                    style={
+                      fileList.length === 0
+                        ? {
+                            padding: "80px 20px",
+                            borderRadius: 16,
+                            background: "#f8fafc",
+                            border: "2px dashed #cbd5e1",
+                            width: "100%",
+                            maxWidth: 800,
+                            margin: "0 auto",
+                          }
+                        : {
+                            padding: "60px 10px",
+                            borderRadius: 8,
+                            background: "#fafbfc",
+                            height: "100%",
+                            borderColor: "#1677ff40",
+                          }
+                    }
+                  >
+                    <p className="ant-upload-drag-icon">
+                      <CloudUploadOutlined
+                        style={
+                          fileList.length === 0
+                            ? { fontSize: 64, color: "#1677ff" }
+                            : { fontSize: 48, color: "#1677ff" }
+                        }
+                      />
+                    </p>
+                    <p
+                      className="ant-upload-text"
+                      style={{
+                        fontSize: fileList.length === 0 ? 18 : 16,
+                        fontWeight: 500,
+                        marginBottom: 8,
+                        marginTop: 16,
+                      }}
+                    >
+                      {fileList.length > 0 ? (
+                        "Thêm file khác"
+                      ) : (
+                        <>
+                          Kéo thả hoặc{" "}
+                          <span style={{ color: "#1677ff" }}>
+                            click vào khu vực này
+                          </span>{" "}
+                          để chọn file
+                        </>
+                      )}
+                    </p>
+                    <p
+                      className="ant-upload-hint"
+                      style={{ color: "#64748b", fontSize: 14 }}
+                    >
+                      Hỗ trợ định dạng: .pdf, .jpg, .jpeg, .png. <Text strong>Tối đa 10MB/file.</Text>
+                    </p>
+                  </Dragger>
+                </Tabs.TabPane>
+              </Tabs>
             </Col>
 
             {fileList.length > 0 && (
@@ -1080,6 +1214,33 @@ const UploadInvoice: React.FC = () => {
                 )}
               </div>
               <Space wrap>
+                {!isProcessing && results.length > 0 && (
+                  <>
+                    {results.length === 1 && results[0].invoiceId && (
+                      <Button
+                        type="primary"
+                        icon={<EyeOutlined />}
+                        onClick={() =>
+                          handleOpenInvoiceDetail(results[0].invoiceId!)
+                        }
+                      >
+                        Xem chi tiết hóa đơn
+                      </Button>
+                    )}
+                    {results.length > 1 && (
+                      <Button
+                        icon={<EyeOutlined />}
+                        onClick={() =>
+                          navigate(
+                            "/app/invoices?status=Draft&sort=newest",
+                          )
+                        }
+                      >
+                        Xem hóa đơn đã tải ({results.length})
+                      </Button>
+                    )}
+                  </>
+                )}
                 {selectedGreenCount > 0 && (
                   <Button
                     type="primary"
@@ -1149,382 +1310,20 @@ const UploadInvoice: React.FC = () => {
         />
       </Modal>
 
-      <Drawer
-        title={
-          <Space>
-            {renderStatusTag(
-              selectedInvoice?.status || "",
-              selectedInvoice?.result,
-            )}
-            <Text strong>{selectedInvoice?.fileName}</Text>
-          </Space>
+      <style>{`
+        .ant-table .row-submitted {
+          background-color: #f6ffed !important;
         }
-        width="95%"
-        onClose={() => setDrawerVisible(false)}
-        open={drawerVisible}
-        bodyStyle={{ padding: "16px 24px", background: "#f5f5f5" }}
-        extra={
-          <Space>
-            <Button onClick={() => setDrawerVisible(false)}>Đóng</Button>
-            {selectedInvoice?.invoiceId &&
-              (selectedInvoice.status === "success" ||
-                selectedInvoice.status === "warning") &&
-              selectedInvoice.submitStatus === "idle" && (
-                <Button
-                  type="primary"
-                  icon={<SendOutlined />}
-                  onClick={() => {
-                    setDrawerVisible(false);
-                    if (selectedInvoice.status === "warning")
-                      openSubmitWithComment(selectedInvoice);
-                    else handleSingleSubmit(selectedInvoice);
-                  }}
-                >
-                  Gửi duyệt
-                </Button>
-              )}
-          </Space>
+        .ant-table .row-submitted:hover > td {
+          background-color: #edfbf5 !important;
         }
-      >
-        <Row gutter={24} style={{ height: "100%" }}>
-          <Col
-            span={12}
-            style={{ height: "100%", display: "flex", flexDirection: "column" }}
-          >
-            <div
-              style={{
-                background: "#fff",
-                padding: 16,
-                borderRadius: 8,
-                height: "100%",
-                border: "1px solid #d9d9d9",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Space direction="vertical" align="center">
-                <FilePdfOutlined style={{ fontSize: 64, color: "#bfbfbf" }} />
-                <Text type="secondary">
-                  Khu vực View bản thể hiện PDF / Ảnh gốc
-                </Text>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  (Tích hợp thư viện react-pdf ở đây)
-                </Text>
-              </Space>
-            </div>
-          </Col>
-
-          <Col span={12}>
-            <Card
-              size="small"
-              title="Thông tin chung"
-              style={{ marginBottom: 16, borderRadius: 8 }}
-            >
-              {selectedInvoice?.result?.errorDetails?.length ? (
-                <Alert
-                  message="Lỗi hệ thống / Nghiệp vụ"
-                  description={
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 8,
-                        marginTop: 4,
-                      }}
-                    >
-                      {selectedInvoice.result.errorDetails.map((e, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            padding: 8,
-                            background: "#fff",
-                            borderRadius: 4,
-                            border: "1px solid #ffa39e",
-                          }}
-                        >
-                          {e.errorCode && (
-                            <Tag color="error" style={{ marginBottom: 4 }}>
-                              {e.errorCode}
-                            </Tag>
-                          )}
-                          <div>
-                            <Text type="danger">{e.errorMessage}</Text>
-                          </div>
-                          {e.suggestion && (
-                            <div>
-                              <Text
-                                type="secondary"
-                                italic
-                                style={{ fontSize: 13 }}
-                              >
-                                💡 {e.suggestion}
-                              </Text>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  }
-                  type="error"
-                  showIcon
-                  style={{ marginBottom: 8 }}
-                />
-              ) : selectedInvoice?.result?.errors?.length ? (
-                <Alert
-                  message="Lỗi hệ thống / Nghiệp vụ"
-                  description={
-                    <ul style={{ paddingLeft: 16, margin: 0 }}>
-                      {selectedInvoice.result.errors.map((e, i) => (
-                        <li key={i}>{e}</li>
-                      ))}
-                    </ul>
-                  }
-                  type="error"
-                  showIcon
-                  style={{ marginBottom: 8 }}
-                />
-              ) : null}
-
-              {selectedInvoice?.result?.warningDetails?.length ? (
-                <Alert
-                  message="Cảnh báo rủi ro"
-                  description={
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 8,
-                        marginTop: 4,
-                      }}
-                    >
-                      {selectedInvoice.result.warningDetails.map((w, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            padding: 8,
-                            background: "#fff",
-                            borderRadius: 4,
-                            border: "1px solid #ffe58f",
-                          }}
-                        >
-                          {w.errorCode && (
-                            <Tag color="warning" style={{ marginBottom: 4 }}>
-                              {w.errorCode}
-                            </Tag>
-                          )}
-                          <div>
-                            <Text style={{ color: "#d48806" }}>
-                              {w.errorMessage}
-                            </Text>
-                          </div>
-                          {w.suggestion && (
-                            <div>
-                              <Text
-                                type="secondary"
-                                italic
-                                style={{ fontSize: 13 }}
-                              >
-                                💡 {w.suggestion}
-                              </Text>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  }
-                  type="warning"
-                  showIcon
-                  style={{ marginBottom: 16 }}
-                />
-              ) : selectedInvoice?.result?.warnings?.length ? (
-                <Alert
-                  message="Cảnh báo rủi ro"
-                  description={
-                    <ul style={{ paddingLeft: 16, margin: 0 }}>
-                      {selectedInvoice.result.warnings.map((w, i) => (
-                        <li key={i}>{w}</li>
-                      ))}
-                    </ul>
-                  }
-                  type="warning"
-                  showIcon
-                  style={{ marginBottom: 16 }}
-                />
-              ) : null}
-              <Descriptions column={2} size="small" bordered>
-                <Descriptions.Item label="Người bán" span={2}>
-                  <Text strong>
-                    {selectedInvoice?.result?.extractedData?.seller_name ||
-                      selectedInvoice?.result?.signerSubject
-                        ?.split("CN=")[1]
-                        ?.split(",")[0] ||
-                      "Chưa trích xuất được"}
-                  </Text>
-                </Descriptions.Item>
-                <Descriptions.Item label="Mã Số Thuế">
-                  {selectedInvoice?.result?.extractedData?.seller_tax_code ||
-                    "Chưa có"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Ngày lập">
-                  {selectedInvoice?.result?.extractedData?.invoice_date
-                    ? new Date(
-                        selectedInvoice.result.extractedData.invoice_date,
-                      ).toLocaleDateString("vi-VN")
-                    : "Chưa có"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Mẫu số">
-                  {selectedInvoice?.result?.extractedData
-                    ?.invoice_template_code || "Chưa có"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Ký hiệu">
-                  {selectedInvoice?.result?.extractedData?.invoice_symbol ||
-                    "Chưa có"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Số hóa đơn">
-                  {selectedInvoice?.result?.extractedData?.invoice_number ||
-                    "Chưa có"}
-                </Descriptions.Item>
-              </Descriptions>
-            </Card>
-
-            <Card
-              size="small"
-              title="Chi tiết hàng hóa"
-              style={{ borderRadius: 8 }}
-            >
-              {selectedInvoice?.result?.extractedData?.line_items ? (
-                <Table
-                  dataSource={selectedInvoice.result.extractedData.line_items}
-                  rowKey={(record) =>
-                    `${selectedInvoice.fileName}_${record.stt}`
-                  }
-                  pagination={false}
-                  size="small"
-                  scroll={{ y: 300 }}
-                  columns={[
-                    {
-                      title: "Tên hàng",
-                      dataIndex: "product_name",
-                      width: "35%",
-                      render: (val) =>
-                        (
-                          <Input defaultValue={val} style={{ width: "100%" }} />
-                        ) as any,
-                    },
-                    {
-                      title: "ĐVT",
-                      dataIndex: "unit",
-                      width: "10%",
-                      render: (val) =>
-                        (
-                          <Input
-                            defaultValue={val || ""}
-                            size="small"
-                            style={{ width: "100%" }}
-                          />
-                        ) as any,
-                    },
-                    {
-                      title: "SL",
-                      dataIndex: "quantity",
-                      width: "10%",
-                      render: (val) => (
-                        <InputNumber
-                          defaultValue={val}
-                          size="small"
-                          style={{ width: "100%" }}
-                        />
-                      ),
-                    },
-                    {
-                      title: "Đơn giá",
-                      dataIndex: "unit_price",
-                      width: "15%",
-                      render: (val) => (
-                        <InputNumber
-                          defaultValue={val}
-                          size="small"
-                          style={{ width: "100%" }}
-                          formatter={(value) =>
-                            `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                          }
-                        />
-                      ),
-                    },
-                    {
-                      title: "Thuế",
-                      dataIndex: "vat_rate",
-                      width: "10%",
-                      align: "center",
-                      render: (val) => <Text>{val}%</Text>,
-                    },
-                    {
-                      title: "Thành tiền",
-                      dataIndex: "total_amount",
-                      width: "20%",
-                      align: "right",
-                      render: (val) => (
-                        <Text strong>{val?.toLocaleString()}</Text>
-                      ),
-                    },
-                  ]}
-                  summary={(pageData) => {
-                    let total = 0;
-                    pageData.forEach(({ total_amount }) => {
-                      total += total_amount || 0;
-                    });
-                    return (
-                      <Table.Summary.Row style={{ background: "#fafafa" }}>
-                        <Table.Summary.Cell index={0} colSpan={5}>
-                          <Text
-                            strong
-                            style={{ float: "right", paddingRight: 16 }}
-                          >
-                            Tổng cộng:
-                          </Text>
-                        </Table.Summary.Cell>
-                        <Table.Summary.Cell index={1}>
-                          <Space
-                            direction="vertical"
-                            size={2}
-                            style={{ width: "100%", textAlign: "right" }}
-                          >
-                            {selectedInvoice?.result?.extractedData
-                              ?.total_pre_tax !== undefined && (
-                              <Text type="secondary">
-                                Cộng tiền hàng:{" "}
-                                {selectedInvoice.result.extractedData.total_pre_tax.toLocaleString()}{" "}
-                                ₫
-                              </Text>
-                            )}
-                            {selectedInvoice?.result?.extractedData
-                              ?.total_tax_amount !== undefined && (
-                              <Text type="secondary">
-                                Tiền thuế:{" "}
-                                {selectedInvoice.result.extractedData.total_tax_amount.toLocaleString()}{" "}
-                                ₫
-                              </Text>
-                            )}
-                            <Text strong>
-                              Tổng cộng:{" "}
-                              {selectedInvoice?.result?.extractedData?.total_amount?.toLocaleString() ||
-                                total.toLocaleString()}{" "}
-                              ₫
-                            </Text>
-                          </Space>
-                        </Table.Summary.Cell>
-                      </Table.Summary.Row>
-                    );
-                  }}
-                />
-              ) : (
-                <Result status="info" title="Chưa có dữ liệu hàng hóa" />
-              )}
-            </Card>
-          </Col>
-        </Row>
-      </Drawer>
+        .ant-table .row-error {
+          background-color: #fff2f0 !important;
+        }
+        .ant-table .row-error:hover > td {
+          background-color: #ffe7e6 !important;
+        }
+      `}</style>
     </div>
   );
 };

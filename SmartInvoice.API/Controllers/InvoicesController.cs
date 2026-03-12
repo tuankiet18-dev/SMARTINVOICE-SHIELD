@@ -91,6 +91,29 @@ namespace SmartInvoice.API.Controller
             }
         }
 
+        [HttpPost("process-ocr")]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
+        public async Task<IActionResult> ProcessOcr([FromBody] ProcessOcrRequestDto request)
+        {
+            if (request.OcrResult == null)
+                return BadRequest(new { Message = "OCR data is required." });
+
+            try
+            {
+                var (userId, companyId, _, _) = GetUserInfo();
+                var finalResult = await _invoiceService.ProcessInvoiceOcrAsync(request, userId.ToString(), companyId.ToString());
+                return Ok(finalResult);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = $"Internal server error: {ex.Message}" });
+            }
+        }
+
         [HttpPost("test-process-local")]
         [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public async Task<IActionResult> TestProcessLocal(IFormFile file)
@@ -116,7 +139,7 @@ namespace SmartInvoice.API.Controller
 
                 var logicResult = await _invoiceProcessor.ValidateBusinessLogicAsync(xmlDoc);
                 logicResult.SignerSubject = sigResult.SignerSubject;
-                logicResult.ExtractedData = _invoiceProcessor.ExtractData(xmlDoc);
+                logicResult.ExtractedData = _invoiceProcessor.ExtractData(xmlDoc, logicResult);
 
                 return Ok(logicResult);
             }

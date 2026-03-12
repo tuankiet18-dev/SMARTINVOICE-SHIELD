@@ -27,9 +27,13 @@ public class Invoice
     [ForeignKey(nameof(DocumentTypeId))]
     public DocumentType? DocumentType { get; set; }
 
-    public Guid OriginalFileId { get; set; }
+    public Guid? OriginalFileId { get; set; }
     [ForeignKey(nameof(OriginalFileId))]
     public FileStorage? OriginalFile { get; set; }
+
+    public Guid? VisualFileId { get; set; }
+    [ForeignKey(nameof(VisualFileId))]
+    public FileStorage? VisualFile { get; set; }
 
     // --- Processing Method ---
     [MaxLength(10)]

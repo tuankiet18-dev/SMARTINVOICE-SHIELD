@@ -20,6 +20,12 @@ public class InvoiceDetailDto
     public decimal ExchangeRate { get; set; }
     public string? MCCQT { get; set; }
 
+    // ─── Invoice Dossier ───
+    /// <summary>True if the invoice has an XML original file (OriginalFileId is set).</summary>
+    public bool HasOriginalFile { get; set; }
+    /// <summary>True if the invoice has a visual PDF/Image file (VisualFileId is set).</summary>
+    public bool HasVisualFile { get; set; }
+
     // ─── Seller ───
     public string? SellerName { get; set; }
     public string? SellerTaxCode { get; set; }

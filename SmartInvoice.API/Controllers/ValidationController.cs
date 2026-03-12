@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SmartInvoice.API.Constants;
+using SmartInvoice.API.Entities;
 using SmartInvoice.API.Data;
 using SmartInvoice.API.DTOs.Validation;
 
@@ -78,9 +80,9 @@ public class ValidationController : ControllerBase
             var l1 = inv.Layers.FirstOrDefault(l => l.CheckOrder == 1);
             var l2 = inv.Layers.FirstOrDefault(l => l.CheckOrder == 2);
             var l3 = inv.Layers.FirstOrDefault(l => l.CheckOrder == 3);
-            if (l1 != null && l1.ValidationStatus != "Fail") layer1Pass++;
-            if (l2 != null && l2.ValidationStatus != "Fail") layer2Pass++;
-            if (l3 != null && l3.ValidationStatus != "Fail") layer3Pass++;
+            if (l1 != null && l1.ValidationStatus != ValidationStatuses.Fail) layer1Pass++;
+            if (l2 != null && l2.ValidationStatus != ValidationStatuses.Fail) layer2Pass++;
+            if (l3 != null && l3.ValidationStatus != ValidationStatuses.Fail) layer3Pass++;
 
             // Risk distribution
             switch (inv.RiskLevel)
@@ -112,7 +114,7 @@ public class ValidationController : ControllerBase
             if (layerOrder > 0)
             {
                 filteredQuery = filteredQuery.Where(i =>
-                    i.CheckResults.Any(v => v.CheckOrder == layerOrder && v.Category != "AUTO_UPLOAD_VALIDATION" && (v.Status == "Fail" || v.Status == "Warning")));
+                    i.CheckResults.Any(v => v.CheckOrder == layerOrder && v.Category != "AUTO_UPLOAD_VALIDATION" && (v.Status == ValidationStatuses.Fail || v.Status == ValidationStatuses.Warning)));
             }
         }
 
@@ -120,14 +122,14 @@ public class ValidationController : ControllerBase
         {
             var vs = query.ValidationStatus;
             if (vs == "Fail")
-                filteredQuery = filteredQuery.Where(i => i.CheckResults.Any(v => v.Category != "AUTO_UPLOAD_VALIDATION" && v.Status == "Fail"));
+                filteredQuery = filteredQuery.Where(i => i.CheckResults.Any(v => v.Category != "AUTO_UPLOAD_VALIDATION" && v.Status == ValidationStatuses.Fail));
             else if (vs == "Warning")
                 filteredQuery = filteredQuery.Where(i =>
-                    !i.CheckResults.Any(v => v.Category != "AUTO_UPLOAD_VALIDATION" && v.Status == "Fail") &&
-                    i.CheckResults.Any(v => v.Category != "AUTO_UPLOAD_VALIDATION" && v.Status == "Warning"));
+                    !i.CheckResults.Any(v => v.Category != "AUTO_UPLOAD_VALIDATION" && v.Status == ValidationStatuses.Fail) &&
+                    i.CheckResults.Any(v => v.Category != "AUTO_UPLOAD_VALIDATION" && v.Status == ValidationStatuses.Warning));
             else // Pass
                 filteredQuery = filteredQuery.Where(i =>
-                    i.CheckResults.Where(v => v.Category != "AUTO_UPLOAD_VALIDATION").All(v => v.Status == "Pass"));
+                    i.CheckResults.Where(v => v.Category != "AUTO_UPLOAD_VALIDATION").All(v => v.Status == ValidationStatuses.Pass));
         }
 
         int totalCount = await filteredQuery.CountAsync();
@@ -144,7 +146,7 @@ public class ValidationController : ControllerBase
                 SellerName = i.Seller.Name,
                 SellerTaxCode = i.Seller.TaxCode,
                 RiskLevel = i.RiskLevel,
-                IssueCount = i.CheckResults.Count(c => c.Status == "Fail" || c.Status == "Warning" || c.Status == "FAIL" || c.Status == "WARNING"),
+                IssueCount = i.CheckResults.Count(c => c.Status.Equals(ValidationStatuses.Fail, StringComparison.OrdinalIgnoreCase) || c.Status.Equals(ValidationStatuses.Warning, StringComparison.OrdinalIgnoreCase)),
                 ValidatedAt = i.CheckResults
                     .Where(v => v.Category != "AUTO_UPLOAD_VALIDATION")
                     .OrderByDescending(v => v.CheckedAt)

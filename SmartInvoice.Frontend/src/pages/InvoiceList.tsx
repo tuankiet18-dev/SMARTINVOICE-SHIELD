@@ -300,7 +300,20 @@ const InvoiceList: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 140,
-      render: (st: string) => <div style={{ whiteSpace: 'nowrap' }}><StatusBadge type="status" value={st} /></div>,
+      render: (st: string, record: any) => {
+        // Support both shapes: `validationLayers` (detail DTO) or legacy `validationResults`.
+        // The list DTO doesn't include `validationLayers`; treat a Draft as NOT pending
+        // when the server already returned a `riskLevel` (i.e. validation completed server-side).
+        const hasValidationLayers = Array.isArray(record.validationLayers) && record.validationLayers.length > 0;
+        const hasLegacyValidation = record.validationResults && Array.isArray(record.validationResults.layerResults) && record.validationResults.layerResults.length > 0;
+        const hasRiskLevel = !!record.riskLevel && record.riskLevel !== 'Unknown';
+        const isPending = st === 'Draft' && !(hasValidationLayers || hasLegacyValidation || hasRiskLevel);
+        return (
+          <div style={{ whiteSpace: 'nowrap' }}>
+            <StatusBadge type="status" value={st} isPending={isPending} />
+          </div>
+        );
+      },
     },
     {
       title: 'Rủi ro',

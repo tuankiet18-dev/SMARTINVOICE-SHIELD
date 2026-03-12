@@ -29,5 +29,6 @@ namespace SmartInvoice.API.Services.Interfaces
                 // ─── Processing ───
                 Task<bool> ValidateInvoiceAsync(Guid id);
                 Task<ValidationResultDto> ProcessInvoiceXmlAsync(string s3Key, string userId, string companyId);
+                Task<ValidationResultDto> ProcessInvoiceOcrAsync(ProcessOcrRequestDto request, string userId, string companyId);
         }
 }

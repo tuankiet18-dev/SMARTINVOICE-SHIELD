@@ -3,6 +3,19 @@ using System.Linq;
 
 namespace SmartInvoice.API.DTOs.Invoice
 {
+    /// <summary>
+    /// Defines how a new upload interacts with an existing Invoice record (Invoice Dossier model).
+    /// </summary>
+    public enum DossierMergeMode
+    {
+        /// <summary>No merge — this is a brand new invoice.</summary>
+        None,
+        /// <summary>Case 3A: An XML is uploaded for an existing OCR-only record. Override data with XML (Source of Truth).</summary>
+        XmlOverridesOcr,
+        /// <summary>Case 3B: An OCR (Visual) file is uploaded for an existing XML record. Only attach the visual file, do NOT override data.</summary>
+        OcrAttachesToXml
+    }
+
     public class ValidationErrorDetail
     {
         public string? ErrorCode { get; set; }
@@ -33,6 +46,12 @@ namespace SmartInvoice.API.DTOs.Invoice
 
         // This holds the actual data parsed from the invoice (LineItems, etc.)
         public SmartInvoice.API.Entities.JsonModels.InvoiceExtractedData? ExtractedData { get; set; }
+
+        // --- Invoice Dossier Merge ---
+        /// <summary>Indicates the merge mode for this upload (None, XmlOverridesOcr, OcrAttachesToXml).</summary>
+        public DossierMergeMode MergeMode { get; set; } = DossierMergeMode.None;
+        /// <summary>The existing Invoice ID to merge into (only set when MergeMode != None).</summary>
+        public System.Guid? MergeTargetInvoiceId { get; set; }
 
         public void AddError(string? errorCode, string? message, string? suggestion = null)
         {

@@ -40,12 +40,24 @@ namespace SmartInvoice.API.Repositories.Implementations
 
         public async Task<Invoice?> GetExistingInvoiceAsync(string sellerTaxCode, string serialNumber, string invoiceNumber, Guid companyId)
         {
+            string cleanNum = invoiceNumber?.TrimStart('0') ?? "";
+            if (string.IsNullOrEmpty(cleanNum)) cleanNum = "0";
+            string cleanNumPadded = cleanNum.PadLeft(8, '0');
+
+            string cleanSymbol = serialNumber?.Trim() ?? "";
+            if (cleanSymbol.Length == 7 && char.IsDigit(cleanSymbol[0]))
+            {
+                cleanSymbol = cleanSymbol.Substring(1);
+            }
+            string fullSymbol1 = "1" + cleanSymbol;
+            string fullSymbol2 = "2" + cleanSymbol;
+
             return await _context.Invoices
                 .Where(i =>
                     i.CompanyId == companyId &&
                     i.Seller.TaxCode == sellerTaxCode &&
-                    i.SerialNumber == serialNumber &&
-                    i.InvoiceNumber == invoiceNumber &&
+                    (i.InvoiceNumber == cleanNum || i.InvoiceNumber == cleanNumPadded || i.InvoiceNumber == invoiceNumber) &&
+                    (i.SerialNumber == cleanSymbol || i.SerialNumber == fullSymbol1 || i.SerialNumber == fullSymbol2 || i.SerialNumber == serialNumber) &&
                     !i.IsDeleted)
                 .OrderByDescending(i => i.Version)
                 .FirstOrDefaultAsync();

@@ -74,6 +74,12 @@ public class AppDbContext : DbContext
             .HasForeignKey(i => i.OriginalFileId)
             .OnDelete(DeleteBehavior.Restrict); // Don't delete invoice if file is deleted (keep record)
 
+        modelBuilder.Entity<Invoice>()
+            .HasOne(i => i.VisualFile)
+            .WithMany()
+            .HasForeignKey(i => i.VisualFileId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<Invoice>(b =>
         {
             b.OwnsOne(i => i.Seller, s =>

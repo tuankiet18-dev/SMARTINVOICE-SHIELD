@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using SmartInvoice.API.Data;
 using SmartInvoice.API.Repositories.Interfaces;
 
@@ -44,6 +45,11 @@ namespace SmartInvoice.API.Repositories.Implementations
         public async Task<int> CompleteAsync()
         {
             return await _context.SaveChangesAsync();
+        }
+
+        public async Task<int> ExecuteSqlAsync(string sql)
+        {
+            return await _context.Database.ExecuteSqlRawAsync(sql);
         }
 
         public async Task BeginTransactionAsync()

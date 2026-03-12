@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartInvoice.API.Data;
 using SmartInvoice.API.DTOs.Dashboard;
 using SmartInvoice.API.Services.Interfaces;
+using SmartInvoice.API.Enums;
 
 namespace SmartInvoice.API.Services.Implementations;
 
@@ -156,9 +157,9 @@ public class DashboardService : IDashboardService
                 g.Key.Year,
                 g.Key.Month,
                 Total = g.Count(),
-                Approved = g.Count(x => x.Status == "Approved"),
-                Rejected = g.Count(x => x.Status == "Rejected"),
-                Pending = g.Count(x => x.Status == "Pending"),
+                Approved = g.Count(x => x.Status == nameof(InvoiceStatus.Approved)),
+                Rejected = g.Count(x => x.Status == nameof(InvoiceStatus.Rejected)),
+                Pending = g.Count(x => x.Status == nameof(InvoiceStatus.Pending)),
                 Green = g.Count(x => x.RiskLevel == "Green"),
                 Yellow = g.Count(x => x.RiskLevel == "Yellow"),
                 Orange = g.Count(x => x.RiskLevel == "Orange"),
@@ -233,8 +234,8 @@ public class DashboardService : IDashboardService
                 .Select(g => new
                 {
                     Total = g.Sum(i => i.TotalAmount),
-                    Approved = g.Sum(i => i.Status == "Approved" ? i.TotalAmount : 0m),
-                    Pending = g.Sum(i => i.Status == "Pending" ? i.TotalAmount : 0m),
+                    Approved = g.Sum(i => i.Status == nameof(InvoiceStatus.Approved) ? i.TotalAmount : 0m),
+                    Pending = g.Sum(i => i.Status == nameof(InvoiceStatus.Pending) ? i.TotalAmount : 0m),
                 })
                 .FirstOrDefaultAsync();
 

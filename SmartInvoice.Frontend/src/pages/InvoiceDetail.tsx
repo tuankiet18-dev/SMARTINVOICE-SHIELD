@@ -39,8 +39,12 @@ import {
   CalendarOutlined,
   DollarOutlined,
   BankOutlined,
+  CloudUploadOutlined,
+  LinkOutlined,
 } from "@ant-design/icons";
 import StatusBadge from "../components/ui/StatusBadge";
+import { ValidationProgressIndicator } from "../components/ui/ValidationProgressIndicator";
+import { useAutoRefreshValidation } from "../hooks/useAutoRefreshValidation";
 import { useAuth } from "../contexts/AuthContext";
 import {
   invoiceService,
@@ -97,20 +101,26 @@ const validationStatusIcon = (status: string) => {
 
 const actionColorMap: Record<string, string> = {
   UPLOAD: "#1677ff",
+  UPLOAD_OCR: "#1677ff",
   EDIT: "#722ed1",
   SUBMIT: "#13c2c2",
   APPROVE: "#52c41a",
   REJECT: "#ff4d4f",
   OVERRIDE: "#fa8c16",
+  MERGE_XML_OVERRIDE: "#13c2c2",
+  ATTACH_VISUAL_FILE: "#722ed1",
 };
 
 const actionLabelMap: Record<string, string> = {
-  UPLOAD: "Tải lên",
+  UPLOAD: "Tải lên (XML)",
+  UPLOAD_OCR: "Tải lên (OCR)",
   EDIT: "Chỉnh sửa",
   SUBMIT: "Gửi duyệt",
   APPROVE: "Phê duyệt",
   REJECT: "Từ chối",
   OVERRIDE: "Ghi đè rủi ro",
+  MERGE_XML_OVERRIDE: "Ghi đè XML → OCR",
+  ATTACH_VISUAL_FILE: "Đính kèm bản thể hiện",
 };
 
 const statusColorConfig: Record<string, { bg: string; text: string }> = {
@@ -186,6 +196,45 @@ const InvoiceDetail: React.FC = () => {
     queryFn: () => invoiceService.getInvoiceDetail(id!),
     enabled: !!id,
   });
+
+  // ─── Auto-refresh validation while pending ───
+  // NOTE: backend stores validation results in `validationLayers` on the invoice DTO.
+  // Use that field to determine whether validation is still pending.
+  const isValidationPending =
+    invoice?.status === "Draft" &&
+    (!invoice?.validationLayers || invoice.validationLayers.length === 0);
+
+  const { isRefreshing, lastRefreshTime } = useAutoRefreshValidation(
+    id || "",
+    isValidationPending,
+    3000,
+  );
+
+  // Show a toast when validation completes (transition from pending -> finished)
+  // Avoid notifying on initial load: only notify when count increases after mount
+  const prevValidationCountRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (!invoice) return;
+    const currentCount = invoice.validationLayers ? invoice.validationLayers.length : 0;
+    const prev = prevValidationCountRef.current;
+    if (prev === null) {
+      // First render: initialize previous count and do NOT notify
+      prevValidationCountRef.current = currentCount;
+      return;
+    }
+    // Subsequent updates: if previously 0 and now >0, show toast
+    if (prev === 0 && currentCount > 0) {
+      message.success('Kiểm tra VietQR hoàn tất — kết quả đã được cập nhật.');
+      // Invalidate invoices list and dashboard stats so list/dashboard reflect new validation
+      try {
+        queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      } catch (err) {
+        // swallow; not critical for UX
+      }
+    }
+    prevValidationCountRef.current = currentCount;
+  }, [invoice]);
 
   // ─── Mutations ───
   const submitMutation = useMutation({
@@ -435,6 +484,47 @@ const InvoiceDetail: React.FC = () => {
       ),
       children: (
         <div>
+          {/* ═══ Invoice Dossier Status Banner ═══ */}
+          {invoice.hasOriginalFile && invoice.hasVisualFile && (
+            <Alert
+              message="Hồ sơ hóa đơn đầy đủ"
+              description="Hóa đơn có cả bản gốc XML và bản thể hiện PDF/Ảnh."
+              type="success"
+              showIcon
+              icon={<CheckCircleOutlined />}
+              style={{ marginBottom: 16, borderRadius: 10 }}
+            />
+          )}
+          {invoice.hasOriginalFile && !invoice.hasVisualFile && (
+            <Alert
+              message="Thiếu bản thể hiện (PDF/Ảnh)"
+              description="Hóa đơn chỉ có bản gốc XML. Nhấn 'Tải lên OCR' để bổ sung bản thể hiện PDF/Ảnh cho hồ sơ đầy đủ."
+              type="info"
+              showIcon
+              icon={<CloudUploadOutlined />}
+              style={{ marginBottom: 16, borderRadius: 10 }}
+            />
+          )}
+          {!invoice.hasOriginalFile && invoice.hasVisualFile && (
+            <Alert
+              message="Thiếu bản gốc XML — Rủi ro Yellow"
+              description="Hóa đơn được trích xuất từ ảnh/PDF bằng AI. Để đảm bảo tính pháp lý khi khai thuế, hãy tải lên file XML gốc. Hệ thống sẽ tự động xác thực chữ ký số và cập nhật dữ liệu chính xác."
+              type="warning"
+              showIcon
+              icon={<WarningOutlined />}
+              style={{ marginBottom: 16, borderRadius: 10 }}
+            />
+          )}
+          {!invoice.hasOriginalFile && !invoice.hasVisualFile && (
+            <Alert
+              message="Không có tệp đính kèm"
+              description="Hồ sơ hóa đơn chưa có tệp nào."
+              type="error"
+              showIcon
+              style={{ marginBottom: 16, borderRadius: 10 }}
+            />
+          )}
+
           {/* Rejection alert */}
           {invoice.status === "Rejected" && invoice.rejectionReason && (
             <Alert
@@ -684,6 +774,10 @@ const InvoiceDetail: React.FC = () => {
       ),
       children: (
         <div>
+          <ValidationProgressIndicator
+            isValidating={isRefreshing}
+            lastUpdateTime={lastRefreshTime}
+          />
           {invoice.validationLayers.map((layer) => {
             let parsedDetails: any[] = [];
             if (layer.errorDetails) {
@@ -1128,7 +1222,11 @@ const InvoiceDetail: React.FC = () => {
                 </Text>
               )}
             </Title>
-            <StatusBadge type="status" value={invoice.status} />
+            <StatusBadge
+              type="status"
+              value={invoice.status}
+              isPending={isValidationPending}
+            />
             <StatusBadge type="risk" value={invoice.riskLevel} />
           </div>
           <Space style={{ marginTop: 8 }} size={16}>
@@ -1139,7 +1237,16 @@ const InvoiceDetail: React.FC = () => {
             {invoice.formNumber && (
               <Text type="secondary">Mẫu: {invoice.formNumber}</Text>
             )}
-            <Text type="secondary">Xử lý: {invoice.processingMethod}</Text>
+            <Text type="secondary">
+              Xử lý: {invoice.processingMethod === "API" ? "OCR" : invoice.processingMethod}
+            </Text>
+            {invoice.hasOriginalFile && invoice.hasVisualFile ? (
+              <Tag color="success" icon={<LinkOutlined />}>Hồ sơ đầy đủ</Tag>
+            ) : invoice.hasOriginalFile ? (
+              <Tag color="processing" icon={<FileTextOutlined />}>Chỉ XML</Tag>
+            ) : invoice.hasVisualFile ? (
+              <Tag color="warning" icon={<CloudUploadOutlined />}>Chỉ OCR</Tag>
+            ) : null}
             {invoice.mccqt && (
               <Text type="secondary">MCCQT: {invoice.mccqt}</Text>
             )}

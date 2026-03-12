@@ -18,6 +18,7 @@ namespace SmartInvoice.API.Repositories.Interfaces
         INotificationRepository Notifications { get; }
         ISystemConfigurationRepository SystemConfigurations { get; }
         Task<int> CompleteAsync();
+        Task<int> ExecuteSqlAsync(string sql);
         Task BeginTransactionAsync();
         Task CommitTransactionAsync();
         Task RollbackTransactionAsync();
