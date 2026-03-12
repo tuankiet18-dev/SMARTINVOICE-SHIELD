@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Threading.Tasks;
 using SmartInvoice.API.DTOs.Invoice;
 using SmartInvoice.API.Entities.JsonModels;
@@ -20,11 +21,14 @@ namespace SmartInvoice.API.Services.Interfaces
         /// <summary>
         /// 3. Bóc tách dữ liệu từ file XML
         /// </summary>
-        InvoiceExtractedData ExtractData(XmlDocument xmlDoc);
+        InvoiceExtractedData ExtractData(XmlDocument xmlDoc, ValidationResultDto validationResult);
 
         /// <summary>
         /// 4. Rà soát rủi ro logic, gọi API VietQR, kiểm tra tính toán
         /// </summary>
-        Task<ValidationResultDto> ValidateBusinessLogicAsync(XmlDocument xmlDoc, Guid? companyId = null);
+        Task<ValidationResultDto> ValidateBusinessLogicAsync(XmlDocument xmlDoc, Guid? companyId = null, CancellationToken cancellationToken = default);
+
+        InvoiceExtractedData ExtractOcrData(OcrInvoiceResult ocrData);
+        Task<ValidationResultDto> ValidateOcrBusinessLogicAsync(OcrInvoiceResult ocrData, Guid? companyId = null, CancellationToken cancellationToken = default);
     }
 }

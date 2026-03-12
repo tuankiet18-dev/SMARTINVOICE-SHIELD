@@ -1,5 +1,6 @@
 using Amazon.S3;
 using Amazon.CognitoIdentityProvider;
+using Amazon.SQS;
 using Microsoft.EntityFrameworkCore;
 using SmartInvoice.API.Data;
 using SmartInvoice.API.Repositories.Interfaces;
@@ -17,6 +18,10 @@ using Microsoft.AspNetCore.Authentication;
 using SmartInvoice.API.Security;
 using System.Reflection;
 using SmartInvoice.API.Constants;
+using Polly;
+using Polly.CircuitBreaker;
+using Polly.Retry;
+using Polly.Timeout;
 // DotNetEnv logic removed since we now use parameter store
 
 var builder = WebApplication.CreateBuilder(args);
@@ -90,12 +95,63 @@ builder.Services.AddHttpClient<IOcrClientService, OcrClientService>(client =>
     client.BaseAddress = new Uri(ocrApiEndpoint);
 });
 
+// ==================== VIETQR SERVICE WITH RESILIENCE POLICIES ====================
+// Register VietQR HttpClient with Polly resilience policies:
+// - Timeout: 5 seconds per request
+// - Retry: 3 attempts with exponential backoff (1s, 2s, 4s) for 429 and 5xx errors
+// - Circuit Breaker: Break after 5 consecutive failures, stay broken for 1 minute
+builder.Services.AddHttpClient("VietQR")
+    .AddTransientHttpErrorPolicy(p =>
+        p.Or<HttpRequestException>()
+          .WaitAndRetryAsync(
+              retryCount: 3,
+              sleepDurationProvider: attempt =>
+              {
+                  // Exponential backoff: 2^attempt seconds (1s, 2s, 4s)
+                  var delaySeconds = Math.Pow(2, attempt);
+                  return TimeSpan.FromSeconds(delaySeconds);
+              },
+              onRetry: (outcome, timespan, retryCount, context) =>
+              {
+                  System.Diagnostics.Debug.WriteLine($"[VietQR Retry] Attempt {retryCount} after {timespan.TotalSeconds}s");
+              }))
+    .AddTransientHttpErrorPolicy(p =>
+        p.Or<HttpRequestException>()
+          .CircuitBreakerAsync(
+              handledEventsAllowedBeforeBreaking: 5,
+              durationOfBreak: TimeSpan.FromMinutes(1),
+              onBreak: (outcome, timespan, context) =>
+              {
+                  System.Diagnostics.Debug.WriteLine($"[VietQR Circuit Breaker] Circuit opened for {timespan.TotalMinutes} minutes");
+              },
+              onReset: (context) =>
+              {
+                  System.Diagnostics.Debug.WriteLine("[VietQR Circuit Breaker] Circuit reset");
+              }))
+    .AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(TimeSpan.FromSeconds(5)));
+
+// Register VietQR Service
+builder.Services.AddScoped<IVietQrClientService, VietQrClientService>();
+
+// ==================== END VIETQR CONFIGURATION ====================
+
 // Configure Custom Claims Transformer
 builder.Services.AddTransient<IClaimsTransformation, ClaimsTransformer>();
 
-// 5. Config AWS Cognito
+// ==================== AWS SERVICES CONFIGURATION ====================
+// 5. Config AWS Cognito & SQS
 builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
 builder.Services.AddAWSService<IAmazonCognitoIdentityProvider>();
+builder.Services.AddAWSService<IAmazonSQS>();
+
+// ==================== SQS PUBLISHER & BACKGROUND CONSUMER ====================
+// Register SQS message publisher for VietQR validation requests
+builder.Services.AddScoped<ISqsMessagePublisher, SqsMessagePublisher>();
+
+// Register VietQR SQS Consumer as a hosted background service
+// This service continuously polls SQS for validation requests and updates invoices
+builder.Services.AddHostedService<VietQrSqsConsumerService>();
+// ==================== END SQS CONFIGURATION ====================
 
 
 

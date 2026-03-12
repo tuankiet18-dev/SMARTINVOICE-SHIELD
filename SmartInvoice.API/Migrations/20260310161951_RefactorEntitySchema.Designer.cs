@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartInvoice.API.Data;
@@ -13,9 +14,11 @@ using SmartInvoice.API.Entities.JsonModels;
 namespace SmartInvoice.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260310161951_RefactorEntitySchema")]
+    partial class RefactorEntitySchema
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -457,7 +460,7 @@ namespace SmartInvoice.API.Migrations
                     b.Property<float?>("OcrConfidenceScore")
                         .HasColumnType("real");
 
-                    b.Property<Guid?>("OriginalFileId")
+                    b.Property<Guid>("OriginalFileId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("PaymentMethod")
@@ -507,9 +510,6 @@ namespace SmartInvoice.API.Migrations
                     b.Property<int>("Version")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("VisualFileId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("InvoiceId");
 
                     b.HasIndex("DocumentTypeId");
@@ -517,8 +517,6 @@ namespace SmartInvoice.API.Migrations
                     b.HasIndex("OriginalFileId");
 
                     b.HasIndex("ReplacedBy");
-
-                    b.HasIndex("VisualFileId");
 
                     b.HasIndex("CompanyId", "CreatedAt");
 
@@ -962,16 +960,12 @@ namespace SmartInvoice.API.Migrations
                     b.HasOne("SmartInvoice.API.Entities.FileStorage", "OriginalFile")
                         .WithMany()
                         .HasForeignKey("OriginalFileId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("SmartInvoice.API.Entities.Invoice", "ReplacementInvoice")
                         .WithMany()
                         .HasForeignKey("ReplacedBy");
-
-                    b.HasOne("SmartInvoice.API.Entities.FileStorage", "VisualFile")
-                        .WithMany()
-                        .HasForeignKey("VisualFileId")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.OwnsOne("SmartInvoice.API.Entities.BuyerInfo", "Buyer", b1 =>
                         {
@@ -1154,8 +1148,6 @@ namespace SmartInvoice.API.Migrations
 
                     b.Navigation("Seller")
                         .IsRequired();
-
-                    b.Navigation("VisualFile");
 
                     b.Navigation("Workflow")
                         .IsRequired();

@@ -32,10 +32,7 @@ public class ExportHistory
     public long? FileSize { get; set; }
 
     [MaxLength(500)]
-    public string? S3Key { get; set; } 
-
-    public string? S3Url { get; set; }
-    public DateTime? S3UrlExpiresAt { get; set; }
+    public string? S3Key { get; set; }
 
     public int DownloadCount { get; set; } = 0;
     public DateTime? LastDownloadAt { get; set; }

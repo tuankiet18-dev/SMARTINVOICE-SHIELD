@@ -93,8 +93,20 @@ namespace SmartInvoice.API.Services.Implementations
                     if (root.TryGetProperty("code", out var codeElement) && codeElement.GetString() == "00")
                     {
                         var data = root.GetProperty("data");
-                        var companyName = data.GetProperty("name").GetString();
-                        var address = data.GetProperty("address").GetString();
+                        var status = data.TryGetProperty("status", out var statusElement) ? statusElement.GetString() : null;
+
+                        if (status == null || !status.Contains("đang hoạt động", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return new CheckTaxCodeResponse
+                            {
+                                IsValid = false,
+                                IsRegistered = false,
+                                ErrorMessage = $"Mã số thuế không hợp lệ hoặc ngừng hoạt động. Trạng thái: {status}"
+                            };
+                        }
+
+                        var companyName = data.TryGetProperty("name", out var nameElement) ? nameElement.GetString() : null;
+                        var address = data.TryGetProperty("address", out var addrElement) ? addrElement.GetString() : null;
 
                         var validResponse = new CheckTaxCodeResponse
                         {

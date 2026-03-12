@@ -28,12 +28,17 @@ const ApprovalDashboard: React.FC = () => {
     const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+    const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
 
     const queryClient = useQueryClient();
 
-    const { data: apiDataResponse, isLoading } = useQuery({
+    const { data: apiDataResponse, isLoading, isFetching } = useQuery({
         queryKey: ['invoices', selectedTab],
         queryFn: () => invoiceService.getInvoices(1, 50, undefined, selectedTab === 'All' ? undefined : selectedTab),
+        refetchInterval: 10_000, // auto-refresh every 10s for admin approvals
+        meta: {
+          onSuccess: () => setLastRefreshTime(new Date()),
+        },
     });
 
     const approveBulkMutation = useMutation({
@@ -155,10 +160,12 @@ const ApprovalDashboard: React.FC = () => {
             <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                     <Title level={4} style={{ margin: 0 }}>Duyệt Ngoại Lệ (Approval Dashboard)</Title>
-                    <Text type="secondary">Quản lý hóa đơn chờ duyệt dựa trên mức độ rủi ro hệ thống.</Text>
+                    <Text type="secondary">
+                        {isFetching ? '🔄 Kiểm tra mục duyệt...' : `✓ Cập nhật cách đây ${Math.floor((new Date().getTime() - lastRefreshTime.getTime()) / 1000)}s`}
+                    </Text>
                 </div>
                 <Space>
-                    <Button icon={<SyncOutlined />} onClick={() => queryClient.invalidateQueries({ queryKey: ['invoices'] })}>Làm mới</Button>
+                    <Button icon={<SyncOutlined />} onClick={() => queryClient.invalidateQueries({ queryKey: ['invoices'] })}>Làm mới ngay</Button>
                 </Space>
             </div>
 

@@ -103,6 +103,15 @@
   font-family: 'IBM Plex Sans', sans-serif !important;
 }
 
+/* Selected row — soft highlight instead of dark default */
+.ant-table-tbody > tr.ant-table-row-selected > td {
+  background: #e6f4ff !important;
+}
+
+.ant-table-tbody > tr.ant-table-row-selected:hover > td {
+  background: #d6eaff !important;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

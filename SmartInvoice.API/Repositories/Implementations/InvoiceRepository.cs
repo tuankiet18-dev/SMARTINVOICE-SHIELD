@@ -18,16 +18,13 @@ namespace SmartInvoice.API.Repositories.Implementations
             return await _context.Invoices
                 .Include(i => i.Company)
                 .Include(i => i.DocumentType)
-                .Include(i => i.ValidationLayers)
-                .Include(i => i.RiskCheckResults)
+                .Include(i => i.CheckResults) // Replaced ValidationLayers and RiskCheckResults
                 .Include(i => i.AuditLogs)
                     .ThenInclude(a => a.User)
-                .Include(i => i.InvoiceLineItems)
                 .Include(i => i.OriginalFile)
-                .Include(i => i.Uploader)
-                .Include(i => i.Submitter)
-                .Include(i => i.Approver)
-                .Include(i => i.Rejector)
+                .Include(i => i.Workflow.Submitter)
+                .Include(i => i.Workflow.Approver)
+                .Include(i => i.Workflow.Rejector)
                 .FirstOrDefaultAsync(i => i.InvoiceId == id && !i.IsDeleted);
         }
 
@@ -35,7 +32,7 @@ namespace SmartInvoice.API.Repositories.Implementations
         {
             return await _context.Invoices.AnyAsync(i =>
                 i.CompanyId == companyId &&
-                i.SellerTaxCode == sellerTaxCode &&
+                i.Seller.TaxCode == sellerTaxCode &&
                 i.SerialNumber == serialNumber &&
                 i.InvoiceNumber == invoiceNumber &&
                 !i.IsDeleted);
@@ -43,12 +40,24 @@ namespace SmartInvoice.API.Repositories.Implementations
 
         public async Task<Invoice?> GetExistingInvoiceAsync(string sellerTaxCode, string serialNumber, string invoiceNumber, Guid companyId)
         {
+            string cleanNum = invoiceNumber?.TrimStart('0') ?? "";
+            if (string.IsNullOrEmpty(cleanNum)) cleanNum = "0";
+            string cleanNumPadded = cleanNum.PadLeft(8, '0');
+
+            string cleanSymbol = serialNumber?.Trim() ?? "";
+            if (cleanSymbol.Length == 7 && char.IsDigit(cleanSymbol[0]))
+            {
+                cleanSymbol = cleanSymbol.Substring(1);
+            }
+            string fullSymbol1 = "1" + cleanSymbol;
+            string fullSymbol2 = "2" + cleanSymbol;
+
             return await _context.Invoices
                 .Where(i =>
                     i.CompanyId == companyId &&
-                    i.SellerTaxCode == sellerTaxCode &&
-                    i.SerialNumber == serialNumber &&
-                    i.InvoiceNumber == invoiceNumber &&
+                    i.Seller.TaxCode == sellerTaxCode &&
+                    (i.InvoiceNumber == cleanNum || i.InvoiceNumber == cleanNumPadded || i.InvoiceNumber == invoiceNumber) &&
+                    (i.SerialNumber == cleanSymbol || i.SerialNumber == fullSymbol1 || i.SerialNumber == fullSymbol2 || i.SerialNumber == serialNumber) &&
                     !i.IsDeleted)
                 .OrderByDescending(i => i.Version)
                 .FirstOrDefaultAsync();
@@ -70,7 +79,7 @@ namespace SmartInvoice.API.Repositories.Implementations
             if (userRole == "Member")
             {
                 // Member can only see their own uploaded invoices
-                query = query.Where(i => i.UploadedBy == userId);
+                query = query.Where(i => i.Workflow.UploadedBy == userId);
             }
             // CompanyAdmin and SuperAdmin can see all invoices in the company
 
@@ -81,8 +90,7 @@ namespace SmartInvoice.API.Repositories.Implementations
                 query = query.Where(i =>
                     (i.InvoiceNumber != null && i.InvoiceNumber.ToLower().Contains(keyword)) ||
                     (i.SerialNumber != null && i.SerialNumber.ToLower().Contains(keyword)) ||
-                    (i.SellerName != null && i.SellerName.ToLower().Contains(keyword)) ||
-                    (i.SellerTaxCode != null && i.SellerTaxCode.ToLower().Contains(keyword))
+                    (i.Seller.Name != null && i.Seller.Name.ToLower().Contains(keyword))
                 );
             }
 
@@ -115,7 +123,7 @@ namespace SmartInvoice.API.Repositories.Implementations
 
             // 5. Sort & Pagination
             var items = await query
-                .Include(i => i.Uploader)
+                .Include(i => i.Workflow.Uploader)
                 .OrderByDescending(i => i.InvoiceDate)
                 .Skip((request.Page - 1) * request.Size)
                 .Take(request.Size)
