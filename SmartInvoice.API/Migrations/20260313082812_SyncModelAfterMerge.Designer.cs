@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartInvoice.API.Data;
@@ -13,9 +14,11 @@ using SmartInvoice.API.Entities.JsonModels;
 namespace SmartInvoice.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260313082812_SyncModelAfterMerge")]
+    partial class SyncModelAfterMerge
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -271,45 +274,6 @@ namespace SmartInvoice.API.Migrations
                     b.ToTable("DocumentTypes");
                 });
 
-            modelBuilder.Entity("SmartInvoice.API.Entities.ExportConfig", b =>
-                {
-                    b.Property<Guid>("ConfigId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CompanyId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DefaultCreditAccount")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("DefaultDebitAccount")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("DefaultTaxAccount")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("DefaultWarehouse")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("ConfigId");
-
-                    b.HasIndex("CompanyId")
-                        .IsUnique();
-
-                    b.ToTable("ExportConfigs");
-                });
-
             modelBuilder.Entity("SmartInvoice.API.Entities.ExportHistory", b =>
                 {
                     b.Property<Guid>("ExportId")
@@ -336,11 +300,6 @@ namespace SmartInvoice.API.Migrations
                     b.Property<Guid>("ExportedBy")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
                     b.Property<long?>("FileSize")
                         .HasColumnType("bigint");
 
@@ -358,11 +317,6 @@ namespace SmartInvoice.API.Migrations
                     b.Property<string>("S3Key")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<int>("TotalRecords")
                         .HasColumnType("integer");
@@ -1229,17 +1183,6 @@ namespace SmartInvoice.API.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("SubscriptionPackage");
-                });
-
-            modelBuilder.Entity("SmartInvoice.API.Entities.ExportConfig", b =>
-                {
-                    b.HasOne("SmartInvoice.API.Entities.Company", "Company")
-                        .WithOne()
-                        .HasForeignKey("SmartInvoice.API.Entities.ExportConfig", "CompanyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Company");
                 });
 
             modelBuilder.Entity("SmartInvoice.API.Entities.ExportHistory", b =>

@@ -34,6 +34,14 @@ public class ExportHistory
     [MaxLength(500)]
     public string? S3Key { get; set; }
 
+    [Required]
+    [MaxLength(255)]
+    public string FileName { get; set; } = null!; // VD: Bao_cao_MISA_022026.xlsx
+
+    [Required]
+    [MaxLength(20)]
+    public string Status { get; set; } = "Pending"; // Pending, Processing, Completed, Failed
+
     public int DownloadCount { get; set; } = 0;
     public DateTime? LastDownloadAt { get; set; }
 

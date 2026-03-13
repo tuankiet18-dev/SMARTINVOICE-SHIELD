@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartInvoice.API.Data;
@@ -13,9 +14,11 @@ using SmartInvoice.API.Entities.JsonModels;
 namespace SmartInvoice.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260311083853_AddQuotaAndAddon")]
+    partial class AddQuotaAndAddon
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -65,6 +68,9 @@ namespace SmartInvoice.API.Migrations
 
                     b.Property<DateTime>("ProcessedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProcessedData")
+                        .HasColumnType("jsonb");
 
                     b.Property<int?>("ProcessingTimeMs")
                         .HasColumnType("integer");
@@ -271,45 +277,6 @@ namespace SmartInvoice.API.Migrations
                     b.ToTable("DocumentTypes");
                 });
 
-            modelBuilder.Entity("SmartInvoice.API.Entities.ExportConfig", b =>
-                {
-                    b.Property<Guid>("ConfigId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CompanyId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DefaultCreditAccount")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("DefaultDebitAccount")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("DefaultTaxAccount")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("DefaultWarehouse")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("ConfigId");
-
-                    b.HasIndex("CompanyId")
-                        .IsUnique();
-
-                    b.ToTable("ExportConfigs");
-                });
-
             modelBuilder.Entity("SmartInvoice.API.Entities.ExportHistory", b =>
                 {
                     b.Property<Guid>("ExportId")
@@ -336,11 +303,6 @@ namespace SmartInvoice.API.Migrations
                     b.Property<Guid>("ExportedBy")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
                     b.Property<long?>("FileSize")
                         .HasColumnType("bigint");
 
@@ -359,10 +321,11 @@ namespace SmartInvoice.API.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                    b.Property<string>("S3Url")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("S3UrlExpiresAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("TotalRecords")
                         .HasColumnType("integer");
@@ -449,6 +412,12 @@ namespace SmartInvoice.API.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("S3Url")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("S3UrlExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("S3VersionId")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -473,6 +442,35 @@ namespace SmartInvoice.API.Migrations
                     b.Property<Guid>("InvoiceId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ApprovedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BuyerAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BuyerContactPerson")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("BuyerEmail")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("BuyerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("BuyerPhone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("BuyerTaxCode")
+                        .HasMaxLength(14)
+                        .HasColumnType("character varying(14)");
 
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uuid");
@@ -525,7 +523,7 @@ namespace SmartInvoice.API.Migrations
                     b.Property<float?>("OcrConfidenceScore")
                         .HasColumnType("real");
 
-                    b.Property<Guid?>("OriginalFileId")
+                    b.Property<Guid>("OriginalFileId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("PaymentMethod")
@@ -540,6 +538,15 @@ namespace SmartInvoice.API.Migrations
                     b.Property<InvoiceRawData>("RawData")
                         .HasColumnType("jsonb");
 
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RejectedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("text");
+
                     b.Property<Guid?>("ReplacedBy")
                         .HasColumnType("uuid");
 
@@ -547,6 +554,36 @@ namespace SmartInvoice.API.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<List<RiskReason>>("RiskReasons")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("SellerAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SellerBankAccount")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SellerBankName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SellerEmail")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SellerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SellerPhone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("SellerTaxCode")
+                        .HasMaxLength(14)
+                        .HasColumnType("character varying(14)");
 
                     b.Property<string>("SerialNumber")
                         .HasMaxLength(50)
@@ -556,6 +593,12 @@ namespace SmartInvoice.API.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SubmittedBy")
+                        .HasColumnType("uuid");
 
                     b.Property<decimal>("TotalAmount")
                         .HasColumnType("decimal(18,2)");
@@ -572,25 +615,42 @@ namespace SmartInvoice.API.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("UploadedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<ValidationResultModel>("ValidationResult")
+                        .HasColumnType("jsonb");
+
                     b.Property<int>("Version")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("VisualFileId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("InvoiceId");
+
+                    b.HasIndex("ApprovedBy");
 
                     b.HasIndex("DocumentTypeId");
 
+                    b.HasIndex("InvoiceNumber");
+
                     b.HasIndex("OriginalFileId");
+
+                    b.HasIndex("RejectedBy");
 
                     b.HasIndex("ReplacedBy");
 
-                    b.HasIndex("VisualFileId");
+                    b.HasIndex("SellerTaxCode");
+
+                    b.HasIndex("SubmittedBy");
+
+                    b.HasIndex("UploadedBy");
 
                     b.HasIndex("CompanyId", "CreatedAt");
 
-                    b.HasIndex("CompanyId", "Status", "RiskLevel", "InvoiceDate");
+                    b.HasIndex("CompanyId", "InvoiceDate");
+
+                    b.HasIndex("CompanyId", "RiskLevel");
+
+                    b.HasIndex("CompanyId", "Status");
 
                     b.ToTable("Invoices", t =>
                         {
@@ -661,68 +721,55 @@ namespace SmartInvoice.API.Migrations
                     b.ToTable("InvoiceAuditLogs");
                 });
 
-            modelBuilder.Entity("SmartInvoice.API.Entities.InvoiceCheckResult", b =>
+            modelBuilder.Entity("SmartInvoice.API.Entities.InvoiceLineItem", b =>
                 {
-                    b.Property<Guid>("CheckId")
+                    b.Property<Guid>("LineItemId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("AdditionalData")
-                        .HasColumnType("jsonb");
+                    b.Property<float?>("ConfidenceScore")
+                        .HasColumnType("real");
 
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("CheckName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("CheckOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CheckedAt")
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CheckedBy")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int?>("DurationMs")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ErrorCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("ErrorDetails")
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
 
                     b.Property<Guid>("InvoiceId")
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("IsValid")
-                        .HasColumnType("boolean");
+                    b.Property<string>("ItemName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("integer");
 
-                    b.Property<string>("Suggestion")
-                        .HasColumnType("text");
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,4)");
 
-                    b.HasKey("CheckId");
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("VatRate")
+                        .HasColumnType("integer");
+
+                    b.HasKey("LineItemId");
 
                     b.HasIndex("InvoiceId");
 
-                    b.ToTable("InvoiceCheckResults");
+                    b.ToTable("InvoiceLineItems");
                 });
 
             modelBuilder.Entity("SmartInvoice.API.Entities.LocalBlacklistedCompany", b =>
@@ -915,6 +962,65 @@ namespace SmartInvoice.API.Migrations
                     b.HasIndex("CompanyId", "CreatedAt");
 
                     b.ToTable("PaymentTransactions");
+                });
+
+            modelBuilder.Entity("SmartInvoice.API.Entities.RiskCheckResult", b =>
+                {
+                    b.Property<Guid>("CheckId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CheckDetails")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int?>("CheckDurationMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CheckStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("CheckSubType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("CheckType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CheckedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CheckedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RiskLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Suggestion")
+                        .HasColumnType("text");
+
+                    b.HasKey("CheckId");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("RiskCheckResults");
                 });
 
             modelBuilder.Entity("SmartInvoice.API.Entities.SubscriptionPackage", b =>
@@ -1204,6 +1310,62 @@ namespace SmartInvoice.API.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("SmartInvoice.API.Entities.ValidationLayer", b =>
+                {
+                    b.Property<Guid>("LayerId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CheckedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CheckedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ErrorDetails")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsValid")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LayerData")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("LayerName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("LayerOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ValidationDurationMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ValidationStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("LayerId");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("ValidationLayers");
+                });
+
             modelBuilder.Entity("SmartInvoice.API.Entities.AIProcessingLog", b =>
                 {
                     b.HasOne("SmartInvoice.API.Entities.FileStorage", "FileStorage")
@@ -1229,17 +1391,6 @@ namespace SmartInvoice.API.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("SubscriptionPackage");
-                });
-
-            modelBuilder.Entity("SmartInvoice.API.Entities.ExportConfig", b =>
-                {
-                    b.HasOne("SmartInvoice.API.Entities.Company", "Company")
-                        .WithOne()
-                        .HasForeignKey("SmartInvoice.API.Entities.ExportConfig", "CompanyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Company");
                 });
 
             modelBuilder.Entity("SmartInvoice.API.Entities.ExportHistory", b =>
@@ -1282,6 +1433,10 @@ namespace SmartInvoice.API.Migrations
 
             modelBuilder.Entity("SmartInvoice.API.Entities.Invoice", b =>
                 {
+                    b.HasOne("SmartInvoice.API.Entities.User", "Approver")
+                        .WithMany()
+                        .HasForeignKey("ApprovedBy");
+
                     b.HasOne("SmartInvoice.API.Entities.Company", "Company")
                         .WithMany()
                         .HasForeignKey("CompanyId")
@@ -1297,187 +1452,28 @@ namespace SmartInvoice.API.Migrations
                     b.HasOne("SmartInvoice.API.Entities.FileStorage", "OriginalFile")
                         .WithMany()
                         .HasForeignKey("OriginalFileId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SmartInvoice.API.Entities.User", "Rejector")
+                        .WithMany()
+                        .HasForeignKey("RejectedBy");
 
                     b.HasOne("SmartInvoice.API.Entities.Invoice", "ReplacementInvoice")
                         .WithMany()
                         .HasForeignKey("ReplacedBy");
 
-                    b.HasOne("SmartInvoice.API.Entities.FileStorage", "VisualFile")
+                    b.HasOne("SmartInvoice.API.Entities.User", "Submitter")
                         .WithMany()
-                        .HasForeignKey("VisualFileId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("SubmittedBy");
 
-                    b.OwnsOne("SmartInvoice.API.Entities.BuyerInfo", "Buyer", b1 =>
-                        {
-                            b1.Property<Guid>("InvoiceId")
-                                .HasColumnType("uuid");
-
-                            b1.Property<string>("Address")
-                                .HasColumnType("text")
-                                .HasColumnName("BuyerAddress");
-
-                            b1.Property<string>("ContactPerson")
-                                .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
-                                .HasColumnName("BuyerContactPerson");
-
-                            b1.Property<string>("Email")
-                                .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
-                                .HasColumnName("BuyerEmail");
-
-                            b1.Property<string>("Name")
-                                .HasMaxLength(200)
-                                .HasColumnType("character varying(200)")
-                                .HasColumnName("BuyerName");
-
-                            b1.Property<string>("Phone")
-                                .HasMaxLength(20)
-                                .HasColumnType("character varying(20)")
-                                .HasColumnName("BuyerPhone");
-
-                            b1.Property<string>("TaxCode")
-                                .HasMaxLength(14)
-                                .HasColumnType("character varying(14)")
-                                .HasColumnName("BuyerTaxCode");
-
-                            b1.HasKey("InvoiceId");
-
-                            b1.ToTable("Invoices");
-
-                            b1.WithOwner()
-                                .HasForeignKey("InvoiceId");
-                        });
-
-                    b.OwnsOne("SmartInvoice.API.Entities.InvoiceWorkflow", "Workflow", b1 =>
-                        {
-                            b1.Property<Guid>("InvoiceId")
-                                .HasColumnType("uuid");
-
-                            b1.Property<DateTime?>("ApprovedAt")
-                                .HasColumnType("timestamp with time zone")
-                                .HasColumnName("ApprovedAt");
-
-                            b1.Property<Guid?>("ApprovedBy")
-                                .HasColumnType("uuid")
-                                .HasColumnName("ApprovedBy");
-
-                            b1.Property<DateTime?>("RejectedAt")
-                                .HasColumnType("timestamp with time zone")
-                                .HasColumnName("RejectedAt");
-
-                            b1.Property<Guid?>("RejectedBy")
-                                .HasColumnType("uuid")
-                                .HasColumnName("RejectedBy");
-
-                            b1.Property<string>("RejectionReason")
-                                .HasColumnType("text")
-                                .HasColumnName("RejectionReason");
-
-                            b1.Property<DateTime?>("SubmittedAt")
-                                .HasColumnType("timestamp with time zone")
-                                .HasColumnName("SubmittedAt");
-
-                            b1.Property<Guid?>("SubmittedBy")
-                                .HasColumnType("uuid")
-                                .HasColumnName("SubmittedBy");
-
-                            b1.Property<Guid>("UploadedBy")
-                                .HasColumnType("uuid")
-                                .HasColumnName("UploadedBy");
-
-                            b1.HasKey("InvoiceId");
-
-                            b1.HasIndex("ApprovedBy");
-
-                            b1.HasIndex("RejectedBy");
-
-                            b1.HasIndex("SubmittedBy");
-
-                            b1.HasIndex("UploadedBy");
-
-                            b1.ToTable("Invoices");
-
-                            b1.HasOne("SmartInvoice.API.Entities.User", "Approver")
-                                .WithMany()
-                                .HasForeignKey("ApprovedBy");
-
-                            b1.WithOwner()
-                                .HasForeignKey("InvoiceId");
-
-                            b1.HasOne("SmartInvoice.API.Entities.User", "Rejector")
-                                .WithMany()
-                                .HasForeignKey("RejectedBy");
-
-                            b1.HasOne("SmartInvoice.API.Entities.User", "Submitter")
-                                .WithMany()
-                                .HasForeignKey("SubmittedBy");
-
-                            b1.HasOne("SmartInvoice.API.Entities.User", "Uploader")
-                                .WithMany()
-                                .HasForeignKey("UploadedBy")
-                                .OnDelete(DeleteBehavior.Cascade)
-                                .IsRequired();
-
-                            b1.Navigation("Approver");
-
-                            b1.Navigation("Rejector");
-
-                            b1.Navigation("Submitter");
-
-                            b1.Navigation("Uploader");
-                        });
-
-                    b.OwnsOne("SmartInvoice.API.Entities.SellerInfo", "Seller", b1 =>
-                        {
-                            b1.Property<Guid>("InvoiceId")
-                                .HasColumnType("uuid");
-
-                            b1.Property<string>("Address")
-                                .HasColumnType("text")
-                                .HasColumnName("SellerAddress");
-
-                            b1.Property<string>("BankAccount")
-                                .HasMaxLength(50)
-                                .HasColumnType("character varying(50)")
-                                .HasColumnName("SellerBankAccount");
-
-                            b1.Property<string>("BankName")
-                                .HasMaxLength(200)
-                                .HasColumnType("character varying(200)")
-                                .HasColumnName("SellerBankName");
-
-                            b1.Property<string>("Email")
-                                .HasMaxLength(100)
-                                .HasColumnType("character varying(100)")
-                                .HasColumnName("SellerEmail");
-
-                            b1.Property<string>("Name")
-                                .HasMaxLength(200)
-                                .HasColumnType("character varying(200)")
-                                .HasColumnName("SellerName");
-
-                            b1.Property<string>("Phone")
-                                .HasMaxLength(20)
-                                .HasColumnType("character varying(20)")
-                                .HasColumnName("SellerPhone");
-
-                            b1.Property<string>("TaxCode")
-                                .HasMaxLength(14)
-                                .HasColumnType("character varying(14)")
-                                .HasColumnName("SellerTaxCode");
-
-                            b1.HasKey("InvoiceId");
-
-                            b1.ToTable("Invoices");
-
-                            b1.WithOwner()
-                                .HasForeignKey("InvoiceId");
-                        });
-
-                    b.Navigation("Buyer")
+                    b.HasOne("SmartInvoice.API.Entities.User", "Uploader")
+                        .WithMany()
+                        .HasForeignKey("UploadedBy")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Approver");
 
                     b.Navigation("Company");
 
@@ -1485,15 +1481,13 @@ namespace SmartInvoice.API.Migrations
 
                     b.Navigation("OriginalFile");
 
+                    b.Navigation("Rejector");
+
                     b.Navigation("ReplacementInvoice");
 
-                    b.Navigation("Seller")
-                        .IsRequired();
+                    b.Navigation("Submitter");
 
-                    b.Navigation("VisualFile");
-
-                    b.Navigation("Workflow")
-                        .IsRequired();
+                    b.Navigation("Uploader");
                 });
 
             modelBuilder.Entity("SmartInvoice.API.Entities.InvoiceAuditLog", b =>
@@ -1515,10 +1509,10 @@ namespace SmartInvoice.API.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("SmartInvoice.API.Entities.InvoiceCheckResult", b =>
+            modelBuilder.Entity("SmartInvoice.API.Entities.InvoiceLineItem", b =>
                 {
                     b.HasOne("SmartInvoice.API.Entities.Invoice", "Invoice")
-                        .WithMany("CheckResults")
+                        .WithMany("InvoiceLineItems")
                         .HasForeignKey("InvoiceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1567,6 +1561,17 @@ namespace SmartInvoice.API.Migrations
                     b.Navigation("Package");
                 });
 
+            modelBuilder.Entity("SmartInvoice.API.Entities.RiskCheckResult", b =>
+                {
+                    b.HasOne("SmartInvoice.API.Entities.Invoice", "Invoice")
+                        .WithMany("RiskCheckResults")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+                });
+
             modelBuilder.Entity("SmartInvoice.API.Entities.SystemConfiguration", b =>
                 {
                     b.HasOne("SmartInvoice.API.Entities.User", "Updater")
@@ -1587,11 +1592,26 @@ namespace SmartInvoice.API.Migrations
                     b.Navigation("Company");
                 });
 
+            modelBuilder.Entity("SmartInvoice.API.Entities.ValidationLayer", b =>
+                {
+                    b.HasOne("SmartInvoice.API.Entities.Invoice", "Invoice")
+                        .WithMany("ValidationLayers")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+                });
+
             modelBuilder.Entity("SmartInvoice.API.Entities.Invoice", b =>
                 {
                     b.Navigation("AuditLogs");
 
-                    b.Navigation("CheckResults");
+                    b.Navigation("InvoiceLineItems");
+
+                    b.Navigation("RiskCheckResults");
+
+                    b.Navigation("ValidationLayers");
                 });
 #pragma warning restore 612, 618
         }

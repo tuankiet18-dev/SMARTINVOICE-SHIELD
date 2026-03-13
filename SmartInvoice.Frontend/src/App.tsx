@@ -24,6 +24,8 @@ import TenantManagement from './pages/TenantManagement';
 import GlobalBlacklist from './pages/GlobalBlacklist';
 import SystemConfig from './pages/SystemConfig';
 import Profile from './pages/Profile';
+import SubscriptionPage from './pages/SubscriptionPage';
+import PaymentResult from './pages/PaymentResult';
 
 const queryClient = new QueryClient();
 
@@ -47,6 +49,8 @@ const App = () => (
                 <Route path="validation" element={<ValidationPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="profile" element={<Profile />} />
+                <Route path="subscription" element={<SubscriptionPage />} />
+                <Route path="payment/result" element={<PaymentResult />} />
 
                 {/* CompanyAdmin Only Routes */}
                 <Route element={<ProtectedRoute allowedRoles={['CompanyAdmin']} />}>

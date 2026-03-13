@@ -13,6 +13,7 @@
     <PackageReference Include="AWSSDK.S3" Version="4.0.18.2" />
     <PackageReference Include="AWSSDK.SQS" Version="4.0.2.16" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="DotNetEnv" Version="3.1.1" />
 
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.12" />
@@ -24,6 +25,12 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.2" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.1" />
     <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="9.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Template\mua_hang_trong_nuoc_da_tien_te_full.xlsx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

@@ -187,6 +187,14 @@ export interface InvoiceDetailDto {
     auditLogs: AuditLogDto[];
 }
 
+export interface InvoiceStatsDto {
+  totalAmount: number;
+  totalTaxAmount: number;
+  validCount: number;
+  needReviewCount: number;
+  totalCount: number;
+}
+
 // ════════════════════════════════════════════
 //  Service
 // ════════════════════════════════════════════
@@ -222,6 +230,13 @@ export const invoiceService = {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
         return response.data;
+    },
+
+    async getInvoiceStats(startDate: string, endDate: string, status?: string): Promise<InvoiceStatsDto> {
+        const res = await apiClient.get('/invoices/stats', {
+            params: { startDate, endDate, status }
+        });
+        return res.data;
     },
 
     // --- List ---

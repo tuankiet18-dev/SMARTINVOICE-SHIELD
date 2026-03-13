@@ -18,6 +18,7 @@ namespace SmartInvoice.API.Repositories.Implementations
         public IAIProcessingLogRepository AIProcessingLogs { get; private set; }
         public IDocumentTypeRepository DocumentTypes { get; private set; }
         public IExportHistoryRepository ExportHistories { get; private set; }
+        public IExportConfigRepository ExportConfigs { get; private set; }
         public IFileStorageRepository FileStorages { get; private set; }
         public INotificationRepository Notifications { get; private set; }
         public ISystemConfigurationRepository SystemConfigurations { get; private set; }
@@ -34,6 +35,7 @@ namespace SmartInvoice.API.Repositories.Implementations
             AIProcessingLogs = new AIProcessingLogRepository(_context);
             DocumentTypes = new DocumentTypeRepository(_context);
             ExportHistories = new ExportHistoryRepository(_context);
+            ExportConfigs = new ExportConfigRepository(_context);
             FileStorages = new FileStorageRepository(_context);
             Notifications = new NotificationRepository(_context);
             SystemConfigurations = new SystemConfigurationRepository(_context);

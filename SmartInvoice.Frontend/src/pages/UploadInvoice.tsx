@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   Upload,
@@ -42,6 +42,8 @@ import {
 } from "@ant-design/icons";
 import { invoiceService, ValidationResult } from "../services/invoice";
 import { useNavigate } from "react-router-dom";
+import ValidationChecklist from "../components/ValidationChecklist";
+import LeaveUploadModal from "../components/LeaveUploadModal";
 
 const { Title, Text, Paragraph } = Typography;
 const { Dragger } = Upload;
@@ -101,6 +103,9 @@ const UploadInvoice: React.FC = () => {
   const [pendingSubmitId, setPendingSubmitId] = useState<string | null>(null);
   const [submitComment, setSubmitComment] = useState("");
   const [activeTab, setActiveTab] = useState<"xml" | "ocr">("xml");
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [leaveModalVisible, setLeaveModalVisible] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
 
   const getDefaultSelected = (res: ProcessResult[]) =>
     res
@@ -112,9 +117,47 @@ const UploadInvoice: React.FC = () => {
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
+  // Handle page reload/close/back button - warn when there are results that will be lost
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Warn if there are any results (danh sách sẽ mất)
+      if (results.length > 0) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [results]);
+
+  // Handle proceed with navigation
+  const handleProceedNavigation = () => {
+    setLeaveModalVisible(false);
+    if (pendingNavigation) {
+      navigate(pendingNavigation);
+    }
+  };
+
+  // Override router navigation
+  useEffect(() => {
+    const unlistenPrompt = navigate.toString(); // This is a workaround; proper way depends on router version
+    // For now, we'll handle it through button clicks
+  }, [navigate]);
+
+  const handleSafeNavigation = (path: string) => {
+    // Check if there are any results (danh sách sẽ mất)
+    if (results.length > 0) {
+      setPendingNavigation(path);
+      setLeaveModalVisible(true);
+    } else {
+      navigate(path);
+    }
+  };
+
   const handleOpenInvoiceDetail = (invoiceId: string) => {
     // Navigate to invoice detail page with validation tab active
-    navigate(`/app/invoices/${invoiceId}?tab=validation`);
+    handleSafeNavigation(`/app/invoices/${invoiceId}?tab=validation`);
   };
 
   const uploadProps = {
@@ -1231,7 +1274,7 @@ const UploadInvoice: React.FC = () => {
                       <Button
                         icon={<EyeOutlined />}
                         onClick={() =>
-                          navigate(
+                          handleSafeNavigation(
                             "/app/invoices?status=Draft&sort=newest",
                           )
                         }
@@ -1255,7 +1298,7 @@ const UploadInvoice: React.FC = () => {
                   <Button
                     type="default"
                     icon={<CheckCircleOutlined />}
-                    onClick={() => navigate("/app/invoices")}
+                    onClick={() => handleSafeNavigation("/app/invoices")}
                   >
                     Xem danh sách hóa đơn
                   </Button>
@@ -1275,6 +1318,26 @@ const UploadInvoice: React.FC = () => {
               bordered
               scroll={{ x: 800 }}
               rowSelection={rowSelection}
+              expandable={{
+                expandedRowKeys: Array.from(expandedRows),
+                onExpandedRowsChange: (keys) => {
+                  setExpandedRows(new Set(keys as string[]));
+                },
+                expandedRowRender: (record) => {
+                  if (!record.result) {
+                    return <Text type="secondary">Không có kết quả kiểm tra</Text>;
+                  }
+                  return (
+                    <div style={{ background: "#fafbfc", padding: "16px" }}>
+                      <Title level={5} style={{ margin: "0 0 16px 0" }}>
+                        📋 Chi tiết kiểm tra xác thực hóa đơn
+                      </Title>
+                      <ValidationChecklist result={record.result} />
+                    </div>
+                  );
+                },
+                columnWidth: 50,
+              }}
               rowClassName={(record) => {
                 if (record.submitStatus === "submitted") return "row-submitted";
                 if (record.status === "error") return "row-error";
@@ -1309,6 +1372,15 @@ const UploadInvoice: React.FC = () => {
           onChange={(e) => setSubmitComment(e.target.value)}
         />
       </Modal>
+
+      <LeaveUploadModal
+        open={leaveModalVisible}
+        onConfirm={handleProceedNavigation}
+        onCancel={() => {
+          setLeaveModalVisible(false);
+          setPendingNavigation(null);
+        }}
+      />
 
       <style>{`
         .ant-table .row-submitted {

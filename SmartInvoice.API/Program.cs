@@ -79,6 +79,11 @@ builder.Services.AddScoped<ILocalBlacklistService, LocalBlacklistService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ISystemConfigurationService, SystemConfigurationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IVnPayService, VnPayService>();
+builder.Services.AddScoped<IQuotaService, QuotaService>();
+builder.Services.AddScoped<IAwsS3Service, AwsS3Service>();
+builder.Services.AddScoped<IExportConfigService, ExportConfigService>();
+builder.Services.AddScoped<IExportService, ExportService>();
 
 // Add HttpClient for Services to use (like VietQR API calls)
 builder.Services.AddHttpClient();

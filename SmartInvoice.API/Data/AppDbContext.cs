@@ -34,8 +34,11 @@ public class AppDbContext : DbContext
     public DbSet<InvoiceAuditLog> InvoiceAuditLogs { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<ExportHistory> ExportHistories { get; set; }
+    public DbSet<ExportConfig> ExportConfigs { get; set; }
     public DbSet<AIProcessingLog> AIProcessingLogs { get; set; }
     public DbSet<SystemConfiguration> SystemConfigurations { get; set; }
+    public DbSet<SubscriptionPackage> SubscriptionPackages { get; set; }
+    public DbSet<PaymentTransaction> PaymentTransactions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,10 +48,41 @@ public class AppDbContext : DbContext
         // 2. RELATIONSHIPS & CONSTRAINTS
         // =================================================================================
 
+        // SubscriptionPackages
+        modelBuilder.Entity<SubscriptionPackage>()
+            .HasIndex(sp => sp.PackageCode)
+            .IsUnique();
+
+        // PaymentTransactions
+        modelBuilder.Entity<PaymentTransaction>()
+            .HasOne(pt => pt.Company)
+            .WithMany()
+            .HasForeignKey(pt => pt.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PaymentTransaction>()
+            .HasOne(pt => pt.Package)
+            .WithMany()
+            .HasForeignKey(pt => pt.PackageId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PaymentTransaction>()
+            .HasIndex(pt => pt.VnpTxnRef)
+            .IsUnique();
+
+        modelBuilder.Entity<PaymentTransaction>()
+            .HasIndex(pt => new { pt.CompanyId, pt.CreatedAt });
+
         // Companies
         modelBuilder.Entity<Company>()
             .HasIndex(c => c.TaxCode)
             .IsUnique();
+
+        modelBuilder.Entity<Company>()
+            .HasOne(c => c.SubscriptionPackage)
+            .WithMany()
+            .HasForeignKey(c => c.SubscriptionPackageId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Users
         modelBuilder.Entity<User>()
@@ -178,6 +212,17 @@ public class AppDbContext : DbContext
         // Global Query Filter for LocalBlacklist
         modelBuilder.Entity<LocalBlacklistedCompany>().HasQueryFilter(b => b.IsActive);
 
+        // ExportConfig: 1 Company - 1 ExportConfig
+        modelBuilder.Entity<ExportConfig>()
+            .HasOne(ec => ec.Company)
+            .WithOne()
+            .HasForeignKey<ExportConfig>(ec => ec.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ExportConfig>()
+            .HasIndex(ec => ec.CompanyId)
+            .IsUnique();
+
         // =================================================================================
         // 5. VALUE CONVERTERS
         // =================================================================================
@@ -198,5 +243,100 @@ public class AppDbContext : DbContext
 
         // Npgsql native JSON serialization handles mapping POCOs to jsonb 
         // as long as NpgsqlDataSourceBuilder.EnableDynamicJson() is called.
+
+        // =================================================================================
+        // 6. SEED DATA
+        // =================================================================================
+
+        modelBuilder.Entity<SubscriptionPackage>().HasData(
+            new SubscriptionPackage
+            {
+                PackageId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                PackageCode = "FREE",
+                PackageName = "Gói Dùng Thử (Free)",
+                PackageLevel = 1,
+                Description = "Trải nghiệm sức mạnh xử lý hóa đơn bằng AI dành cho cá nhân hoặc doanh nghiệp mới thành lập.",
+                PricePerMonth = 0m,
+                PricePerSixMonths = 0m,
+                PricePerYear = 0m,
+                MaxUsers = 1,
+                MaxInvoicesPerMonth = 30,
+                StorageQuotaGB = 1,
+                HasAiProcessing = true,
+                HasAdvancedWorkflow = false,
+                HasRiskWarning = false,
+                HasAuditLog = false,
+                HasErpIntegration = false,
+                IsActive = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new SubscriptionPackage
+            {
+                PackageId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                PackageCode = "STARTER",
+                PackageName = "Gói Khởi Nghiệp (Starter)",
+                PackageLevel = 2,
+                Description = "Giải pháp tối ưu cho doanh nghiệp siêu nhỏ, đáp ứng nhu cầu xử lý hóa đơn tự động cơ bản.",
+                PricePerMonth = 199000m,
+                PricePerSixMonths = 995000m,
+                PricePerYear = 1990000m,
+                MaxUsers = 5,
+                MaxInvoicesPerMonth = 200,
+                StorageQuotaGB = 5,
+                HasAiProcessing = true,
+                HasAdvancedWorkflow = false,
+                HasRiskWarning = false,
+                HasAuditLog = false,
+                HasErpIntegration = false,
+                IsActive = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new SubscriptionPackage
+            {
+                PackageId = Guid.Parse("33333333-3333-3333-3333-333333333333"),
+                PackageCode = "PRO",
+                PackageName = "Gói Chuyên Nghiệp (Professional)",
+                PackageLevel = 3,
+                Description = "Quản trị rủi ro toàn diện và tự động hóa quy trình phê duyệt cho doanh nghiệp vừa và nhỏ (SME).",
+                PricePerMonth = 599000m,
+                PricePerSixMonths = 2995000m,
+                PricePerYear = 5990000m,
+                MaxUsers = 15,
+                MaxInvoicesPerMonth = 1000,
+                StorageQuotaGB = 20,
+                HasAiProcessing = true,
+                HasAdvancedWorkflow = true,
+                HasRiskWarning = true,
+                HasAuditLog = true,
+                HasErpIntegration = false,
+                IsActive = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new SubscriptionPackage
+            {
+                PackageId = Guid.Parse("44444444-4444-4444-4444-444444444444"),
+                PackageCode = "ENTERPRISE",
+                PackageName = "Gói Doanh Nghiệp (Enterprise)",
+                PackageLevel = 4,
+                Description = "Giải pháp tùy biến chuyên sâu, tích hợp API trực tiếp vào hệ thống ERP của tập đoàn.",
+                PricePerMonth = 1999000m,
+                PricePerSixMonths = 9995000m,
+                PricePerYear = 19990000m,
+                MaxUsers = 999,
+                MaxInvoicesPerMonth = 99999,
+                StorageQuotaGB = 100,
+                HasAiProcessing = true,
+                HasAdvancedWorkflow = true,
+                HasRiskWarning = true,
+                HasAuditLog = true,
+                HasErpIntegration = true,
+                IsActive = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
     }
 }

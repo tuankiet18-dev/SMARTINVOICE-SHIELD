@@ -14,6 +14,7 @@ namespace SmartInvoice.API.Repositories.Interfaces
         IAIProcessingLogRepository AIProcessingLogs { get; }
         IDocumentTypeRepository DocumentTypes { get; }
         IExportHistoryRepository ExportHistories { get; }
+        IExportConfigRepository ExportConfigs { get; }
         IFileStorageRepository FileStorages { get; }
         INotificationRepository Notifications { get; }
         ISystemConfigurationRepository SystemConfigurations { get; }

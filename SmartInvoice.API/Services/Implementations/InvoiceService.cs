@@ -60,6 +60,40 @@ namespace SmartInvoice.API.Services.Implementations
             return await _unitOfWork.Invoices.GetAllAsync();
         }
 
+        public async Task<InvoiceStatsDto> GetInvoiceStatsAsync(DateTime startDate, DateTime endDate, string? statusFilter, Guid companyId)
+        {
+            // Lấy AppDbContext từ IUnitOfWork (nếu project bạn đang dùng _dbContext trực tiếp thì gọi _dbContext.Invoices)
+            // Tui giả định bạn có thể query Invoices như sau:
+            var query = await _unitOfWork.Invoices.GetAllAsync(); // Tạm lấy list nếu repo bạn không có GetQueryable
+            var filteredQuery = query.Where(i => i.CompanyId == companyId
+                                              && i.InvoiceDate >= startDate
+                                              && i.InvoiceDate <= endDate
+                                              && i.IsDeleted != true).AsQueryable();
+
+            if (!string.IsNullOrEmpty(statusFilter))
+            {
+                filteredQuery = filteredQuery.Where(i => i.Status == statusFilter);
+            }
+
+            var list = filteredQuery.ToList();
+
+            var totalCount = list.Count;
+            // LOGIC MỚI: Hợp lệ nếu Status là Approved HOẶC RiskLevel là Green
+            var validCount = list.Count(i => i.Status == "Approved" || i.RiskLevel == "Green");
+
+            // LOGIC MỚI: Cần xem xét nếu CHƯA Approved VÀ nằm ở vùng rủi ro
+            var needReviewCount = list.Count(i => i.Status != "Approved" && (i.RiskLevel == "Yellow" || i.RiskLevel == "Orange"));
+
+            return new InvoiceStatsDto
+            {
+                TotalCount = totalCount,
+                TotalAmount = list.Sum(i => i.TotalAmount),
+                TotalTaxAmount = list.Sum(i => i.TotalTaxAmount ?? 0),
+                ValidCount = validCount,
+                NeedReviewCount = needReviewCount
+            };
+        }
+
         public async Task<Invoice> CreateInvoiceAsync(Invoice invoice)
         {
             await _unitOfWork.Invoices.AddAsync(invoice);

@@ -27,13 +27,15 @@ namespace SmartInvoice.API.Controller
         private readonly StorageService _storageService;
         private readonly IInvoiceProcessorService _invoiceProcessor;
         private readonly IInvoiceService _invoiceService;
+        private readonly IQuotaService _quotaService;
 
         [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-        public InvoicesController(StorageService storageService, IInvoiceProcessorService invoiceProcessor, IInvoiceService invoiceService)
+        public InvoicesController(StorageService storageService, IInvoiceProcessorService invoiceProcessor, IInvoiceService invoiceService, IQuotaService quotaService)
         {
             _storageService = storageService;
             _invoiceProcessor = invoiceProcessor;
             _invoiceService = invoiceService;
+            _quotaService = quotaService;
         }
 
         // ════════════════════════════════════════════
@@ -78,12 +80,20 @@ namespace SmartInvoice.API.Controller
             try
             {
                 var (userId, companyId, _, _) = GetUserInfo();
+
+                // Quota check: lazy reset + consume
+                await _quotaService.ValidateAndConsumeInvoiceQuotaAsync(companyId);
+
                 var finalResult = await _invoiceService.ProcessInvoiceXmlAsync(request.S3Key, userId.ToString(), companyId.ToString());
                 return Ok(finalResult);
             }
             catch (UnauthorizedAccessException)
             {
                 return Unauthorized(new { Message = "User identity or company information is missing in token." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -381,6 +391,22 @@ namespace SmartInvoice.API.Controller
             catch (KeyNotFoundException)
             {
                 return NotFound(new { Message = "Không tìm thấy hóa đơn." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        [HttpGet("stats")]
+        [Authorize(Policy = Constants.Permissions.InvoiceView)]
+        public async Task<IActionResult> GetInvoiceStats([FromQuery] DateTime startDate, [FromQuery] DateTime endDate, [FromQuery] string? status)
+        {
+            try
+            {
+                var (_, companyId, _, _) = GetUserInfo();
+                var stats = await _invoiceService.GetInvoiceStatsAsync(startDate, endDate, status, companyId);
+                return Ok(stats);
             }
             catch (Exception ex)
             {

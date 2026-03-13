@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography.Xml;
@@ -85,7 +86,12 @@ namespace SmartInvoice.API.Services.Implementations
             {
                 bool isCashRegister = false;
                 XmlNode khhDonNode = xmlDoc.SelectSingleNode("//*[local-name()='KHHDon']");
-                if (khhDonNode != null && !string.IsNullOrEmpty(khhDonNode.InnerText) && khhDonNode.InnerText.Length >= 4 && char.ToUpper(khhDonNode.InnerText[3]) == 'M')
+                if (
+                    khhDonNode != null
+                    && !string.IsNullOrEmpty(khhDonNode.InnerText)
+                    && khhDonNode.InnerText.Length >= 4
+                    && char.ToUpper(khhDonNode.InnerText[3]) == 'M'
+                )
                 {
                     isCashRegister = true;
                 }
@@ -95,7 +101,11 @@ namespace SmartInvoice.API.Services.Implementations
                 {
                     if (isCashRegister)
                     {
-                        result.AddWarning("WARN_SIG_CASH_REG", "Hóa đơn khởi tạo từ máy tính tiền không có chữ ký số (Hợp lệ theo quy định).", "Đối với hóa đơn máy tính tiền, không cần chữ ký số.");
+                        result.AddWarning(
+                            "WARN_SIG_CASH_REG",
+                            "Hóa đơn khởi tạo từ máy tính tiền không có chữ ký số (Hợp lệ theo quy định).",
+                            "Đối với hóa đơn máy tính tiền, không cần chữ ký số."
+                        );
                         return result;
                     }
 
@@ -118,13 +128,25 @@ namespace SmartInvoice.API.Services.Implementations
                             {
                                 if (x509Data.Certificates.Count > 0)
                                 {
-                                    X509Certificate2 cert = (X509Certificate2)x509Data.Certificates[0];
+                                    X509Certificate2 cert = (X509Certificate2)
+                                        x509Data.Certificates[0];
                                     result.SignerSubject = cert.Subject;
 
-                                    XmlNode nLapNode = xmlDoc.SelectSingleNode("//*[local-name()='NLap']");
-                                    if (nLapNode != null && DateTime.TryParse(nLapNode.InnerText, out DateTime invoiceDate))
+                                    XmlNode nLapNode = xmlDoc.SelectSingleNode(
+                                        "//*[local-name()='NLap']"
+                                    );
+                                    if (
+                                        nLapNode != null
+                                        && DateTime.TryParse(
+                                            nLapNode.InnerText,
+                                            out DateTime invoiceDate
+                                        )
+                                    )
                                     {
-                                        if (invoiceDate < cert.NotBefore || invoiceDate > cert.NotAfter)
+                                        if (
+                                            invoiceDate < cert.NotBefore
+                                            || invoiceDate > cert.NotAfter
+                                        )
                                         {
                                             result.AddError(ErrorCodes.SigExpired, $"Chữ ký số chưa có hiệu lực hoặc đã hết hạn tại thời điểm lập hóa đơn ({invoiceDate:dd/MM/yyyy}). Thời hạn chứng thư thực tế: {cert.NotBefore:dd/MM/yyyy} đến {cert.NotAfter:dd/MM/yyyy}.", "Yêu cầu bên bán xuất lại hóa đơn với chữ ký số còn hạn.");
                                         }
@@ -154,7 +176,8 @@ namespace SmartInvoice.API.Services.Implementations
         {
             var extractedData = new InvoiceExtractedData
             {
-                LineItems = new System.Collections.Generic.List<SmartInvoice.API.Entities.JsonModels.InvoiceLineItem>()
+                LineItems =
+                    new System.Collections.Generic.List<SmartInvoice.API.Entities.JsonModels.InvoiceLineItem>(),
             };
 
             try
@@ -172,21 +195,47 @@ namespace SmartInvoice.API.Services.Implementations
                 }
 
                 XmlNode nBan = xmlDoc.SelectSingleNode("//*[local-name()='NBan']");
-                extractedData.SellerName = nBan?.SelectSingleNode(".//*[local-name()='Ten']")?.InnerText;
-                extractedData.SellerTaxCode = nBan?.SelectSingleNode(".//*[local-name()='MST']")?.InnerText;
-                extractedData.SellerAddress = nBan?.SelectSingleNode(".//*[local-name()='DChi']")?.InnerText;
-                extractedData.SellerPhone = nBan?.SelectSingleNode(".//*[local-name()='SDThoai']")?.InnerText;
-                extractedData.SellerEmail = nBan?.SelectSingleNode(".//*[local-name()='DCTDTu']")?.InnerText;
-                extractedData.SellerBankAccount = nBan?.SelectSingleNode(".//*[local-name()='STKhoan']")?.InnerText;
-                extractedData.SellerBankName = nBan?.SelectSingleNode(".//*[local-name()='TNHang']")?.InnerText;
+                extractedData.SellerName = nBan
+                    ?.SelectSingleNode(".//*[local-name()='Ten']")
+                    ?.InnerText;
+                extractedData.SellerTaxCode = nBan
+                    ?.SelectSingleNode(".//*[local-name()='MST']")
+                    ?.InnerText;
+                extractedData.SellerAddress = nBan
+                    ?.SelectSingleNode(".//*[local-name()='DChi']")
+                    ?.InnerText;
+                extractedData.SellerPhone = nBan
+                    ?.SelectSingleNode(".//*[local-name()='SDThoai']")
+                    ?.InnerText;
+                extractedData.SellerEmail = nBan
+                    ?.SelectSingleNode(".//*[local-name()='DCTDTu']")
+                    ?.InnerText;
+                extractedData.SellerBankAccount = nBan
+                    ?.SelectSingleNode(".//*[local-name()='STKhoan']")
+                    ?.InnerText;
+                extractedData.SellerBankName = nBan
+                    ?.SelectSingleNode(".//*[local-name()='TNHang']")
+                    ?.InnerText;
 
                 XmlNode nMua = xmlDoc.SelectSingleNode("//*[local-name()='NMua']");
-                extractedData.BuyerName = nMua?.SelectSingleNode(".//*[local-name()='Ten']")?.InnerText;
-                extractedData.BuyerTaxCode = nMua?.SelectSingleNode(".//*[local-name()='MST']")?.InnerText;
-                extractedData.BuyerAddress = nMua?.SelectSingleNode(".//*[local-name()='DChi']")?.InnerText;
-                extractedData.BuyerPhone = nMua?.SelectSingleNode(".//*[local-name()='SDThoai']")?.InnerText;
-                extractedData.BuyerEmail = nMua?.SelectSingleNode(".//*[local-name()='DCTDTu']")?.InnerText;
-                extractedData.BuyerContactPerson = nMua?.SelectSingleNode(".//*[local-name()='HVTNMHang']")?.InnerText;
+                extractedData.BuyerName = nMua
+                    ?.SelectSingleNode(".//*[local-name()='Ten']")
+                    ?.InnerText;
+                extractedData.BuyerTaxCode = nMua
+                    ?.SelectSingleNode(".//*[local-name()='MST']")
+                    ?.InnerText;
+                extractedData.BuyerAddress = nMua
+                    ?.SelectSingleNode(".//*[local-name()='DChi']")
+                    ?.InnerText;
+                extractedData.BuyerPhone = nMua
+                    ?.SelectSingleNode(".//*[local-name()='SDThoai']")
+                    ?.InnerText;
+                extractedData.BuyerEmail = nMua
+                    ?.SelectSingleNode(".//*[local-name()='DCTDTu']")
+                    ?.InnerText;
+                extractedData.BuyerContactPerson = nMua
+                    ?.SelectSingleNode(".//*[local-name()='HVTNMHang']")
+                    ?.InnerText;
 
                 if (string.IsNullOrWhiteSpace(extractedData.BuyerName) && !string.IsNullOrWhiteSpace(extractedData.BuyerContactPerson))
                 {
@@ -223,13 +272,21 @@ namespace SmartInvoice.API.Services.Implementations
                     string sQty = item.SelectSingleNode(".//*[local-name()='SLuong']")?.InnerText;
                     string sPrice = item.SelectSingleNode(".//*[local-name()='DGia']")?.InnerText;
                     string sTotal = item.SelectSingleNode(".//*[local-name()='ThTien']")?.InnerText;
-                    string sTaxRate = item.SelectSingleNode(".//*[local-name()='TSuat']")?.InnerText;
-                    string sTaxAmount = item.SelectSingleNode(".//*[local-name()='TienThue']")?.InnerText;
+                    string sTaxRate = item.SelectSingleNode(
+                        ".//*[local-name()='TSuat']"
+                    )?.InnerText;
+                    string sTaxAmountStr = item.SelectSingleNode(
+                        ".//*[local-name()='TTin'][*[local-name()='TTruong']='Tiền thuế']/*[local-name()='DLieu']"
+                    )?.InnerText;
 
+                    decimal taxAmount = 0;
+                    if (!string.IsNullOrEmpty(sTaxAmountStr))
+                    {
+                        decimal.TryParse(sTaxAmountStr, out taxAmount);
+                    }
                     decimal.TryParse(sQty, out decimal qty);
                     decimal.TryParse(sPrice, out decimal price);
                     decimal.TryParse(sTotal, out decimal total);
-                    decimal.TryParse(sTaxAmount, out decimal taxAmount);
 
                     int vatRate = 0;
                     if (!string.IsNullOrEmpty(sTaxRate) && sTaxRate.Contains("%"))
@@ -239,17 +296,19 @@ namespace SmartInvoice.API.Services.Implementations
 
                     if (!string.IsNullOrEmpty(name))
                     {
-                        extractedData.LineItems.Add(new SmartInvoice.API.Entities.JsonModels.InvoiceLineItem
-                        {
-                            Stt = stt++,
-                            ProductName = name,
-                            Unit = unit,
-                            Quantity = qty,
-                            UnitPrice = price,
-                            TotalAmount = total,
-                            VatRate = vatRate,
-                            VatAmount = taxAmount
-                        });
+                        extractedData.LineItems.Add(
+                            new SmartInvoice.API.Entities.JsonModels.InvoiceLineItem
+                            {
+                                Stt = stt++,
+                                ProductName = name,
+                                Unit = unit,
+                                Quantity = qty,
+                                UnitPrice = price,
+                                TotalAmount = total,
+                                VatRate = vatRate,
+                                VatAmount = taxAmount,
+                            }
+                        );
                     }
                 }
             }
@@ -619,7 +678,12 @@ namespace SmartInvoice.API.Services.Implementations
             return true;
         }
 
-        private bool CheckDecimal(string value, string fieldName, out decimal decimalResult, ValidationResultDto result)
+        private bool CheckDecimal(
+            string value,
+            string fieldName,
+            out decimal decimalResult,
+            ValidationResultDto result
+        )
         {
             if (!decimal.TryParse(value, out decimalResult))
             {
@@ -631,7 +695,8 @@ namespace SmartInvoice.API.Services.Implementations
 
         private bool IsValidTaxCode(string taxCode)
         {
-            if (string.IsNullOrEmpty(taxCode)) return false;
+            if (string.IsNullOrEmpty(taxCode))
+                return false;
 
             Match match10or13 = Regex.Match(taxCode, @"^(\d{10})(-\d{3})?$");
             if (match10or13.Success)
@@ -650,21 +715,24 @@ namespace SmartInvoice.API.Services.Implementations
 
         private bool ValidateMstChecksum(string mst10)
         {
-            if (mst10.Length != 10) return false;
+            if (mst10.Length != 10)
+                return false;
 
             int[] weights = { 31, 29, 23, 19, 17, 13, 7, 5, 3 };
             long sum = 0;
 
             for (int i = 0; i < 9; i++)
             {
-                if (!char.IsDigit(mst10[i])) return false;
+                if (!char.IsDigit(mst10[i]))
+                    return false;
                 sum += (mst10[i] - '0') * weights[i];
             }
 
             long remainder = sum % 11;
             long checkDigit = 10 - remainder;
 
-            if (checkDigit == 10) return false;
+            if (checkDigit == 10)
+                return false;
 
             int actualDigit = mst10[9] - '0';
             return checkDigit == actualDigit;
@@ -722,7 +790,8 @@ namespace SmartInvoice.API.Services.Implementations
                             {
                                 if (x509Data.Certificates.Count > 0)
                                 {
-                                    X509Certificate2? cert = (X509Certificate2?)x509Data.Certificates[0];
+                                    X509Certificate2? cert = (X509Certificate2?)
+                                        x509Data.Certificates[0];
                                     return cert?.Subject;
                                 }
                             }
