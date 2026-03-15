@@ -6,6 +6,7 @@ using SmartInvoice.API.Data;
 using SmartInvoice.API.DTOs.Payment;
 using SmartInvoice.API.Entities;
 using SmartInvoice.API.Services.Interfaces;
+using System.Globalization;
 
 namespace SmartInvoice.API.Services.Implementations;
 
@@ -15,9 +16,17 @@ public class VnPayService : IVnPayService
     private readonly IConfiguration _configuration;
 
     // Hardcoded Add-on definitions
-    private static readonly Dictionary<string, (string Name, string Description, int InvoiceCount, decimal Price)> Addons = new()
+    private static readonly Dictionary<
+        string,
+        (string Name, string Description, int InvoiceCount, decimal Price)
+    > Addons = new()
     {
-        ["ADDON_50_INVOICES"] = ("Gói thêm 50 Hóa đơn", "+50 Hóa đơn — Sử dụng không thời hạn", 50, 50000m)
+        ["ADDON_50_INVOICES"] = (
+            "Gói thêm 50 Hóa đơn",
+            "+50 Hóa đơn — Sử dụng không thời hạn",
+            50,
+            50000m
+        ),
     };
 
     public VnPayService(AppDbContext context, IConfiguration configuration)
@@ -28,8 +37,8 @@ public class VnPayService : IVnPayService
 
     public async Task<List<SubscriptionPackageDto>> GetPackagesAsync()
     {
-        return await _context.SubscriptionPackages
-            .Where(p => p.IsActive)
+        return await _context
+            .SubscriptionPackages.Where(p => p.IsActive)
             .OrderBy(p => p.PricePerMonth)
             .Select(p => new SubscriptionPackageDto
             {
@@ -49,17 +58,45 @@ public class VnPayService : IVnPayService
                 HasRiskWarning = p.HasRiskWarning,
                 HasAuditLog = p.HasAuditLog,
                 HasErpIntegration = p.HasErpIntegration,
-                IsActive = p.IsActive
+                IsActive = p.IsActive,
             })
             .ToListAsync();
     }
 
     public async Task<CurrentSubscriptionDto> GetCurrentSubscriptionAsync(Guid companyId)
     {
-        var company = await _context.Companies
-            .Include(c => c.SubscriptionPackage)
-            .FirstOrDefaultAsync(c => c.CompanyId == companyId)
+        var company =
+            await _context
+                .Companies.Include(c => c.SubscriptionPackage)
+                .FirstOrDefaultAsync(c => c.CompanyId == companyId)
             ?? throw new KeyNotFoundException("Company not found.");
+
+        // Lazy fallback to Free package if expired
+        if (
+            company.SubscriptionExpiredAt.HasValue
+            && DateTime.UtcNow > company.SubscriptionExpiredAt.Value
+        )
+        {
+            var freePackage = await _context.SubscriptionPackages.FirstOrDefaultAsync(p =>
+                p.PackageCode == "FREE"
+            );
+            if (freePackage != null && company.SubscriptionPackageId != freePackage.PackageId)
+            {
+                company.SubscriptionPackageId = freePackage.PackageId;
+                company.SubscriptionPackage = freePackage;
+                company.SubscriptionTier = freePackage.PackageCode;
+                company.BillingCycle = "Monthly";
+                company.SubscriptionStartDate = null;
+                company.SubscriptionExpiredAt = null;
+                company.MaxUsers = freePackage.MaxUsers;
+                company.MaxInvoicesPerMonth = freePackage.MaxInvoicesPerMonth;
+                company.StorageQuotaGB = freePackage.StorageQuotaGB;
+                company.UpdatedAt = DateTime.UtcNow;
+                company.UsedInvoicesThisMonth = 0;
+                company.CurrentCycleStart = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+        }
 
         // Lazy reset for accurate read
         if (DateTime.UtcNow >= company.CurrentCycleStart.AddMonths(1))
@@ -93,22 +130,30 @@ public class VnPayService : IVnPayService
     }
 
     public async Task<CreatePaymentResponse> CreatePaymentAsync(
-        CreatePaymentRequest request, Guid companyId, Guid userId, string ipAddress)
+        CreatePaymentRequest request,
+        Guid companyId,
+        Guid userId,
+        string ipAddress
+    )
     {
-        var package_ = await _context.SubscriptionPackages.FindAsync(request.PackageId)
+        var package_ =
+            await _context.SubscriptionPackages.FindAsync(request.PackageId)
             ?? throw new KeyNotFoundException("Package not found.");
 
         // Block downgrade: check if company's current package level >= requested package level
-        var company = await _context.Companies
-            .Include(c => c.SubscriptionPackage)
+        var company = await _context
+            .Companies.Include(c => c.SubscriptionPackage)
             .FirstOrDefaultAsync(c => c.CompanyId == companyId);
 
-        if (company?.SubscriptionPackage != null
+        if (
+            company?.SubscriptionPackage != null
             && company.SubscriptionExpiredAt > DateTime.UtcNow
-            && company.SubscriptionPackage.PackageLevel >= package_.PackageLevel)
+            && company.SubscriptionPackage.PackageLevel >= package_.PackageLevel
+        )
         {
             throw new InvalidOperationException(
-                "Không thể hạ cấp hoặc mua lại gói cùng cấp khi gói hiện tại vẫn còn hiệu lực.");
+                "Không thể hạ cấp hoặc mua lại gói cùng cấp khi gói hiện tại vẫn còn hiệu lực."
+            );
         }
 
         // Calculate amount based on billing cycle
@@ -116,7 +161,7 @@ public class VnPayService : IVnPayService
         {
             "SemiAnnual" => package_.PricePerSixMonths,
             "Annual" => package_.PricePerYear,
-            _ => package_.PricePerMonth
+            _ => package_.PricePerMonth,
         };
 
         if (amount <= 0)
@@ -135,7 +180,7 @@ public class VnPayService : IVnPayService
             Status = "Pending",
             CreatedBy = userId,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
         };
         _context.PaymentTransactions.Add(transaction);
         await _context.SaveChangesAsync();
@@ -146,25 +191,30 @@ public class VnPayService : IVnPayService
         return new CreatePaymentResponse
         {
             PaymentUrl = paymentUrl,
-            TransactionId = transaction.TransactionId.ToString()
+            TransactionId = transaction.TransactionId.ToString(),
         };
     }
 
-    public async Task<PaymentResultDto> ProcessVnPayReturnAsync(Dictionary<string, string> vnpayData)
+    public async Task<PaymentResultDto> ProcessVnPayReturnAsync(
+        Dictionary<string, string> vnpayData
+    )
     {
         // Validate checksum
         var vnpSecureHash = vnpayData.GetValueOrDefault("vnp_SecureHash") ?? "";
-        var hashSecret = _configuration["VnPay:HashSecret"]
+        var hashSecret =
+            _configuration["VnPay:HashSecret"]
             ?? throw new InvalidOperationException("VnPay HashSecret not configured.");
 
         // Remove hash fields for validation
         var dataToHash = vnpayData
-            .Where(kv => kv.Key.StartsWith("vnp_") && 
-                         kv.Key != "vnp_SecureHash" && 
-                         kv.Key != "vnp_SecureHashType" && 
-                         !string.IsNullOrEmpty(kv.Value))
-            .OrderBy(kv => kv.Key, StringComparer.Ordinal) 
-            .Select(kv => $"{kv.Key}={WebUtility.UrlEncode(kv.Value)}") // Trả về WebUtility
+            .Where(kv =>
+                kv.Key.StartsWith("vnp_")
+                && kv.Key != "vnp_SecureHash"
+                && kv.Key != "vnp_SecureHashType"
+                && !string.IsNullOrEmpty(kv.Value)
+            )
+            .OrderBy(kv => kv.Key, StringComparer.Ordinal)
+            .Select(kv => $"{kv.Key}={VnPayUrlEncode(kv.Value)}")
             .ToList();
 
         var rawData = string.Join("&", dataToHash);
@@ -180,9 +230,10 @@ public class VnPayService : IVnPayService
         var cardType = vnpayData.GetValueOrDefault("vnp_CardType") ?? "";
         var payDate = vnpayData.GetValueOrDefault("vnp_PayDate") ?? "";
 
-        var transaction = await _context.PaymentTransactions
-            .Include(t => t.Package)
-            .FirstOrDefaultAsync(t => t.VnpTxnRef == txnRef)
+        var transaction =
+            await _context
+                .PaymentTransactions.Include(t => t.Package)
+                .FirstOrDefaultAsync(t => t.VnpTxnRef == txnRef)
             ?? throw new KeyNotFoundException("Transaction not found.");
 
         transaction.VnpResponseCode = responseCode;
@@ -215,21 +266,24 @@ public class VnPayService : IVnPayService
             {
                 // Subscription upgrade: update company + reset quota
                 var company = await _context.Companies.FindAsync(transaction.CompanyId);
-                if (company != null)
+                if (company != null && transaction.PackageId.HasValue)
                 {
-                    company.SubscriptionPackageId = transaction.PackageId;
-                    company.SubscriptionTier = transaction.Package?.PackageCode ?? company.SubscriptionTier;
+                    company.SubscriptionPackageId = transaction.PackageId.Value;
+                    company.SubscriptionTier =
+                        transaction.Package?.PackageCode ?? company.SubscriptionTier;
                     company.BillingCycle = transaction.BillingCycle;
                     company.SubscriptionStartDate = DateTime.UtcNow;
                     company.SubscriptionExpiredAt = transaction.BillingCycle switch
                     {
                         "SemiAnnual" => DateTime.UtcNow.AddMonths(6),
                         "Annual" => DateTime.UtcNow.AddYears(1),
-                        _ => DateTime.UtcNow.AddMonths(1)
+                        _ => DateTime.UtcNow.AddMonths(1),
                     };
                     company.MaxUsers = transaction.Package?.MaxUsers ?? company.MaxUsers;
-                    company.MaxInvoicesPerMonth = transaction.Package?.MaxInvoicesPerMonth ?? company.MaxInvoicesPerMonth;
-                    company.StorageQuotaGB = transaction.Package?.StorageQuotaGB ?? company.StorageQuotaGB;
+                    company.MaxInvoicesPerMonth =
+                        transaction.Package?.MaxInvoicesPerMonth ?? company.MaxInvoicesPerMonth;
+                    company.StorageQuotaGB =
+                        transaction.Package?.StorageQuotaGB ?? company.StorageQuotaGB;
 
                     // Reset quota on upgrade
                     company.UsedInvoicesThisMonth = 0;
@@ -257,46 +311,56 @@ public class VnPayService : IVnPayService
             VnpTransactionNo = transactionNo,
             BankCode = bankCode,
             PayDate = payDate,
-            Message = responseCode == "00"
-                ? "Thanh toán thành công! Gói dịch vụ đã được kích hoạt."
-                : $"Thanh toán thất bại. Mã lỗi: {responseCode}"
+            Message =
+                responseCode == "00"
+                    ? "Thanh toán thành công! Gói dịch vụ đã được kích hoạt."
+                    : $"Thanh toán thất bại. Mã lỗi: {responseCode}",
         };
     }
 
     public async Task<List<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid companyId)
     {
-        return await _context.PaymentTransactions
-            .Where(t => t.CompanyId == companyId)
+        return await _context
+            .PaymentTransactions.Where(t => t.CompanyId == companyId)
             .OrderByDescending(t => t.CreatedAt)
             .Include(t => t.Package)
             .Select(t => new PaymentHistoryDto
             {
                 TransactionId = t.TransactionId,
-                PackageName = t.Package != null ? t.Package.PackageName : (t.PaymentType == "Addon" ? "Add-on Hóa đơn" : null),
+                PackageName =
+                    t.Package != null
+                        ? t.Package.PackageName
+                        : (t.PaymentType == "Addon" ? "Add-on Hóa đơn" : null),
                 BillingCycle = t.BillingCycle,
                 Amount = t.Amount,
                 Status = t.Status,
                 VnpTransactionNo = t.VnpTransactionNo,
                 PaymentType = t.PaymentType,
-                CreatedAt = t.CreatedAt
+                CreatedAt = t.CreatedAt,
             })
             .ToListAsync();
     }
 
     public List<AddonInfoDto> GetAvailableAddons()
     {
-        return Addons.Select(a => new AddonInfoDto
-        {
-            AddonCode = a.Key,
-            AddonName = a.Value.Name,
-            Description = a.Value.Description,
-            InvoiceCount = a.Value.InvoiceCount,
-            Price = a.Value.Price
-        }).ToList();
+        return Addons
+            .Select(a => new AddonInfoDto
+            {
+                AddonCode = a.Key,
+                AddonName = a.Value.Name,
+                Description = a.Value.Description,
+                InvoiceCount = a.Value.InvoiceCount,
+                Price = a.Value.Price,
+            })
+            .ToList();
     }
 
     public async Task<CreatePaymentResponse> CreateAddonPaymentAsync(
-        CreateAddonPaymentRequest request, Guid companyId, Guid userId, string ipAddress)
+        CreateAddonPaymentRequest request,
+        Guid companyId,
+        Guid userId,
+        string ipAddress
+    )
     {
         if (!Addons.TryGetValue(request.AddonCode, out var addon))
             throw new KeyNotFoundException("Add-on không tồn tại.");
@@ -314,7 +378,7 @@ public class VnPayService : IVnPayService
             Status = "Pending",
             CreatedBy = userId,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
         };
         _context.PaymentTransactions.Add(transaction);
         await _context.SaveChangesAsync();
@@ -324,7 +388,7 @@ public class VnPayService : IVnPayService
         return new CreatePaymentResponse
         {
             PaymentUrl = paymentUrl,
-            TransactionId = transaction.TransactionId.ToString()
+            TransactionId = transaction.TransactionId.ToString(),
         };
     }
 
@@ -332,21 +396,64 @@ public class VnPayService : IVnPayService
     //  PRIVATE HELPERS
     // ═══════════════════════════════════════════════
 
-    private string BuildVnPayUrl(PaymentTransaction transaction, string packageName, string ipAddress)
+    private static string VnPayUrlEncode(string value)
     {
-        var vnpUrl = _configuration["VnPay:Url"]
-            ?? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
-        var tmnCode = _configuration["VnPay:TmnCode"]
+        if (string.IsNullOrEmpty(value))
+            return "";
+        var result = new StringBuilder();
+        byte[] bytes = Encoding.UTF8.GetBytes(value);
+        foreach (byte b in bytes)
+        {
+            char c = (char)b;
+            // Giữ nguyên các ký tự này y hệt chuẩn Java
+            if (
+                (c >= 'a' && c <= 'z')
+                || (c >= 'A' && c <= 'Z')
+                || (c >= '0' && c <= '9')
+                || c == '.'
+                || c == '-'
+                || c == '*'
+                || c == '_'
+            )
+            {
+                result.Append(c);
+            }
+            else if (c == ' ')
+            {
+                result.Append('+'); // Bắt buộc khoảng trắng phải là dấu +
+            }
+            else
+            {
+                result.Append("%" + b.ToString("X2")); // Các dấu ngoặc () sẽ thành %28, %29 ở đây
+            }
+        }
+        return result.ToString();
+    }
+
+    private string BuildVnPayUrl(
+        PaymentTransaction transaction,
+        string packageName,
+        string ipAddress
+    )
+    {
+        var vnpUrl =
+            _configuration["VnPay:Url"] ?? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+        var tmnCode =
+            _configuration["VnPay:TmnCode"]
             ?? throw new InvalidOperationException("VnPay TmnCode not configured.");
-        var hashSecret = _configuration["VnPay:HashSecret"]
+        var hashSecret =
+            _configuration["VnPay:HashSecret"]
             ?? throw new InvalidOperationException("VnPay HashSecret not configured.");
-        var returnUrl = _configuration["VnPay:ReturnUrl"]
-            ?? "http://localhost:3000/app/payment/result";
+        var returnUrl =
+            _configuration["VnPay:ReturnUrl"] ?? "http://localhost:3000/app/payment/result";
 
         // VNPay expects amount in VND * 100
         var amountInVnpFormat = ((long)(transaction.Amount * 100)).ToString();
 
-        var vnpParams = new SortedDictionary<string, string>
+        var rawOrderInfo = $"Thanh toan {packageName} - {transaction.BillingCycle}";
+        var safeOrderInfo = GenerateSafeOrderInfo(rawOrderInfo);
+
+        var vnpParams = new SortedDictionary<string, string>(StringComparer.Ordinal)
         {
             { "vnp_Version", "2.1.0" },
             { "vnp_Command", "pay" },
@@ -354,17 +461,19 @@ public class VnPayService : IVnPayService
             { "vnp_Amount", amountInVnpFormat },
             { "vnp_CurrCode", "VND" },
             { "vnp_TxnRef", transaction.VnpTxnRef! },
-            { "vnp_OrderInfo", $"Thanh toan {packageName} - {transaction.BillingCycle}" },
+            { "vnp_OrderInfo", safeOrderInfo },
             { "vnp_OrderType", "other" },
             { "vnp_Locale", "vn" },
             { "vnp_ReturnUrl", returnUrl },
             { "vnp_IpAddr", ipAddress ?? "127.0.0.1" },
-            { "vnp_CreateDate", DateTime.UtcNow.AddHours(7).ToString("yyyyMMddHHmmss") }
+            { "vnp_CreateDate", DateTime.UtcNow.AddHours(7).ToString("yyyyMMddHHmmss") },
         };
 
         // Build query string
-        var queryString = string.Join("&",
-            vnpParams.Select(kv => $"{kv.Key}={WebUtility.UrlEncode(kv.Value)}"));
+        var queryString = string.Join(
+            "&",
+            vnpParams.Select(kv => $"{kv.Key}={VnPayUrlEncode(kv.Value)}")
+        );
 
         // Create secure hash
         var secureHash = HmacSHA512(hashSecret, queryString);
@@ -386,5 +495,30 @@ public class VnPayService : IVnPayService
         using var hmac = new HMACSHA512(keyBytes);
         var hash = hmac.ComputeHash(dataBytes);
         return BitConverter.ToString(hash).Replace("-", "").ToLower();
+    }
+
+    private static string GenerateSafeOrderInfo(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return "";
+        
+        // Loại bỏ dấu tiếng Việt
+        var normalizedString = input.Normalize(NormalizationForm.FormD);
+        var stringBuilder = new StringBuilder();
+        foreach (var c in normalizedString)
+        {
+            var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (unicodeCategory != UnicodeCategory.NonSpacingMark)
+                stringBuilder.Append(c);
+        }
+        var noDiacritics = stringBuilder.ToString().Normalize(NormalizationForm.FormC).Replace("đ", "d").Replace("Đ", "D");
+
+        // Chỉ giữ lại chữ cái, số và khoảng trắng (Tiêu diệt dấu ngoặc và ký tự lạ)
+        var cleanStr = new StringBuilder();
+        foreach (var c in noDiacritics)
+        {
+            if (char.IsLetterOrDigit(c) || c == ' ')
+                cleanStr.Append(c);
+        }
+        return cleanStr.ToString().Trim();
     }
 }

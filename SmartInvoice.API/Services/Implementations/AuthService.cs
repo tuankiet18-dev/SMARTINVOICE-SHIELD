@@ -9,6 +9,8 @@ using SmartInvoice.API.Services.Interfaces;
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
 using Amazon.Runtime;
+using SmartInvoice.API.Data;
+using Microsoft.EntityFrameworkCore;
 using SmartInvoice.API.Enums; // For AmazonServiceException if needed, but specific exceptions are in Model
 using System.Net.Http;
 using System.Text.Json;
@@ -19,6 +21,7 @@ namespace SmartInvoice.API.Services.Implementations
     public class AuthService : IAuthService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly AppDbContext _context;
         private readonly IAmazonCognitoIdentityProvider _cognitoClient;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IMemoryCache _cache;
@@ -28,12 +31,14 @@ namespace SmartInvoice.API.Services.Implementations
 
         public AuthService(
             IUnitOfWork unitOfWork,
+            AppDbContext context,
             IAmazonCognitoIdentityProvider cognitoClient,
             IConfiguration configuration,
             IHttpClientFactory httpClientFactory,
             IMemoryCache cache)
         {
             _unitOfWork = unitOfWork;
+            _context = context;
             _cognitoClient = cognitoClient;
             _httpClientFactory = httpClientFactory;
             _cache = cache;
@@ -176,6 +181,10 @@ namespace SmartInvoice.API.Services.Implementations
 
             try
             {
+                // Fetch FREE package
+                var freePackage = await _context.SubscriptionPackages.FirstOrDefaultAsync(p => p.PackageCode == "FREE") 
+                    ?? throw new Exception("Không tìm thấy gói mặc định (FREE) trong hệ thống.");
+
                 // Create Company using validated data from VietQR
                 var company = new Company
                 {
@@ -187,7 +196,11 @@ namespace SmartInvoice.API.Services.Implementations
                     PhoneNumber = request.AdminPhone, // Using Admin Phone
                     BusinessType = request.BusinessType, // Using mapped payload data
                     LegalRepresentative = request.AdminFullName, // Using Admin Name as representative
-                    SubscriptionTier = SubscriptionTier.Free.ToString(),
+                    SubscriptionPackageId = freePackage.PackageId,
+                    SubscriptionTier = freePackage.PackageCode,
+                    MaxUsers = freePackage.MaxUsers,
+                    MaxInvoicesPerMonth = freePackage.MaxInvoicesPerMonth,
+                    StorageQuotaGB = freePackage.StorageQuotaGB,
                     IsActive = true
                 };
                 await _unitOfWork.Companies.AddAsync(company);

@@ -41,7 +41,7 @@ public class Company : ISoftDelete
     public string? BusinessLicense { get; set; }
 
     // --- Subscription Info ---
-    public Guid? SubscriptionPackageId { get; set; }
+    public Guid SubscriptionPackageId { get; set; }
     [ForeignKey(nameof(SubscriptionPackageId))]
     public SubscriptionPackage? SubscriptionPackage { get; set; }
 
