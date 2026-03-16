@@ -63,6 +63,12 @@ public class Company : ISoftDelete
     public int ExtraInvoicesBalance { get; set; } = 0;
     public DateTime CurrentCycleStart { get; set; } = DateTime.UtcNow;
 
+    // --- Configurations ---
+    public bool IsAutoApproveEnabled { get; set; } = false;
+    
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal AutoApproveThreshold { get; set; } = 0;
+
     // --- Status ---
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; } = false;

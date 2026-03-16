@@ -101,11 +101,11 @@ namespace SmartInvoice.API.Services.Implementations
                 {
                     if (isCashRegister)
                     {
-                        result.AddWarning(
-                            "WARN_SIG_CASH_REG",
-                            "Hóa đơn khởi tạo từ máy tính tiền không có chữ ký số (Hợp lệ theo quy định).",
-                            "Đối với hóa đơn máy tính tiền, không cần chữ ký số."
-                        );
+                        // result.AddWarning(
+                        //     "WARN_SIG_CASH_REG",
+                        //     "Hóa đơn khởi tạo từ máy tính tiền không có chữ ký số (Hợp lệ theo quy định).",
+                        //     "Đối với hóa đơn máy tính tiền, không cần chữ ký số."
+                        // );
                         return result;
                     }
 
@@ -275,9 +275,8 @@ namespace SmartInvoice.API.Services.Implementations
                     string sTaxRate = item.SelectSingleNode(
                         ".//*[local-name()='TSuat']"
                     )?.InnerText;
-                    string sTaxAmountStr = item.SelectSingleNode(
-                        ".//*[local-name()='TTin'][*[local-name()='TTruong']='Tiền thuế']/*[local-name()='DLieu']"
-                    )?.InnerText;
+                    string sTaxAmountStr = item.SelectSingleNode(".//*[local-name()='ThueGTGT']")?.InnerText
+                        ?? item.SelectSingleNode(".//*[local-name()='TTin'][*[local-name()='TTruong']='Tiền thuế' or *[local-name()='TTruong']='VATAmount']/*[local-name()='DLieu']")?.InnerText;
 
                     decimal taxAmount = 0;
                     if (!string.IsNullOrEmpty(sTaxAmountStr))
@@ -519,7 +518,7 @@ namespace SmartInvoice.API.Services.Implementations
                         result.AddError(ErrorCodes.LogicOwner, $"Mã số thuế người mua trên hóa đơn ({buyerTax}) không khớp với công ty hiện tại.", "Vui lòng chỉ tải lên hóa đơn thuộc quyền sở hữu của công ty bạn.");
                         return false;
                     }
-                    
+
                     if (!string.IsNullOrWhiteSpace(buyerName) && !string.IsNullOrWhiteSpace(company.CompanyName))
                     {
                         double similarity = CalculateSimilarity(buyerName.ToLower(), company.CompanyName.ToLower());
@@ -593,6 +592,75 @@ namespace SmartInvoice.API.Services.Implementations
             return true;
         }
 
+        /// <summary>
+        /// Kiểm tra logic toán học tổng tiền, áp dụng cho cả XML và OCR
+        /// </summary>
+        private void ValidateFinancialLogic(
+            ValidationResultDto result,
+            decimal totalAmount,
+            decimal totalPreTax,
+            decimal totalTax,
+            decimal? totalLineItemsPreTax = null,
+            decimal? totalLineItemsTax = null,
+            bool isVatInvoice = false,
+            string source = "XML")
+        {
+            string sourceLabel = source == "OCR" ? "[LOGIC OCR]" : "[LOGIC]";
+
+            // Kiểm tra: Tổng tiền = Tiền hàng + Thuế (LUÔN KIỂM TRA ĐỐI VỚI HÓA ĐƠN GTGT HOẶC CÓ TIỀN HÀNG/THUẾ)
+            bool shouldCheckTotalMath = isVatInvoice || totalPreTax > 0 || totalTax > 0;
+            if (shouldCheckTotalMath && totalAmount > 0 && Math.Abs((totalPreTax + totalTax) - totalAmount) > CurrencyTolerance)
+            {
+                result.AddError(
+                    ErrorCodes.LogicTotalMismatch,
+                    $"{sourceLabel} Tổng thanh toán KHÔNG KHỚP (Tiền hàng + Thuế)",
+                    "Cộng dồn tiền hàng và thuế không khớp tổng thanh toán, kiểm tra lại dữ liệu hóa đơn.");
+            }
+
+            // Nếu có chi tiết dòng hàng, kiểm tra sự khớp của tổng tiền hàng
+            if (totalLineItemsPreTax.HasValue)
+            {
+                decimal linePreTax = totalLineItemsPreTax.Value;
+
+                if (totalPreTax > 0)
+                {
+                    // Trường hợp bình thường: Kiểm tra tổng chi tiết dòng == tổng tiền chưa thuế
+                    if (Math.Abs(linePreTax - totalPreTax) > CurrencyTolerance)
+                    {
+                        result.AddError(
+                            ErrorCodes.LogicSalesTotalMismatch,
+                            $"{sourceLabel} Tổng tiền hàng từ chi tiết ({linePreTax:N0}) không khớp tổng tiền chưa thuế ({totalPreTax:N0})",
+                            "Chi tiết các dòng hàng bị thiếu hoặc sai lệch giá trị thành tiền.");
+                    }
+                }
+                else if (totalAmount > 0)
+                {
+                    // Fallback: Khi totalPreTax == 0, kiểm tra tổng chi tiết dòng (bao gồm thuế) == tổng tiền
+                    decimal totalWithLinesTax = linePreTax + (totalLineItemsTax ?? 0);
+                    if (Math.Abs(totalWithLinesTax - totalAmount) > CurrencyTolerance)
+                    {
+                        result.AddError(
+                            ErrorCodes.LogicSalesTotalMismatch,
+                            $"{sourceLabel} Tổng chi tiết dòng hàng hóa không khớp với tổng tiền hóa đơn",
+                            "Cộng dồn chi tiết dòng hàng hóa không khớp với tổng thanh toán.");
+                    }
+                }
+            }
+
+            // Nếu có chi tiết thuế từng dòng, kiểm tra sự khớp (chỉ Warning)
+            if (totalLineItemsTax.HasValue && totalTax > 0)
+            {
+                decimal lineTax = totalLineItemsTax.Value;
+                if (Math.Abs(lineTax - totalTax) > CurrencyTolerance)
+                {
+                    result.AddWarning(
+                        source == "OCR" ? "WARN_LOGIC_TAX_MISMATCH_OCR" : "WARN_LOGIC_TAX_MISMATCH",
+                        $"{sourceLabel} Tổng tiền thuế từ chi tiết ({lineTax:N0}) không khớp tổng thuế hóa đơn ({totalTax:N0})",
+                        "Kiểm tra lại dữ liệu tiền thuế từng dòng.");
+                }
+            }
+        }
+
         private void ValidateFinancialMath(XmlDocument xmlDoc, ValidationResultDto result, bool isVatInvoice, string totalAmountStr, string sTotalPreTax, string sTotalTax)
         {
             decimal totalAmount = 0;
@@ -600,6 +668,7 @@ namespace SmartInvoice.API.Services.Implementations
 
             XmlNodeList items = xmlDoc.SelectNodes("//*[local-name()='HHDVu']");
             decimal totalLineItems = 0;
+            decimal totalLineItemsTax = 0;
 
             if (items.Count == 0)
             {
@@ -614,6 +683,8 @@ namespace SmartInvoice.API.Services.Implementations
                 string sTotal = item.SelectSingleNode(".//*[local-name()='ThTien']")?.InnerText ?? "0";
                 string tChat = item.SelectSingleNode(".//*[local-name()='TChat']")?.InnerText;
                 string tSuat = item.SelectSingleNode(".//*[local-name()='TSuat']")?.InnerText;
+                string sLineTax = item.SelectSingleNode(".//*[local-name()='ThueGTGT']")?.InnerText
+                    ?? item.SelectSingleNode(".//*[local-name()='TTin'][*[local-name()='TTruong']='Tiền thuế' or *[local-name()='TTruong']='VATAmount']/*[local-name()='DLieu']")?.InnerText ?? "0";
 
                 if (!string.IsNullOrEmpty(tSuat))
                 {
@@ -628,12 +699,14 @@ namespace SmartInvoice.API.Services.Implementations
                     result.AddError(ErrorCodes.LogicNoProperty, $"[LỖI CẤU TRÚC] Thiếu trường 'Tính chất' (TChat) cho hàng hóa: {name}", "Bổ sung tính chất cho hàng hóa (Hàng hóa, khuyến mại, chiết khấu...).");
                 }
 
-                decimal qty = 0, price = 0, totalClaimed = 0;
+                decimal qty = 0, price = 0, totalClaimed = 0, lineTax = 0;
                 CheckDecimal(sQty, "SLuong", out qty, result);
                 CheckDecimal(sPrice, "DGia", out price, result);
                 CheckDecimal(sTotal, "ThTien", out totalClaimed, result);
+                CheckDecimal(sLineTax, "ThueGTGT", out lineTax, result);
 
                 totalLineItems += totalClaimed;
+                totalLineItemsTax += lineTax;
 
                 if (tChat == "1" && Math.Abs((qty * price) - totalClaimed) > CurrencyTolerance)
                 {
@@ -645,21 +718,8 @@ namespace SmartInvoice.API.Services.Implementations
             CheckDecimal(sTotalPreTax, "TgTCThue", out totalPreTax, result);
             CheckDecimal(sTotalTax, "TgTThue", out totalTax, result);
 
-            if (isVatInvoice)
-            {
-                if (Math.Abs((totalPreTax + totalTax) - totalAmount) > CurrencyTolerance)
-                {
-                    result.AddError(ErrorCodes.LogicTotalMismatch, $"[LỖI LOGIC] Tổng thanh toán KHÔNG KHỚP (Tiền hàng + Thuế)", "Cộng dồn tiền hàng và thuế không khớp tổng thanh toán, kiểm tra lại hóa đơn.");
-                }
-            }
-            else
-            {
-                decimal comparisonBase = (totalPreTax == 0 && Math.Abs(totalPreTax - totalAmount) > CurrencyTolerance) ? totalLineItems : totalPreTax;
-                if (Math.Abs(comparisonBase - totalAmount) > CurrencyTolerance)
-                {
-                    result.AddError(ErrorCodes.LogicSalesTotalMismatch, $"[LỖI LOGIC] Hóa đơn bán hàng: Tổng tiền không khớp.", "Cộng dồn chi tiết dòng hàng hóa không khớp với tổng tiền hóa đơn.");
-                }
-            }
+            // Gọi hàm kiểm tra logic chung
+            ValidateFinancialLogic(result, totalAmount, totalPreTax, totalTax, totalLineItems, totalLineItemsTax, isVatInvoice, "XML");
         }
 
         private string GetNodeValue(XmlDocument doc, string localName)
@@ -835,7 +895,7 @@ namespace SmartInvoice.API.Services.Implementations
                 extractedData.SellerTaxCode = ocrData.Seller.TaxCode?.Value;
                 if (string.IsNullOrEmpty(extractedData.SellerTaxCode) && !string.IsNullOrEmpty(ocrData.Seller.TaxAuthorityCode?.Value))
                 {
-                     // Fallback check if tax authority code might hold something useful
+                    // Fallback check if tax authority code might hold something useful
                 }
             }
 
@@ -895,14 +955,15 @@ namespace SmartInvoice.API.Services.Implementations
                 string? khhDon = ocrData.Invoice?.Symbol?.Value;
                 string? shDon = ocrData.Invoice?.Number?.Value;
 
+                // Task 1: Use logic-based error code instead of XmlMissingField
                 if (string.IsNullOrWhiteSpace(sellerTax))
-                    result.AddError(ErrorCodes.XmlMissingField, "[LỖI DỮ LIỆU OCR] Thiếu trường bắt buộc: MST Người Bán", "OCR không đọc được MST người bán.");
-                
+                    result.AddError("ERR_LOGIC_MISSING_FIELD", "[LỖI DỮ LIỆU OCR] Thiếu trường bắt buộc: MST Người Bán", "OCR không đọc được MST người bán.");
+
                 if (ocrData.Invoice?.TotalAmount == null || ocrData.Invoice.TotalAmount.Value == 0)
-                    result.AddError(ErrorCodes.XmlMissingField, "[LỖI DỮ LIỆU OCR] Thiếu trường bắt buộc: Tổng tiền", "OCR không đọc được Tổng tiền.");
-                
+                    result.AddError("ERR_LOGIC_MISSING_FIELD", "[LỖI DỮ LIỆU OCR] Thiếu trường bắt buộc: Tổng tiền", "OCR không đọc được Tổng tiền.");
+
                 if (string.IsNullOrWhiteSpace(ocrData.Invoice?.Date?.Value))
-                    result.AddError(ErrorCodes.XmlMissingField, "[LỖI DỮ LIỆU OCR] Thiếu trường bắt buộc: Ngày lập", "OCR không đọc được Ngày lập hóa đơn.");
+                    result.AddError("ERR_LOGIC_MISSING_FIELD", "[LỖI DỮ LIỆU OCR] Thiếu trường bắt buộc: Ngày lập", "OCR không đọc được Ngày lập hóa đơn.");
 
                 bool dbValid = await ValidateDatabaseConstraintsAsync(companyId, sellerTax ?? "", buyerTax ?? "", ocrData.Buyer?.Name?.Value, khhDon ?? "", shDon ?? "", result, cancellationToken, processingMethod: "API");
                 if (!dbValid) return result;
@@ -910,37 +971,73 @@ namespace SmartInvoice.API.Services.Implementations
                 decimal totalAmount = ocrData.Invoice?.TotalAmount?.Value ?? 0;
                 decimal totalPreTax = ocrData.Invoice?.Subtotal?.Value ?? 0;
                 decimal totalTax = ocrData.Invoice?.VatAmount?.Value ?? 0;
-                
-                if (totalAmount > 0 && Math.Abs((totalPreTax + totalTax) - totalAmount) > CurrencyTolerance)
-                {
-                    result.AddError(ErrorCodes.LogicTotalMismatch, $"[LỖI LOGIC OCR] Tổng thanh toán KHÔNG KHỚP (Tiền hàng + Thuế)", "Cộng dồn tiền hàng và thuế không khớp tổng thanh toán, kiểm tra lại dữ liệu OCR.");
-                }
+
+                decimal? totalLineItemsPreTax = null;
+                decimal? totalLineItemsTax = null;
 
                 if (ocrData.Items != null && ocrData.Items.Any())
                 {
-                    decimal totalLineItemsPreTax = 0;
-                    decimal totalLineItemsTax = 0;
+                    totalLineItemsPreTax = 0;
+                    totalLineItemsTax = 0;
 
+                    // Task 2: Add line-item level validation
                     foreach (var item in ocrData.Items)
                     {
+                        // Accumulate totals for aggregate validation
                         totalLineItemsPreTax += item.Total?.Value ?? 0;
                         totalLineItemsTax += item.LineTax?.Value ?? 0;
-                    }
 
-                    if (totalPreTax > 0 && Math.Abs(totalLineItemsPreTax - totalPreTax) > CurrencyTolerance)
-                    {
-                        result.AddError(ErrorCodes.LogicSalesTotalMismatch, $"[LỖI LOGIC OCR] Tổng tiền hàng từ chi tiết ({totalLineItemsPreTax:N0}) không khớp tổng tiền chưa thuế hóa đơn ({totalPreTax:N0}).", "Chi tiết các dòng hàng bị thiếu hoặc sai lệch giá trị thành tiền.");
-                    }
-                    else if (totalPreTax == 0 && totalAmount > 0 && Math.Abs(totalLineItemsPreTax + totalLineItemsTax - totalAmount) > CurrencyTolerance)
-                    {
-                        result.AddError(ErrorCodes.LogicSalesTotalMismatch, $"[LỖI LOGIC OCR] Tổng chi tiết dòng hàng hóa không khớp với tổng tiền hóa đơn.", "Cộng dồn chi tiết dòng hàng hóa không khớp với tổng thanh toán.");
-                    }
+                        // 2.1: Tax Rate Validation
+                        string? vatRateStr = item.VatRate?.Value;
+                        if (!string.IsNullOrWhiteSpace(vatRateStr))
+                        {
+                            // Extract and normalize VAT rate (e.g., "10%" -> "10%")
+                            string normalizedRate = vatRateStr.Trim();
+                            if (!ValidTaxRates.Contains(normalizedRate))
+                            {
+                                string productName = item.Name?.Value ?? "Hàng hóa";
+                                result.AddError(
+                                    ErrorCodes.LogicTaxRate,
+                                    $"[RỦI RO THUẾ SUẤT OCR] Thuế suất '{vatRateStr}' không hợp lệ hoặc bất thường ở hàng hóa: {productName}",
+                                    "Xác minh lại mức thuế suất hiện hành.");
+                            }
+                        }
 
-                    if (totalTax > 0 && totalLineItemsTax > 0 && Math.Abs(totalLineItemsTax - totalTax) > CurrencyTolerance)
-                    {
-                        result.AddWarning("WARN_LOGIC_TAX_MISMATCH", $"[CẢNH BÁO OCR] Tổng tiền thuế từ dòng hàng hóa ({totalLineItemsTax:N0}) không khớp tổng thuế hóa đơn ({totalTax:N0}).", "Kiểm tra lại dữ liệu tiền thuế từng dòng.");
+                        // 2.2: Line Math Deviation Check
+                        decimal qty = item.Quantity?.Value ?? 0;
+                        decimal price = item.UnitPrice?.Value ?? 0;
+                        decimal total = item.Total?.Value ?? 0;
+
+                        // Check if qty * price matches total (with tolerance)
+                        if (qty > 0 && price > 0 && total > 0)
+                        {
+                            decimal expectedTotal = qty * price;
+                            if (Math.Abs(expectedTotal - total) > CurrencyTolerance)
+                            {
+                                string productName = item.Name?.Value ?? "Hàng hóa";
+                                result.AddWarning(
+                                    "WARN_LOGIC_CALC_DEV_OCR",
+                                    $"[CẢNH BÁO RỦI RO] Sai lệch tính toán OCR: {productName} (Lệch Thành tiền > {CurrencyTolerance}đ). Số lượng: {qty}, Đơn giá: {price}, Thành tiền: {total}",
+                                    "Kiểm tra lại số lượng * đơn giá có khớp với thành tiền không.");
+                            }
+                        }
                     }
                 }
+
+                // Xác định loại hóa đơn từ dữ liệu OCR: 
+                // Nếu Ký hiệu bắt đầu bằng '2' (ví dụ: 2C22TAA) hoặc Tên loại có chữ "BÁN HÀNG" -> Không phải hóa đơn GTGT
+                bool isOcrVatInvoice = true; // Mặc định giả định là hóa đơn GTGT (kiểm tra chặt chẽ nhất)
+                string? invoiceTypeStr = ocrData.Invoice?.Type?.Value?.ToUpper();
+                string? invoiceSymbol = ocrData.Invoice?.Symbol?.Value;
+
+                if ((invoiceTypeStr != null && invoiceTypeStr.Contains("BÁN HÀNG")) ||
+                    (!string.IsNullOrEmpty(invoiceSymbol) && invoiceSymbol.StartsWith("2")))
+                {
+                    isOcrVatInvoice = false;
+                }
+
+                // Gọi hàm kiểm tra logic chung cho cả XML và OCR với cờ isOcrVatInvoice đã được xác định động
+                ValidateFinancialLogic(result, totalAmount, totalPreTax, totalTax, totalLineItemsPreTax, totalLineItemsTax, isVatInvoice: isOcrVatInvoice, "OCR");
 
                 if (!string.IsNullOrEmpty(sellerTax))
                 {

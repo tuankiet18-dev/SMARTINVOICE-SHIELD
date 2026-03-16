@@ -26,6 +26,7 @@ import SystemConfig from './pages/SystemConfig';
 import Profile from './pages/Profile';
 import SubscriptionPage from './pages/SubscriptionPage';
 import PaymentResult from './pages/PaymentResult';
+import Settings from './pages/Settings';
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,7 @@ const App = () => (
                 <Route path="profile" element={<Profile />} />
                 <Route path="subscription" element={<SubscriptionPage />} />
                 <Route path="payment/result" element={<PaymentResult />} />
+                <Route path="settings" element={<Settings />} />
 
                 {/* CompanyAdmin Only Routes */}
                 <Route element={<ProtectedRoute allowedRoles={['CompanyAdmin']} />}>
@@ -68,6 +70,8 @@ const App = () => (
                 <Route path="tenants" element={<TenantManagement />} />
                 <Route path="global-blacklist" element={<GlobalBlacklist />} />
                 <Route path="system-config" element={<SystemConfig />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="profile" element={<Profile />} />
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />

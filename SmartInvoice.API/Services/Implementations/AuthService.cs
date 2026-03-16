@@ -232,7 +232,8 @@ namespace SmartInvoice.API.Services.Implementations
                         SmartInvoice.API.Constants.Permissions.InvoiceApprove,
                         SmartInvoice.API.Constants.Permissions.InvoiceReject,
                         SmartInvoice.API.Constants.Permissions.InvoiceOverrideRisk,
-                        SmartInvoice.API.Constants.Permissions.ReportExport
+                        SmartInvoice.API.Constants.Permissions.ReportExport,
+                        SmartInvoice.API.Constants.Permissions.CompanyManage
                     },
                     IsActive = false, // Not active until verified
                     CreatedAt = DateTime.UtcNow,

@@ -101,6 +101,9 @@ namespace SmartInvoice.API.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("text");
 
+                    b.Property<decimal>("AutoApproveThreshold")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("BillingCycle")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -140,6 +143,9 @@ namespace SmartInvoice.API.Migrations
                         .HasColumnType("integer");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsAutoApproveEnabled")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsDeleted")
@@ -1185,6 +1191,12 @@ namespace SmartInvoice.API.Migrations
 
                     b.Property<string>("Permissions")
                         .HasColumnType("jsonb");
+
+                    b.Property<bool>("ReceiveEmailNotifications")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("ReceiveInAppNotifications")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Role")
                         .IsRequired()

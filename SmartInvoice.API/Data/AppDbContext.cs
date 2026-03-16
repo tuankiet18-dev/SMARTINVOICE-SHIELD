@@ -334,8 +334,70 @@ public class AppDbContext : DbContext
                 HasAuditLog = true,
                 HasErpIntegration = true,
                 IsActive = true,
-                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
+
+        modelBuilder.Entity<SystemConfiguration>().HasData(
+            new SystemConfiguration
+            {
+                ConfigId = 1,
+                ConfigKey = "OcrApiEndpoint",
+                ConfigValue = "http://localhost:5000/process_invoice",
+                ConfigType = "String",
+                Category = "AI & OCR",
+                Description = "Endpoint kết nối với dịch vụ OCR Python.",
+                DefaultValue = "http://localhost:5000/process_invoice",
+                IsReadOnly = false,
+                RequiresRestart = false
+            },
+            new SystemConfiguration
+            {
+                ConfigId = 2,
+                ConfigKey = "ConfidenceThreshold",
+                ConfigValue = "0.85",
+                ConfigType = "Integer",
+                Category = "AI & OCR",
+                Description = "Ngưỡng độ tin cậy để tự động chấp nhận kết quả OCR.",
+                DefaultValue = "0.85",
+                IsReadOnly = false,
+                RequiresRestart = false
+            },
+            new SystemConfiguration
+            {
+                ConfigId = 3,
+                ConfigKey = "MaxUploadSizeMB",
+                ConfigValue = "10",
+                ConfigType = "Integer",
+                Category = "Hệ thống",
+                Description = "Dung lượng tối đa cho mỗi file upload (MB).",
+                DefaultValue = "10",
+                IsReadOnly = false,
+                RequiresRestart = false
+            },
+            new SystemConfiguration
+            {
+                ConfigId = 4,
+                ConfigKey = "AllowMachineLearning",
+                ConfigValue = "true",
+                ConfigType = "Boolean",
+                Category = "AI & OCR",
+                Description = "Cho phép AI học từ dữ liệu chỉnh sửa của người dùng.",
+                DefaultValue = "true",
+                IsReadOnly = false,
+                RequiresRestart = false
+            },
+            new SystemConfiguration
+            {
+                ConfigId = 5,
+                ConfigKey = "SyncIntervalMinutes",
+                ConfigValue = "15",
+                ConfigType = "Integer",
+                Category = "Hệ thống",
+                Description = "Thời gian đồng bộ dữ liệu với AWS S3 (phút).",
+                DefaultValue = "15",
+                IsReadOnly = false,
+                RequiresRestart = false
             }
         );
     }

@@ -40,6 +40,7 @@ export interface ValidationResult {
     invoiceId?: string;
     isReplacement?: boolean;
     newVersion?: number;
+    isAutoApproved?: boolean;
 }
 
 export interface BatchSubmitResult {
