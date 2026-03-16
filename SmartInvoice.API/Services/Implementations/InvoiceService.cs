@@ -27,8 +27,9 @@ namespace SmartInvoice.API.Services.Implementations
         private readonly ILogger<InvoiceService> _logger;
         private readonly ISqsMessagePublisher _sqsPublisher;
         private readonly INotificationService _notificationService;
+        private readonly ISystemConfigProvider _configProvider;
 
-        public InvoiceService(IUnitOfWork unitOfWork, StorageService storageService, IInvoiceProcessorService invoiceProcessor, IConfiguration configuration, ILogger<InvoiceService> logger, ISqsMessagePublisher sqsPublisher, INotificationService notificationService)
+        public InvoiceService(IUnitOfWork unitOfWork, StorageService storageService, IInvoiceProcessorService invoiceProcessor, IConfiguration configuration, ILogger<InvoiceService> logger, ISqsMessagePublisher sqsPublisher, INotificationService notificationService, ISystemConfigProvider configProvider)
         {
             _unitOfWork = unitOfWork;
             _storageService = storageService;
@@ -37,6 +38,7 @@ namespace SmartInvoice.API.Services.Implementations
             _logger = logger;
             _sqsPublisher = sqsPublisher;
             _notificationService = notificationService;
+            _configProvider = configProvider;
         }
 
         // ════════════════════════════════════════════
@@ -1131,21 +1133,28 @@ namespace SmartInvoice.API.Services.Implementations
                 _logger?.LogInformation("Created new invoice {InvoiceId} from S3Key={S3Key}, RiskLevel={RiskLevel}", invoiceId, s3Key, invoice.RiskLevel);
 
                 // Publish VietQR validation message to SQS for asynchronous processing
-                try
+                if (await _configProvider.GetBoolAsync("ENABLE_VIETQR_VALIDATION", true))
                 {
-                    var sqsMessage = new SmartInvoice.API.DTOs.SQS.VietQrValidationMessage
+                    try
                     {
-                        InvoiceId = invoice.InvoiceId,
-                        TaxCode = invoice.Seller?.TaxCode ?? "N/A",
-                        SellerName = invoice.Seller?.Name ?? "N/A"
-                    };
+                        var sqsMessage = new SmartInvoice.API.DTOs.SQS.VietQrValidationMessage
+                        {
+                            InvoiceId = invoice.InvoiceId,
+                            TaxCode = invoice.Seller?.TaxCode ?? "N/A",
+                            SellerName = invoice.Seller?.Name ?? "N/A"
+                        };
 
-                    await _sqsPublisher.PublishVietQrValidationAsync(sqsMessage, CancellationToken.None);
-                    _logger?.LogInformation("Invoice {InvoiceId} saved and VietQR validation message published to SQS successfully.", invoice.InvoiceId);
+                        await _sqsPublisher.PublishVietQrValidationAsync(sqsMessage, CancellationToken.None);
+                        _logger?.LogInformation("Invoice {InvoiceId} saved and VietQR validation message published to SQS successfully.", invoice.InvoiceId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Invoice {InvoiceId} saved successfully, but failed to publish VietQR validation message to SQS.", invoice.InvoiceId);
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger?.LogError(ex, "Invoice {InvoiceId} saved successfully, but failed to publish VietQR validation message to SQS.", invoice.InvoiceId);
+                    _logger?.LogInformation("VietQR validation is disabled via configuration. Skipping SQS publish for Invoice {InvoiceId}.", invoice.InvoiceId);
                 }
 
                 // Trả về invoiceId để frontend biết đây là record nào trong DB
@@ -1527,7 +1536,7 @@ namespace SmartInvoice.API.Services.Implementations
             await _unitOfWork.CompleteAsync();
 
             // Publish SQS message for VietQR validation if Seller TaxCode is available
-            if (!string.IsNullOrEmpty(invoice.Seller?.TaxCode))
+            if (!string.IsNullOrEmpty(invoice.Seller?.TaxCode) && await _configProvider.GetBoolAsync("ENABLE_VIETQR_VALIDATION", true))
             {
                 try
                 {
@@ -1544,6 +1553,10 @@ namespace SmartInvoice.API.Services.Implementations
                 {
                     _logger?.LogError(ex, "Invoice {InvoiceId} saved successfully, but failed to publish VietQR validation message to SQS.", invoice.InvoiceId);
                 }
+            }
+            else if (!string.IsNullOrEmpty(invoice.Seller?.TaxCode))
+            {
+                 _logger?.LogInformation("VietQR validation is disabled via configuration. Skipping SQS publish for Invoice {InvoiceId}.", invoice.InvoiceId);
             }
 
             finalResult.InvoiceId = invoiceId;

@@ -22,6 +22,8 @@ using Polly;
 using Polly.CircuitBreaker;
 using Polly.Retry;
 using Polly.Timeout;
+using System.Security.Claims;
+using SmartInvoice.API.Middleware;
 // DotNetEnv logic removed since we now use parameter store
 
 var builder = WebApplication.CreateBuilder(args);
@@ -90,6 +92,7 @@ builder.Services.AddHttpClient();
 
 // Add Memory Cache
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ISystemConfigProvider, SystemConfigProvider>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
@@ -179,7 +182,8 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = authority,
         ValidateAudience = false, // Cognito Access Token often doesn't contain audience, Id Token does.
         ValidateLifetime = true,
-        ValidateIssuerSigningKey = true
+        ValidateIssuerSigningKey = true,
+        RoleClaimType = ClaimTypes.Role
     };
 });
 
@@ -249,7 +253,20 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    try
+    var logger = services.GetRequiredService<ILogger<Program>>();
+
+    // Sử dụng Polly để thử lại tối đa 5 lần, mỗi lần cách nhau 3 giây
+    var retryPolicy = Policy
+        .Handle<Exception>()
+        .WaitAndRetryAsync(
+            retryCount: 5,
+            sleepDurationProvider: attempt => TimeSpan.FromSeconds(3),
+            onRetry: (exception, timeSpan, attempt, context) =>
+            {
+                logger.LogWarning($"[Auto-Migrate] Database chưa sẵn sàng, đang thử lại lần {attempt} sau {timeSpan.TotalSeconds}s... Lỗi: {exception.Message}");
+            });
+
+    await retryPolicy.ExecuteAsync(async () =>
     {
         var context = services.GetRequiredService<AppDbContext>();
         await context.Database.MigrateAsync();
@@ -259,34 +276,13 @@ using (var scope = app.Services.CreateScope())
         if (!context.Set<DocumentType>().Any())
         {
             context.Set<DocumentType>().AddRange(
-                new DocumentType
-                {
-                    TypeCode = "GTGT",
-                    TypeName = "Hóa đơn giá trị gia tăng",
-                    IsActive = true,
-                    DisplayOrder = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                },
-                new DocumentType
-                {
-                    TypeCode = "SALE",
-                    TypeName = "Hóa đơn bán hàng",
-                    IsActive = true,
-                    DisplayOrder = 2,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                }
+                new DocumentType { TypeCode = "GTGT", TypeName = "Hóa đơn giá trị gia tăng", IsActive = true, DisplayOrder = 1, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new DocumentType { TypeCode = "SALE", TypeName = "Hóa đơn bán hàng", IsActive = true, DisplayOrder = 2, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
             );
             await context.SaveChangesAsync();
             Console.WriteLine("Seeded initial DocumentTypes.");
         }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"An error occurred while migrating the database: {ex.Message}");
-        // In production, you might want to stop the app if DB fails, but for now we log it.
-    }
+    });
 }
 
 // Configure the HTTP request pipeline.
@@ -305,6 +301,8 @@ app.UseCors(x => x
     .AllowCredentials());
 
 // app.UseCors("AllowAmplify");
+
+app.UseMiddleware<MaintenanceMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartInvoice.API.Data;
@@ -13,9 +14,11 @@ using SmartInvoice.API.Entities.JsonModels;
 namespace SmartInvoice.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260316162458_UpdateSystemConfig")]
+    partial class UpdateSystemConfig
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1150,13 +1153,13 @@ namespace SmartInvoice.API.Migrations
                             ConfigKey = "CURRENCY_TOLERANCE",
                             ConfigType = "Integer",
                             ConfigValue = "10",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 3, 16, 16, 24, 55, 373, DateTimeKind.Utc).AddTicks(6592),
                             DefaultValue = "10",
                             Description = "Dung sai làm tròn tiền (VNĐ)",
                             IsEncrypted = false,
                             IsReadOnly = false,
                             RequiresRestart = false,
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                            UpdatedAt = new DateTime(2026, 3, 16, 16, 24, 55, 373, DateTimeKind.Utc).AddTicks(6703)
                         },
                         new
                         {
@@ -1165,13 +1168,13 @@ namespace SmartInvoice.API.Migrations
                             ConfigKey = "ENABLE_VIETQR_VALIDATION",
                             ConfigType = "Boolean",
                             ConfigValue = "true",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 3, 16, 16, 24, 55, 373, DateTimeKind.Utc).AddTicks(6801),
                             DefaultValue = "true",
                             Description = "Xác thực MST qua VietQR",
                             IsEncrypted = false,
                             IsReadOnly = false,
                             RequiresRestart = false,
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                            UpdatedAt = new DateTime(2026, 3, 16, 16, 24, 55, 373, DateTimeKind.Utc).AddTicks(6802)
                         },
                         new
                         {
@@ -1180,13 +1183,13 @@ namespace SmartInvoice.API.Migrations
                             ConfigKey = "MAX_UPLOAD_SIZE_MB",
                             ConfigType = "Integer",
                             ConfigValue = "10",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 3, 16, 16, 24, 55, 373, DateTimeKind.Utc).AddTicks(6805),
                             DefaultValue = "10",
                             Description = "Giới hạn dung lượng tải file (MB)",
                             IsEncrypted = false,
                             IsReadOnly = false,
                             RequiresRestart = false,
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                            UpdatedAt = new DateTime(2026, 3, 16, 16, 24, 55, 373, DateTimeKind.Utc).AddTicks(6806)
                         },
                         new
                         {
@@ -1195,13 +1198,13 @@ namespace SmartInvoice.API.Migrations
                             ConfigKey = "MAINTENANCE_MODE",
                             ConfigType = "Boolean",
                             ConfigValue = "false",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 3, 16, 16, 24, 55, 373, DateTimeKind.Utc).AddTicks(6809),
                             DefaultValue = "false",
                             Description = "Chế độ bảo trì (Chặn thao tác)",
                             IsEncrypted = false,
                             IsReadOnly = false,
                             RequiresRestart = false,
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                            UpdatedAt = new DateTime(2026, 3, 16, 16, 24, 55, 373, DateTimeKind.Utc).AddTicks(6809)
                         });
                 });
 

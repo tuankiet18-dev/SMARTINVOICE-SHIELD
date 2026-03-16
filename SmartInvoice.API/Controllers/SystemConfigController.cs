@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartInvoice.API.Data;
 using SmartInvoice.API.DTOs.SystemConfig;
 using SmartInvoice.API.Entities;
+using SmartInvoice.API.Services.Interfaces;
 
 namespace SmartInvoice.API.Controllers
 {
@@ -17,10 +18,12 @@ namespace SmartInvoice.API.Controllers
     public class SystemConfigController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly ISystemConfigProvider _configProvider;
 
-        public SystemConfigController(AppDbContext context)
+        public SystemConfigController(AppDbContext context, ISystemConfigProvider configProvider)
         {
             _context = context;
+            _configProvider = configProvider;
         }
 
         [HttpGet]
@@ -62,7 +65,7 @@ namespace SmartInvoice.API.Controllers
             if (config.ConfigType == "Boolean" && !bool.TryParse(dto.ConfigValue, out _))
                 return BadRequest(new { message = "Giá trị phải là True hoặc False." });
 
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userIdClaim = User.FindFirst("UserId")?.Value;
             var userId = userIdClaim != null ? Guid.Parse(userIdClaim) : (Guid?)null;
 
             // Log change
@@ -72,6 +75,9 @@ namespace SmartInvoice.API.Controllers
             config.UpdatedBy = userId;
 
             await _context.SaveChangesAsync();
+
+            // Invalidate cache
+            await _configProvider.ClearCacheAsync(configKey);
 
             return Ok(new { message = "Đã cập nhật cấu hình thành công.", requiresRestart = config.RequiresRestart });
         }

@@ -28,14 +28,16 @@ namespace SmartInvoice.API.Controller
         private readonly IInvoiceProcessorService _invoiceProcessor;
         private readonly IInvoiceService _invoiceService;
         private readonly IQuotaService _quotaService;
+        private readonly ISystemConfigProvider _configProvider;
 
         [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-        public InvoicesController(StorageService storageService, IInvoiceProcessorService invoiceProcessor, IInvoiceService invoiceService, IQuotaService quotaService)
+        public InvoicesController(StorageService storageService, IInvoiceProcessorService invoiceProcessor, IInvoiceService invoiceService, IQuotaService quotaService, ISystemConfigProvider configProvider)
         {
             _storageService = storageService;
             _invoiceProcessor = invoiceProcessor;
             _invoiceService = invoiceService;
             _quotaService = quotaService;
+            _configProvider = configProvider;
         }
 
         // ════════════════════════════════════════════
@@ -64,8 +66,14 @@ namespace SmartInvoice.API.Controller
 
         [HttpPost("generate-upload-url")]
         [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
-        public IActionResult GetUploadUrl([FromBody] UploadRequestDto request)
+        public async Task<IActionResult> GetUploadUrl([FromBody] UploadRequestDto request)
         {
+            var maxFileSizeMb = await _configProvider.GetIntAsync("MAX_UPLOAD_SIZE_MB", 10);
+            if (request.FileSize > (long)maxFileSizeMb * 1024 * 1024)
+            {
+                return BadRequest(new { Message = $"Dung lượng file vượt quá giới hạn cho phép ({maxFileSizeMb} MB)." });
+            }
+
             var result = _storageService.GeneratePresignedUrl(request.FileName, request.ContentType);
             return Ok(new { UploadUrl = result.Url, S3Key = result.Key });
         }

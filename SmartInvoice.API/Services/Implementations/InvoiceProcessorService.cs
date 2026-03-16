@@ -26,23 +26,25 @@ namespace SmartInvoice.API.Services.Implementations
     {
         private static readonly string[] SupportedXmlVersions = { "2.0.0", "2.0.1", "2.1.0" };
         private static readonly string[] ValidTaxRates = { "0%", "5%", "8%", "10%", "KCT", "KKKNT" };
-        private const decimal CurrencyTolerance = 10m;
 
         private readonly ILogger<InvoiceProcessorService> _logger;
         private readonly string _xsdPath;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IConfiguration _configuration;
+        private readonly ISystemConfigProvider _configProvider;
 
         public InvoiceProcessorService(
             ILogger<InvoiceProcessorService> logger,
             IHostEnvironment env,
             IUnitOfWork unitOfWork,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            ISystemConfigProvider configProvider)
         {
             _logger = logger;
             _xsdPath = Path.Combine(env.ContentRootPath, "Resources", "InvoiceSchema.xsd");
             _unitOfWork = unitOfWork;
             _configuration = configuration;
+            _configProvider = configProvider;
         }
 
         public ValidationResultDto ValidateStructure(string xmlPath)
@@ -364,7 +366,7 @@ namespace SmartInvoice.API.Services.Implementations
                 bool dbValid = await ValidateDatabaseConstraintsAsync(companyId, sellerTax, buyerTax, GetVal("NMua/Ten"), khhDon, shDon, result, cancellationToken);
                 if (!dbValid) return result;
 
-                ValidateFinancialMath(xmlDoc, result, isVatInvoice, totalAmountStr, GetVal("TgTCThue") ?? "0", GetVal("TgTThue") ?? "0");
+                await ValidateFinancialMath(xmlDoc, result, isVatInvoice, totalAmountStr, GetVal("TgTCThue") ?? "0", GetVal("TgTThue") ?? "0");
 
                 if (!string.IsNullOrEmpty(sellerTax))
                 {
@@ -600,6 +602,7 @@ namespace SmartInvoice.API.Services.Implementations
             decimal totalAmount,
             decimal totalPreTax,
             decimal totalTax,
+            decimal tolerance,
             decimal? totalLineItemsPreTax = null,
             decimal? totalLineItemsTax = null,
             bool isVatInvoice = false,
@@ -609,12 +612,12 @@ namespace SmartInvoice.API.Services.Implementations
 
             // Kiểm tra: Tổng tiền = Tiền hàng + Thuế (LUÔN KIỂM TRA ĐỐI VỚI HÓA ĐƠN GTGT HOẶC CÓ TIỀN HÀNG/THUẾ)
             bool shouldCheckTotalMath = isVatInvoice || totalPreTax > 0 || totalTax > 0;
-            if (shouldCheckTotalMath && totalAmount > 0 && Math.Abs((totalPreTax + totalTax) - totalAmount) > CurrencyTolerance)
+            if (shouldCheckTotalMath && totalAmount > 0 && Math.Abs((totalPreTax + totalTax) - totalAmount) > tolerance)
             {
                 result.AddError(
                     ErrorCodes.LogicTotalMismatch,
                     $"{sourceLabel} Tổng thanh toán KHÔNG KHỚP (Tiền hàng + Thuế)",
-                    "Cộng dồn tiền hàng và thuế không khớp tổng thanh toán, kiểm tra lại dữ liệu hóa đơn.");
+                    $"Cộng dồn tiền hàng và thuế không khớp tổng thanh toán (dung sai cho phép: {tolerance} VNĐ), kiểm tra lại dữ liệu hóa đơn.");
             }
 
             // Nếu có chi tiết dòng hàng, kiểm tra sự khớp của tổng tiền hàng
@@ -625,11 +628,11 @@ namespace SmartInvoice.API.Services.Implementations
                 if (totalPreTax > 0)
                 {
                     // Trường hợp bình thường: Kiểm tra tổng chi tiết dòng == tổng tiền chưa thuế
-                    if (Math.Abs(linePreTax - totalPreTax) > CurrencyTolerance)
+                    if (Math.Abs(linePreTax - totalPreTax) > tolerance)
                     {
                         result.AddError(
                             ErrorCodes.LogicSalesTotalMismatch,
-                            $"{sourceLabel} Tổng tiền hàng từ chi tiết ({linePreTax:N0}) không khớp tổng tiền chưa thuế ({totalPreTax:N0})",
+                            $"{sourceLabel} Tổng tiền hàng từ chi tiết ({linePreTax:N0}) không khớp tổng tiền chưa thuế ({totalPreTax:N0}) (dung sai: {tolerance} VNĐ)",
                             "Chi tiết các dòng hàng bị thiếu hoặc sai lệch giá trị thành tiền.");
                     }
                 }
@@ -637,11 +640,11 @@ namespace SmartInvoice.API.Services.Implementations
                 {
                     // Fallback: Khi totalPreTax == 0, kiểm tra tổng chi tiết dòng (bao gồm thuế) == tổng tiền
                     decimal totalWithLinesTax = linePreTax + (totalLineItemsTax ?? 0);
-                    if (Math.Abs(totalWithLinesTax - totalAmount) > CurrencyTolerance)
+                    if (Math.Abs(totalWithLinesTax - totalAmount) > tolerance)
                     {
                         result.AddError(
                             ErrorCodes.LogicSalesTotalMismatch,
-                            $"{sourceLabel} Tổng chi tiết dòng hàng hóa không khớp với tổng tiền hóa đơn",
+                            $"{sourceLabel} Tổng chi tiết dòng hàng hóa không khớp với tổng tiền hóa đơn (dung sai: {tolerance} VNĐ)",
                             "Cộng dồn chi tiết dòng hàng hóa không khớp với tổng thanh toán.");
                     }
                 }
@@ -651,18 +654,19 @@ namespace SmartInvoice.API.Services.Implementations
             if (totalLineItemsTax.HasValue && totalTax > 0)
             {
                 decimal lineTax = totalLineItemsTax.Value;
-                if (Math.Abs(lineTax - totalTax) > CurrencyTolerance)
+                if (Math.Abs(lineTax - totalTax) > tolerance)
                 {
                     result.AddWarning(
                         source == "OCR" ? "WARN_LOGIC_TAX_MISMATCH_OCR" : "WARN_LOGIC_TAX_MISMATCH",
-                        $"{sourceLabel} Tổng tiền thuế từ chi tiết ({lineTax:N0}) không khớp tổng thuế hóa đơn ({totalTax:N0})",
+                        $"{sourceLabel} Tổng tiền thuế từ chi tiết ({lineTax:N0}) không khớp tổng thuế hóa đơn ({totalTax:N0}) (dung sai: {tolerance} VNĐ)",
                         "Kiểm tra lại dữ liệu tiền thuế từng dòng.");
                 }
             }
         }
 
-        private void ValidateFinancialMath(XmlDocument xmlDoc, ValidationResultDto result, bool isVatInvoice, string totalAmountStr, string sTotalPreTax, string sTotalTax)
+        private async Task ValidateFinancialMath(XmlDocument xmlDoc, ValidationResultDto result, bool isVatInvoice, string totalAmountStr, string sTotalPreTax, string sTotalTax)
         {
+            decimal tolerance = await _configProvider.GetDecimalAsync("CURRENCY_TOLERANCE", 10m);
             decimal totalAmount = 0;
             CheckDecimal(totalAmountStr, "TgTTTBSo", out totalAmount, result);
 
@@ -708,9 +712,9 @@ namespace SmartInvoice.API.Services.Implementations
                 totalLineItems += totalClaimed;
                 totalLineItemsTax += lineTax;
 
-                if (tChat == "1" && Math.Abs((qty * price) - totalClaimed) > CurrencyTolerance)
+                if (tChat == "1" && Math.Abs((qty * price) - totalClaimed) > tolerance)
                 {
-                    result.AddWarning("WARN_LOGIC_CALC_DEV", $"[CẢNH BÁO RỦI RO] Sai lệch tính toán: {name} (Lệch Thành tiền > {CurrencyTolerance}đ)", "Kiểm tra lại đơn giá * số lượng có khớp với thành tiền không.");
+                    result.AddWarning("WARN_LOGIC_CALC_DEV", $"[CẢNH BÁO RỦI RO] Sai lệch tính toán: {name} (Lệch Thành tiền > {tolerance}đ)", "Kiểm tra lại đơn giá * số lượng có khớp với thành tiền không.");
                 }
             }
 
@@ -719,7 +723,7 @@ namespace SmartInvoice.API.Services.Implementations
             CheckDecimal(sTotalTax, "TgTThue", out totalTax, result);
 
             // Gọi hàm kiểm tra logic chung
-            ValidateFinancialLogic(result, totalAmount, totalPreTax, totalTax, totalLineItems, totalLineItemsTax, isVatInvoice, "XML");
+            ValidateFinancialLogic(result, totalAmount, totalPreTax, totalTax, tolerance, totalLineItems, totalLineItemsTax, isVatInvoice, "XML");
         }
 
         private string GetNodeValue(XmlDocument doc, string localName)
@@ -939,6 +943,7 @@ namespace SmartInvoice.API.Services.Implementations
         public async Task<ValidationResultDto> ValidateOcrBusinessLogicAsync(OcrInvoiceResult ocrData, Guid? companyId = null, CancellationToken cancellationToken = default)
         {
             var result = new ValidationResultDto();
+            decimal tolerance = await _configProvider.GetDecimalAsync("CURRENCY_TOLERANCE", 10m);
 
             if (ocrData == null)
             {
@@ -1009,15 +1014,15 @@ namespace SmartInvoice.API.Services.Implementations
                         decimal total = item.Total?.Value ?? 0;
 
                         // Check if qty * price matches total (with tolerance)
-                        if (qty > 0 && price > 0 && total > 0)
+                         if (qty > 0 && price > 0 && total > 0)
                         {
                             decimal expectedTotal = qty * price;
-                            if (Math.Abs(expectedTotal - total) > CurrencyTolerance)
+                            if (Math.Abs(expectedTotal - total) > tolerance)
                             {
                                 string productName = item.Name?.Value ?? "Hàng hóa";
                                 result.AddWarning(
                                     "WARN_LOGIC_CALC_DEV_OCR",
-                                    $"[CẢNH BÁO RỦI RO] Sai lệch tính toán OCR: {productName} (Lệch Thành tiền > {CurrencyTolerance}đ). Số lượng: {qty}, Đơn giá: {price}, Thành tiền: {total}",
+                                    $"[CẢNH BÁO RỦI RO] Sai lệch tính toán OCR: {productName} (Lệch Thành tiền > {tolerance}đ). Số lượng: {qty}, Đơn giá: {price}, Thành tiền: {total}",
                                     "Kiểm tra lại số lượng * đơn giá có khớp với thành tiền không.");
                             }
                         }
@@ -1037,7 +1042,7 @@ namespace SmartInvoice.API.Services.Implementations
                 }
 
                 // Gọi hàm kiểm tra logic chung cho cả XML và OCR với cờ isOcrVatInvoice đã được xác định động
-                ValidateFinancialLogic(result, totalAmount, totalPreTax, totalTax, totalLineItemsPreTax, totalLineItemsTax, isVatInvoice: isOcrVatInvoice, "OCR");
+                ValidateFinancialLogic(result, totalAmount, totalPreTax, totalTax, tolerance, totalLineItemsPreTax, totalLineItemsTax, isVatInvoice: isOcrVatInvoice, "OCR");
 
                 if (!string.IsNullOrEmpty(sellerTax))
                 {

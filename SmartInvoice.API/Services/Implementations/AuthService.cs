@@ -579,6 +579,17 @@ namespace SmartInvoice.API.Services.Implementations
                 };
                 await _cognitoClient.AdminConfirmSignUpAsync(confirmRequest);
 
+                var updateAttributesRequest = new AdminUpdateUserAttributesRequest
+                {
+                    UserPoolId = _userPoolId,
+                    Username = normalizedEmail,
+                    UserAttributes = new List<AttributeType>
+                    {
+                        new AttributeType { Name = "email_verified", Value = "true" }
+                    }
+                };
+                await _cognitoClient.AdminUpdateUserAttributesAsync(updateAttributesRequest);
+
                 // 5. Create Local User with SuperAdmin Role
                 var user = new User
                 {
