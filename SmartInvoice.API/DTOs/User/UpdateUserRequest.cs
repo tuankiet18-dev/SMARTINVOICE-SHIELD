@@ -9,6 +9,6 @@ namespace SmartInvoice.API.DTOs.User
         public string FullName { get; set; } = string.Empty;
 
         [MaxLength(50)]
-        public string? EmployeeId { get; set; }
+        public string EmployeeId { get; set; } = string.Empty;
     }
 }

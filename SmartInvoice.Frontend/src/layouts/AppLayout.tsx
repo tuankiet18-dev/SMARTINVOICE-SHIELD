@@ -21,6 +21,7 @@ import {
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFeatureFlags } from '@/hooks/useFeatureFlag';
+import NotificationBell from '@/components/common/NotificationBell';
 
 const { Sider, Header, Content } = Layout;
 const { Text } = Typography;
@@ -68,6 +69,8 @@ const AppLayout: React.FC = () => {
       navigate('/login');
     } else if (key === 'profile') {
       navigate('/app/profile');
+    } else if (key === 'settings') {
+      navigate('/app/settings');
     } else {
       console.log('Clicked', key);
     }
@@ -171,9 +174,7 @@ const AppLayout: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <Badge count={3} size="small">
-              <Button type="text" icon={<BellOutlined />} style={{ fontSize: 18 }} />
-            </Badge>
+            <NotificationBell />
 
             <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight" trigger={['click']}>
               <div style={{

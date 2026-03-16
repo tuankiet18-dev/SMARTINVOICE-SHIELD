@@ -182,7 +182,7 @@ namespace SmartInvoice.API.Services.Implementations
             try
             {
                 // Fetch FREE package
-                var freePackage = await _context.SubscriptionPackages.FirstOrDefaultAsync(p => p.PackageCode == "FREE") 
+                var freePackage = await _context.SubscriptionPackages.FirstOrDefaultAsync(p => p.PackageCode == "FREE")
                     ?? throw new Exception("Không tìm thấy gói mặc định (FREE) trong hệ thống.");
 
                 // Create Company using validated data from VietQR
@@ -245,7 +245,8 @@ namespace SmartInvoice.API.Services.Implementations
                         SmartInvoice.API.Constants.Permissions.InvoiceApprove,
                         SmartInvoice.API.Constants.Permissions.InvoiceReject,
                         SmartInvoice.API.Constants.Permissions.InvoiceOverrideRisk,
-                        SmartInvoice.API.Constants.Permissions.ReportExport
+                        SmartInvoice.API.Constants.Permissions.ReportExport,
+                        SmartInvoice.API.Constants.Permissions.CompanyManage
                     },
                     IsActive = false, // Not active until verified
                     CreatedAt = DateTime.UtcNow,
@@ -533,6 +534,7 @@ namespace SmartInvoice.API.Services.Implementations
             {
                 // 2. Create a dummy "System Administration" company
                 var companyId = Guid.NewGuid();
+                var enterprisePackageId = Guid.Parse("44444444-4444-4444-4444-444444444444");
                 var company = new Company
                 {
                     CompanyId = companyId,
@@ -542,6 +544,7 @@ namespace SmartInvoice.API.Services.Implementations
                     Email = normalizedEmail,
                     PhoneNumber = "0000000000",
                     SubscriptionTier = SubscriptionTier.Enterprise.ToString(),
+                    SubscriptionPackageId = enterprisePackageId,
                     IsActive = true
                 };
                 await _unitOfWork.Companies.AddAsync(company);

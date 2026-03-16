@@ -44,6 +44,9 @@ namespace SmartInvoice.API.DTOs.Invoice
         // ID of the saved invoice in DB (null if fatal error, not saved)
         public System.Guid? InvoiceId { get; set; }
 
+        // Auto-approval flag — set when invoice was automatically approved per company configuration
+        public bool IsAutoApproved { get; set; } = false;
+
         // This holds the actual data parsed from the invoice (LineItems, etc.)
         public SmartInvoice.API.Entities.JsonModels.InvoiceExtractedData? ExtractedData { get; set; }
 

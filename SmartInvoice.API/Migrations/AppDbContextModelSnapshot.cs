@@ -101,6 +101,9 @@ namespace SmartInvoice.API.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("text");
 
+                    b.Property<decimal>("AutoApproveThreshold")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("BillingCycle")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -140,6 +143,9 @@ namespace SmartInvoice.API.Migrations
                         .HasColumnType("integer");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsAutoApproveEnabled")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsDeleted")
@@ -1141,6 +1147,83 @@ namespace SmartInvoice.API.Migrations
                     b.HasIndex("UpdatedBy");
 
                     b.ToTable("SystemConfigurations");
+
+                    b.HasData(
+                        new
+                        {
+                            ConfigId = 1,
+                            Category = "AI & OCR",
+                            ConfigKey = "OcrApiEndpoint",
+                            ConfigType = "String",
+                            ConfigValue = "http://localhost:5000/process_invoice",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultValue = "http://localhost:5000/process_invoice",
+                            Description = "Endpoint kết nối với dịch vụ OCR Python.",
+                            IsEncrypted = false,
+                            IsReadOnly = false,
+                            RequiresRestart = false,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            ConfigId = 2,
+                            Category = "AI & OCR",
+                            ConfigKey = "ConfidenceThreshold",
+                            ConfigType = "Integer",
+                            ConfigValue = "0.85",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultValue = "0.85",
+                            Description = "Ngưỡng độ tin cậy để tự động chấp nhận kết quả OCR.",
+                            IsEncrypted = false,
+                            IsReadOnly = false,
+                            RequiresRestart = false,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            ConfigId = 3,
+                            Category = "Hệ thống",
+                            ConfigKey = "MaxUploadSizeMB",
+                            ConfigType = "Integer",
+                            ConfigValue = "10",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultValue = "10",
+                            Description = "Dung lượng tối đa cho mỗi file upload (MB).",
+                            IsEncrypted = false,
+                            IsReadOnly = false,
+                            RequiresRestart = false,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            ConfigId = 4,
+                            Category = "AI & OCR",
+                            ConfigKey = "AllowMachineLearning",
+                            ConfigType = "Boolean",
+                            ConfigValue = "true",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultValue = "true",
+                            Description = "Cho phép AI học từ dữ liệu chỉnh sửa của người dùng.",
+                            IsEncrypted = false,
+                            IsReadOnly = false,
+                            RequiresRestart = false,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            ConfigId = 5,
+                            Category = "Hệ thống",
+                            ConfigKey = "SyncIntervalMinutes",
+                            ConfigType = "Integer",
+                            ConfigValue = "15",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultValue = "15",
+                            Description = "Thời gian đồng bộ dữ liệu với AWS S3 (phút).",
+                            IsEncrypted = false,
+                            IsReadOnly = false,
+                            RequiresRestart = false,
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
                 });
 
             modelBuilder.Entity("SmartInvoice.API.Entities.User", b =>
@@ -1192,6 +1275,12 @@ namespace SmartInvoice.API.Migrations
                     b.Property<string>("Permissions")
                         .HasColumnType("jsonb");
 
+                    b.Property<bool>("ReceiveEmailNotifications")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("ReceiveInAppNotifications")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1232,7 +1321,7 @@ namespace SmartInvoice.API.Migrations
                     b.HasOne("SmartInvoice.API.Entities.SubscriptionPackage", "SubscriptionPackage")
                         .WithMany()
                         .HasForeignKey("SubscriptionPackageId")
-                        .OnDelete(DeleteBehavior.SetNull)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("SubscriptionPackage");

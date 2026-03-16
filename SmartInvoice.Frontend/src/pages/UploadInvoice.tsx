@@ -90,6 +90,7 @@ interface ProcessResult {
   invoiceId?: string;
   submitStatus: SubmitStatus;
   submitError?: string;
+  isAutoApproved?: boolean;
 }
 
 const UploadInvoice: React.FC = () => {
@@ -105,7 +106,9 @@ const UploadInvoice: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"xml" | "ocr">("xml");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [leaveModalVisible, setLeaveModalVisible] = useState(false);
-  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(
+    null,
+  );
 
   const getDefaultSelected = (res: ProcessResult[]) =>
     res
@@ -212,10 +215,9 @@ const UploadInvoice: React.FC = () => {
 
         // Check if file type matches the current tab
         const isXmlFile = fileObj.name.toLowerCase().endsWith(".xml");
-        const isPdfOrImage =
-          [".pdf", ".jpg", ".jpeg", ".png"].some((ext) =>
-            fileObj.name.toLowerCase().endsWith(ext),
-          );
+        const isPdfOrImage = [".pdf", ".jpg", ".jpeg", ".png"].some((ext) =>
+          fileObj.name.toLowerCase().endsWith(ext),
+        );
 
         // If XML tab and file is not XML, skip
         if (activeTab === "xml" && !isXmlFile) {
@@ -297,7 +299,8 @@ const UploadInvoice: React.FC = () => {
                 result: validation as ValidationResultExtended,
                 invoiceId: validation.invoiceId,
                 errorMessage: finalErrorMessage,
-                submitStatus: "idle",
+                submitStatus: validation.isAutoApproved ? "submitted" : "idle",
+                isAutoApproved: validation.isAutoApproved || false,
               } as ProcessResult;
             });
             setSelectedRowKeys(getDefaultSelected(next));
@@ -501,6 +504,21 @@ const UploadInvoice: React.FC = () => {
     );
   };
 
+  const renderAutoApproveTag = (record: ProcessResult) => {
+    if (record.isAutoApproved) {
+      return (
+        <Tag
+          icon={<CheckCircleOutlined />}
+          color="#52c41a"
+          style={{ fontWeight: 600 }}
+        >
+          ✅ Tự động duyệt
+        </Tag>
+      );
+    }
+    return null;
+  };
+
   const renderActionCell = (record: ProcessResult) => {
     const isSubmittable =
       record.invoiceId &&
@@ -564,8 +582,16 @@ const UploadInvoice: React.FC = () => {
 
     // Render status or actions
     if (submitStatus === "submitted") {
-      return (
-        <Tag icon={<CheckCircleOutlined />} color="success">
+      return record.isAutoApproved ? (
+        <Tag
+          icon={<CheckCircleOutlined />}
+          color="#52c41a"
+          style={{ fontWeight: 600 }}
+        >
+          Tự động duyệt
+        </Tag>
+      ) : (
+        <Tag icon={<CheckCircleOutlined />} color="blue">
           Đã gửi duyệt
         </Tag>
       );
@@ -590,7 +616,11 @@ const UploadInvoice: React.FC = () => {
     }
 
     if (menuItems.length === 0) {
-      return <Text type="secondary" style={{ fontSize: 12 }}>-</Text>;
+      return (
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          -
+        </Text>
+      );
     }
 
     return (
@@ -657,6 +687,14 @@ const UploadInvoice: React.FC = () => {
           return <Text type="secondary">Đang chờ xử lý...</Text>;
         if (record.status === "processing")
           return <Text type="secondary">Đang bóc tách dữ liệu...</Text>;
+
+        if (record.isAutoApproved) {
+          return (
+            <Text style={{ color: "#52c41a", fontWeight: 500 }}>
+              Dữ liệu chuẩn xác (Hệ thống đã tự động duyệt)
+            </Text>
+          );
+        }
 
         if (record.status === "error") {
           const errors =
@@ -801,7 +839,7 @@ const UploadInvoice: React.FC = () => {
     {
       title: "Hành động",
       key: "action",
-      width: 80,
+      width: 140,
       align: "center" as const,
       render: (_: any, record: ProcessResult) => renderActionCell(record),
     },
@@ -910,7 +948,11 @@ const UploadInvoice: React.FC = () => {
             justify={fileList.length === 0 ? "center" : "start"}
           >
             <Col xs={24} lg={fileList.length > 0 ? 8 : 24}>
-              <Tabs activeKey={activeTab} onChange={handleTabChange} type="card">
+              <Tabs
+                activeKey={activeTab}
+                onChange={handleTabChange}
+                type="card"
+              >
                 <Tabs.TabPane
                   key="xml"
                   tab={
@@ -975,7 +1017,8 @@ const UploadInvoice: React.FC = () => {
                       className="ant-upload-hint"
                       style={{ color: "#64748b", fontSize: 14 }}
                     >
-                      Hỗ trợ định dạng: .xml. <Text strong>Tối đa 10MB/file.</Text>
+                      Hỗ trợ định dạng: .xml.{" "}
+                      <Text strong>Tối đa 10MB/file.</Text>
                     </p>
 
                     {fileList.length === 0 && (
@@ -991,8 +1034,8 @@ const UploadInvoice: React.FC = () => {
                             color: "#1677ff",
                           }}
                         >
-                          💡 Khuyến nghị: Ưu tiên sử dụng file XML (QĐ 1550/QĐ-TCT)
-                          để bóc tách chính xác 100%.
+                          💡 Khuyến nghị: Ưu tiên sử dụng file XML (QĐ
+                          1550/QĐ-TCT) để bóc tách chính xác 100%.
                         </Tag>
                       </div>
                     )}
@@ -1071,7 +1114,8 @@ const UploadInvoice: React.FC = () => {
                       className="ant-upload-hint"
                       style={{ color: "#64748b", fontSize: 14 }}
                     >
-                      Hỗ trợ định dạng: .pdf, .jpg, .jpeg, .png. <Text strong>Tối đa 10MB/file.</Text>
+                      Hỗ trợ định dạng: .pdf, .jpg, .jpeg, .png.{" "}
+                      <Text strong>Tối đa 10MB/file.</Text>
                     </p>
                   </Dragger>
                 </Tabs.TabPane>
@@ -1325,7 +1369,9 @@ const UploadInvoice: React.FC = () => {
                 },
                 expandedRowRender: (record) => {
                   if (!record.result) {
-                    return <Text type="secondary">Không có kết quả kiểm tra</Text>;
+                    return (
+                      <Text type="secondary">Không có kết quả kiểm tra</Text>
+                    );
                   }
                   return (
                     <div style={{ background: "#fafbfc", padding: "16px" }}>

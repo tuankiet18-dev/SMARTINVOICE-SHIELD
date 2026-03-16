@@ -143,6 +143,10 @@ const ValidationChecklist: React.FC<ValidationChecklistProps> = ({ result }) => 
         { name: "Kiểm tra người ký phù hợp", errorCode: "ERR_LOGIC_SIGNER_MISMATCH" },
         { name: "Kiểm tra mã MCCQT", errorCode: "ERR_LOGIC_MCCQT" },
         { name: "Kiểm tra quyền sở hữu", errorCode: "ERR_LOGIC_OWNER" },
+        { name: "Kiểm tra thông tin người mua", errorCode: "WARN_LOGIC_NO_BUYER_TAX" },
+        { name: "Kiểm tra dữ liệu bắt buộc (OCR)", errorCode: "ERR_LOGIC_MISSING_FIELD" },
+        { name: "Kiểm tra sai lệch tính toán dòng hàng (OCR)", errorCode: "WARN_LOGIC_CALC_DEV_OCR" },
+        { name: "Kiểm tra thuế suất hợp lệ (OCR)", errorCode: "WARN_LOGIC_TAX_MISMATCH_OCR" },
       ],
     },
   ];

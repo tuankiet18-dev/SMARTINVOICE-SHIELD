@@ -26,8 +26,9 @@ namespace SmartInvoice.API.Services.Implementations
         private readonly IConfiguration _configuration;
         private readonly ILogger<InvoiceService> _logger;
         private readonly ISqsMessagePublisher _sqsPublisher;
+        private readonly INotificationService _notificationService;
 
-        public InvoiceService(IUnitOfWork unitOfWork, StorageService storageService, IInvoiceProcessorService invoiceProcessor, IConfiguration configuration, ILogger<InvoiceService> logger, ISqsMessagePublisher sqsPublisher)
+        public InvoiceService(IUnitOfWork unitOfWork, StorageService storageService, IInvoiceProcessorService invoiceProcessor, IConfiguration configuration, ILogger<InvoiceService> logger, ISqsMessagePublisher sqsPublisher, INotificationService notificationService)
         {
             _unitOfWork = unitOfWork;
             _storageService = storageService;
@@ -35,6 +36,7 @@ namespace SmartInvoice.API.Services.Implementations
             _configuration = configuration;
             _logger = logger;
             _sqsPublisher = sqsPublisher;
+            _notificationService = notificationService;
         }
 
         // ════════════════════════════════════════════
@@ -295,6 +297,16 @@ namespace SmartInvoice.API.Services.Implementations
             });
 
             await _unitOfWork.CompleteAsync();
+
+            await _notificationService.SendNotificationToCompanyAdminsAsync(
+                companyId: companyId,
+                type: "Approval",
+                title: "Hóa đơn mới chờ duyệt",
+                message: $"Hóa đơn số {invoice.InvoiceNumber} đang chờ được phê duyệt.",
+                relatedInvoiceId: invoiceId,
+                priority: "Normal"
+            );
+
             _logger?.LogInformation("Invoice {InvoiceId} status changed to Pending", invoiceId);
         }
 
@@ -357,6 +369,17 @@ namespace SmartInvoice.API.Services.Implementations
                     batchResult.Results.Add(new BatchSubmitItemResult { InvoiceId = invoiceId, Success = false, ErrorMessage = ex.Message });
                     _logger?.LogInformation("Failed to submit invoice {InvoiceId}: {Error}", invoiceId, ex.Message);
                 }
+            }
+
+            if (batchResult.SuccessCount > 0)
+            {
+                await _notificationService.SendNotificationToCompanyAdminsAsync(
+                    companyId: companyId,
+                    type: "Approval",
+                    title: "Hóa đơn mới chờ duyệt",
+                    message: $"{batchResult.SuccessCount} hóa đơn đang chờ được phê duyệt.",
+                    priority: "Normal"
+                );
             }
 
             return batchResult;
@@ -457,7 +480,17 @@ namespace SmartInvoice.API.Services.Implementations
             });
 
             await _unitOfWork.CompleteAsync();
-            _logger?.LogInformation("Approved invoice {InvoiceId} (Step: {Step})", invoiceId, invoice.Workflow.CurrentApprovalStep);
+
+            await _notificationService.SendNotificationAsync(
+                userId: invoice.Workflow.UploadedBy,
+                type: "Approval",
+                title: "Hóa đơn đã được duyệt",
+                message: $"Hóa đơn số {invoice.InvoiceNumber} đã được phê duyệt.",
+                relatedInvoiceId: invoiceId,
+                priority: "Normal"
+            );
+
+            _logger?.LogInformation("Approved invoice {InvoiceId}", invoiceId);
         }
 
         // ════════════════════════════════════════════
@@ -507,6 +540,16 @@ namespace SmartInvoice.API.Services.Implementations
             });
 
             await _unitOfWork.CompleteAsync();
+
+            await _notificationService.SendNotificationAsync(
+                userId: invoice.Workflow.UploadedBy,
+                type: "Approval",
+                title: "Hóa đơn bị từ chối",
+                message: $"Hóa đơn số {invoice.InvoiceNumber} đã bị từ chối với lý do: {reason}",
+                relatedInvoiceId: invoiceId,
+                priority: "High"
+            );
+
             _logger?.LogInformation("Rejected invoice {InvoiceId} with reason {Reason}", invoiceId, reason);
         }
 
@@ -824,11 +867,15 @@ namespace SmartInvoice.API.Services.Implementations
                     var structErrInfoM = (structResult.ErrorDetails ?? System.Linq.Enumerable.Empty<ValidationErrorDetail>()).FirstOrDefault() ?? (structResult.WarningDetails ?? System.Linq.Enumerable.Empty<ValidationErrorDetail>()).FirstOrDefault();
                     newCheckResults.Add(new InvoiceCheckResult
                     {
-                        CheckId = Guid.NewGuid(), InvoiceId = existingInvoice.InvoiceId,
-                        Category = "STRUCTURE", CheckName = "Structure", CheckOrder = 1,
+                        CheckId = Guid.NewGuid(),
+                        InvoiceId = existingInvoice.InvoiceId,
+                        Category = "STRUCTURE",
+                        CheckName = "Structure",
+                        CheckOrder = 1,
                         IsValid = structResult.IsValid,
                         Status = GetLayerStatus(structResult.IsValid, structResult.WarningDetails),
-                        ErrorCode = structErrInfoM?.ErrorCode, ErrorMessage = structErrInfoM?.ErrorMessage,
+                        ErrorCode = structErrInfoM?.ErrorCode,
+                        ErrorMessage = structErrInfoM?.ErrorMessage,
                         Suggestion = structErrInfoM?.Suggestion,
                         ErrorDetails = GetErrorStr(structResult.ErrorDetails),
                         DurationMs = (int)swStruct.ElapsedMilliseconds
@@ -837,11 +884,15 @@ namespace SmartInvoice.API.Services.Implementations
                     var sigErrInfoM = (sigResult.ErrorDetails ?? System.Linq.Enumerable.Empty<ValidationErrorDetail>()).FirstOrDefault() ?? (sigResult.WarningDetails ?? System.Linq.Enumerable.Empty<ValidationErrorDetail>()).FirstOrDefault();
                     newCheckResults.Add(new InvoiceCheckResult
                     {
-                        CheckId = Guid.NewGuid(), InvoiceId = existingInvoice.InvoiceId,
-                        Category = "SIGNATURE", CheckName = "Signature", CheckOrder = 2,
+                        CheckId = Guid.NewGuid(),
+                        InvoiceId = existingInvoice.InvoiceId,
+                        Category = "SIGNATURE",
+                        CheckName = "Signature",
+                        CheckOrder = 2,
                         IsValid = sigResult.IsValid,
                         Status = GetLayerStatus(sigResult.IsValid, sigResult.WarningDetails),
-                        ErrorCode = sigErrInfoM?.ErrorCode, ErrorMessage = sigErrInfoM?.ErrorMessage,
+                        ErrorCode = sigErrInfoM?.ErrorCode,
+                        ErrorMessage = sigErrInfoM?.ErrorMessage,
                         Suggestion = sigErrInfoM?.Suggestion,
                         ErrorDetails = GetErrorStr(sigResult.ErrorDetails),
                         AdditionalData = sigResult.SignerSubject != null ? System.Text.Json.JsonSerializer.Serialize(new { SignerSubject = sigResult.SignerSubject }) : null,
@@ -851,11 +902,15 @@ namespace SmartInvoice.API.Services.Implementations
                     var logicErrInfoM = (logicResult.ErrorDetails ?? System.Linq.Enumerable.Empty<ValidationErrorDetail>()).FirstOrDefault() ?? (logicResult.WarningDetails ?? System.Linq.Enumerable.Empty<ValidationErrorDetail>()).FirstOrDefault();
                     newCheckResults.Add(new InvoiceCheckResult
                     {
-                        CheckId = Guid.NewGuid(), InvoiceId = existingInvoice.InvoiceId,
-                        Category = "BUSINESS_LOGIC", CheckName = "BusinessLogic", CheckOrder = 3,
+                        CheckId = Guid.NewGuid(),
+                        InvoiceId = existingInvoice.InvoiceId,
+                        Category = "BUSINESS_LOGIC",
+                        CheckName = "BusinessLogic",
+                        CheckOrder = 3,
                         IsValid = logicResult.IsValid,
                         Status = GetLayerStatus(logicResult.IsValid, logicResult.WarningDetails),
-                        ErrorCode = logicErrInfoM?.ErrorCode, ErrorMessage = logicErrInfoM?.ErrorMessage,
+                        ErrorCode = logicErrInfoM?.ErrorCode,
+                        ErrorMessage = logicErrInfoM?.ErrorMessage,
                         Suggestion = logicErrInfoM?.Suggestion,
                         ErrorDetails = GetErrorStr(logicResult.ErrorDetails),
                         DurationMs = (int)swLogic.ElapsedMilliseconds
@@ -866,9 +921,13 @@ namespace SmartInvoice.API.Services.Implementations
                     var priorityWarningM = finalResult.WarningDetails.FirstOrDefault();
                     newCheckResults.Add(new InvoiceCheckResult
                     {
-                        CheckId = Guid.NewGuid(), InvoiceId = existingInvoice.InvoiceId,
-                        Category = "AUTO_UPLOAD_VALIDATION", CheckName = "AUTO_UPLOAD_VALIDATION", CheckOrder = 4,
-                        IsValid = isInvoiceValid, Status = checkStatusM,
+                        CheckId = Guid.NewGuid(),
+                        InvoiceId = existingInvoice.InvoiceId,
+                        Category = "AUTO_UPLOAD_VALIDATION",
+                        CheckName = "AUTO_UPLOAD_VALIDATION",
+                        CheckOrder = 4,
+                        IsValid = isInvoiceValid,
+                        Status = checkStatusM,
                         ErrorCode = priorityErrorM?.ErrorCode ?? priorityWarningM?.ErrorCode,
                         ErrorMessage = priorityErrorM?.ErrorMessage ?? priorityWarningM?.ErrorMessage,
                         Suggestion = priorityErrorM?.Suggestion ?? priorityWarningM?.Suggestion,
@@ -908,6 +967,18 @@ namespace SmartInvoice.API.Services.Implementations
                 // NORMAL FLOW: CREATE A NEW INVOICE RECORD
                 // ============================================================
                 var invoiceId = Guid.NewGuid();
+
+                var company = await _unitOfWork.Companies.GetByIdAsync(CompanyId);
+                bool isAutoApproveEnabled = company?.IsAutoApproveEnabled ?? false;
+                decimal autoApproveThreshold = company?.AutoApproveThreshold ?? 0;
+
+                bool canAutoApprove = isAutoApproveEnabled &&
+                                      isInvoiceValid &&
+                                      !finalResult.WarningDetails.Any() &&
+                                      (finalResult.ExtractedData?.TotalAmount ?? 0) <= autoApproveThreshold;
+
+                string initialStatus = canAutoApprove ? "Approved" : (isInvoiceValid ? (finalResult.WarningDetails.Any() ? "Draft" : "Draft") : "Rejected");
+                string initialRiskLevel = canAutoApprove ? "Green" : (isInvoiceValid ? (finalResult.WarningDetails.Any() ? "Yellow" : "Green") : "Red");
 
                 // 2. Tạo Invoice
                 var invoice = new Invoice
@@ -956,21 +1027,19 @@ namespace SmartInvoice.API.Services.Implementations
                     RawData = new InvoiceRawData { ObjectKey = s3Key },
                     ExtractedData = finalResult.ExtractedData,
 
-                    Status = isInvoiceValid
-                        ? (finalResult.WarningDetails.Any() ? "Draft" : "Draft")
-                        : "Rejected",
-                    RiskLevel = isInvoiceValid
-                        ? (finalResult.WarningDetails.Any() ? "Yellow" : "Green")
-                        : "Red",
-                    Notes = isInvoiceValid
+                    Status = initialStatus,
+                    RiskLevel = initialRiskLevel,
+                    Notes = canAutoApprove ? "Đã duyệt tự động theo cấu hình Công ty." : (isInvoiceValid
                         ? (finalResult.WarningDetails.Any() ? "Hóa đơn có cảnh báo, cần xem xét" : null)
-                        : "Hóa đơn có lỗi, cần kiểm tra lại",
+                        : "Hóa đơn có lỗi, cần kiểm tra lại"),
 
                     Version = finalResult.NewVersion,
 
                     Workflow = new InvoiceWorkflow
                     {
-                        UploadedBy = UserId
+                        UploadedBy = UserId,
+                        ApprovedBy = null,
+                        ApprovedAt = canAutoApprove ? DateTime.UtcNow : null
                     },
                     CreatedAt = DateTime.UtcNow
                 };
@@ -1086,7 +1155,7 @@ namespace SmartInvoice.API.Services.Implementations
                     Action = "UPLOAD",
                     Changes = new List<AuditChange>
                     {
-                        new() { Field = "Status", OldValue = null, NewValue = isInvoiceValid ? "Draft" : "Rejected", ChangeType = "INSERT" },
+                        new() { Field = "Status", OldValue = null, NewValue = initialStatus, ChangeType = "INSERT" },
                         new() { Field = "RiskLevel", OldValue = null, NewValue = invoice.RiskLevel, ChangeType = "INSERT" }
                     },
                     Comment = isInvoiceValid ? "Tải lên hóa đơn hợp lệ." : "Tải lên hóa đơn không hợp lệ."
@@ -1096,6 +1165,19 @@ namespace SmartInvoice.API.Services.Implementations
                 await _unitOfWork.FileStorages.AddAsync(fileStorage);
                 await _unitOfWork.Invoices.AddAsync(invoice);
                 await _unitOfWork.CompleteAsync();
+
+                if (canAutoApprove)
+                {
+                    await _notificationService.SendNotificationAsync(
+                        userId: UserId,
+                        type: "System",
+                        title: "Hóa đơn tự động duyệt",
+                        message: $"Hóa đơn số {invoice.InvoiceNumber} đã được hệ thống tự động phê duyệt.",
+                        relatedInvoiceId: invoiceId,
+                        priority: "Normal"
+                    );
+                }
+
                 _logger?.LogInformation("Created new invoice {InvoiceId} from S3Key={S3Key}, RiskLevel={RiskLevel}", invoiceId, s3Key, invoice.RiskLevel);
 
                 // Publish VietQR validation message to SQS for asynchronous processing
@@ -1104,11 +1186,12 @@ namespace SmartInvoice.API.Services.Implementations
                     var sqsMessage = new SmartInvoice.API.DTOs.SQS.VietQrValidationMessage
                     {
                         InvoiceId = invoice.InvoiceId,
-                        TaxCode = invoice.Seller.TaxCode,
-                        SellerName = invoice.Seller.Name
+                        TaxCode = invoice.Seller?.TaxCode ?? "N/A",
+                        SellerName = invoice.Seller?.Name ?? "N/A"
                     };
 
                     await _sqsPublisher.PublishVietQrValidationAsync(sqsMessage, CancellationToken.None);
+                    _logger?.LogInformation("Invoice {InvoiceId} saved and VietQR validation message published to SQS successfully.", invoice.InvoiceId);
                 }
                 catch (Exception ex)
                 {
@@ -1117,6 +1200,7 @@ namespace SmartInvoice.API.Services.Implementations
 
                 // Trả về invoiceId để frontend biết đây là record nào trong DB
                 finalResult.InvoiceId = invoiceId;
+                finalResult.IsAutoApproved = canAutoApprove;
 
                 return finalResult;
             }
@@ -1138,13 +1222,36 @@ namespace SmartInvoice.API.Services.Implementations
 
             var UserId = Guid.Parse(userId);
             var CompanyId = Guid.Parse(companyId);
+            var overallStopwatch = Stopwatch.StartNew();
 
-            _logger?.LogInformation("Start ProcessInvoiceOcrAsync for S3Key={S3Key}, CompanyId={CompanyId}, UserId={UserId}", request.S3Key, CompanyId, UserId);
+            _logger?.LogInformation("═══════════════════════════════════════════════════════════════");
+            _logger?.LogInformation("🎬 [OCR] START ProcessInvoiceOcrAsync");
+            _logger?.LogInformation("   └─ S3Key: {S3Key}", request.S3Key);
+            _logger?.LogInformation("   └─ CompanyId: {CompanyId}", CompanyId);
+            _logger?.LogInformation("   └─ UserId: {UserId}", UserId);
+            _logger?.LogInformation("   └─ Bucket: {Bucket}", request.BucketName);
+            _logger?.LogInformation("═══════════════════════════════════════════════════════════════");
 
+            // Step 1: Validate Business Logic
+            _logger?.LogInformation("[OCR STEP 1/5] 🔍 Validating OCR business logic...");
             var swLogic = Stopwatch.StartNew();
             var logicResult = await _invoiceProcessor.ValidateOcrBusinessLogicAsync(request.OcrResult, CompanyId);
             swLogic.Stop();
-            _logger?.LogInformation("OCR business logic validation completed. IsValid={IsValid}, Errors={ErrorCount}, Warnings={WarningCount}, DurationMs={Ms}", logicResult.IsValid, logicResult.ErrorDetails?.Count ?? 0, logicResult.WarningDetails?.Count ?? 0, swLogic.ElapsedMilliseconds);
+            _logger?.LogInformation("[OCR STEP 1/5] ✅ Business logic validation completed");
+            _logger?.LogInformation("   └─ IsValid: {IsValid}", logicResult.IsValid);
+            _logger?.LogInformation("   └─ Errors: {ErrorCount}", logicResult.ErrorDetails?.Count ?? 0);
+            _logger?.LogInformation("   └─ Warnings: {WarningCount}", logicResult.WarningDetails?.Count ?? 0);
+            _logger?.LogInformation("   └─ MergeMode: {MergeMode}", logicResult.MergeMode);
+            _logger?.LogInformation("   └─ Duration: {DurationMs}ms", swLogic.ElapsedMilliseconds);
+
+            if (logicResult.ErrorDetails?.Any() == true)
+            {
+                _logger?.LogWarning("[OCR STEP 1/5] ⚠️  Errors found:");
+                foreach (var err in logicResult.ErrorDetails.Take(3))
+                {
+                    _logger?.LogWarning("      • {ErrorCode}: {ErrorMessage}", err.ErrorCode, err.ErrorMessage);
+                }
+            }
 
             var finalResult = new ValidationResultDto();
             finalResult.ErrorDetails.AddRange(logicResult.ErrorDetails ?? new List<ValidationErrorDetail>());
@@ -1156,32 +1263,56 @@ namespace SmartInvoice.API.Services.Implementations
             finalResult.MergeMode = logicResult.MergeMode;
             finalResult.MergeTargetInvoiceId = logicResult.MergeTargetInvoiceId;
 
+            // Step 2: Extract OCR Data
+            _logger?.LogInformation("[OCR STEP 2/5] 🧠 Extracting invoice data from OCR result...");
+            var swExtract = Stopwatch.StartNew();
             finalResult.ExtractedData = _invoiceProcessor.ExtractOcrData(request.OcrResult);
+            swExtract.Stop();
+            _logger?.LogInformation("[OCR STEP 2/5] ✅ Data extraction completed ({DurationMs}ms)", swExtract.ElapsedMilliseconds);
+            _logger?.LogInformation("   └─ InvoiceNumber: {InvoiceNumber}", finalResult.ExtractedData?.InvoiceNumber ?? "N/A");
+            _logger?.LogInformation("   └─ SellerTaxCode: {SellerTaxCode}", finalResult.ExtractedData?.SellerTaxCode ?? "N/A");
+            _logger?.LogInformation("   └─ BuyerTaxCode: {BuyerTaxCode}", finalResult.ExtractedData?.BuyerTaxCode ?? "N/A");
+            _logger?.LogInformation("   └─ TotalAmount: {TotalAmount}", finalResult.ExtractedData?.TotalAmount ?? 0);
+            // ConfidenceScore property does not exist on OcrInvoiceResult, so this log line is removed.
 
+            // Step 3: Check for fatal errors
+            _logger?.LogInformation("[OCR STEP 3/5] 🛑 Checking for fatal errors...");
             var fatalErrorCodes = new[] { ErrorCodes.LogicDuplicate, ErrorCodes.LogicDuplicateRejected, ErrorCodes.LogicOwner };
             var hasFatalError = finalResult.ErrorDetails.Any(e =>
                 !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode));
 
             if (hasFatalError)
             {
-                _logger?.LogInformation("Fatal error in OCR processing for S3Key={S3Key}; aborting.", request.S3Key);
+                _logger?.LogWarning("[OCR STEP 3/5] ❌ FATAL ERROR - Aborting OCR processing");
+                var fatalErr = finalResult.ErrorDetails.First(e => !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode));
+                _logger?.LogWarning("   └─ FatalError: {ErrorCode} - {ErrorMessage}", fatalErr.ErrorCode, fatalErr.ErrorMessage);
+                overallStopwatch.Stop();
+                _logger?.LogWarning("[OCR] ❌ ProcessInvoiceOcrAsync FAILED - Total duration: {TotalMs}ms", overallStopwatch.ElapsedMilliseconds);
                 return finalResult;
             }
+            _logger?.LogInformation("[OCR STEP 3/5] ✅ No fatal errors detected - proceeding with save");
 
             // --- Tạo FileStorage cho file OCR (Visual File) ---
+            _logger?.LogInformation("[OCR STEP 4/5] 💾 Creating FileStorage record...");
             Guid? visualFileId = null;
             if (!string.IsNullOrEmpty(request.S3Key))
             {
+                _logger?.LogInformation("   └─ Looking up file by S3Key: {S3Key}", request.S3Key);
                 // Check if a FileStorage with this S3Key already exists (unique constraint)
                 var existingFile = await _unitOfWork.FileStorages.FindByS3KeyAsync(request.S3Key);
                 if (existingFile != null)
                 {
                     visualFileId = existingFile.FileId;
+                    _logger?.LogInformation("   └─ ℹ️  File already exists in storage: {FileId}", visualFileId);
                 }
                 else
                 {
-                    var bucketName = !string.IsNullOrEmpty(request.BucketName) ? request.BucketName : 
+                    var bucketName = !string.IsNullOrEmpty(request.BucketName) ? request.BucketName :
                                      (Environment.GetEnvironmentVariable("AWS_BUCKET_NAME") ?? _configuration["AWS:BucketName"] ?? "smartinvoice-storage-team-dat");
+                    _logger?.LogInformation("   └─ 📦 Creating new FileStorage record");
+                    _logger?.LogInformation("      • BucketName: {BucketName}", bucketName);
+                    _logger?.LogInformation("      • S3Region: {Region}", _configuration["AWS:Region"] ?? "ap-southeast-1");
+
                     var fileStorage = new FileStorage
                     {
                         FileId = Guid.NewGuid(),
@@ -1198,6 +1329,7 @@ namespace SmartInvoice.API.Services.Implementations
                     };
                     visualFileId = fileStorage.FileId;
                     await _unitOfWork.FileStorages.AddAsync(fileStorage);
+                    _logger?.LogInformation("      ✅ FileStorage created: {FileId}", visualFileId);
                 }
             }
 
@@ -1206,16 +1338,27 @@ namespace SmartInvoice.API.Services.Implementations
             // ============================================================
             if (finalResult.MergeMode == DossierMergeMode.OcrAttachesToXml && finalResult.MergeTargetInvoiceId.HasValue)
             {
+                _logger?.LogInformation("[OCR STEP 5/5] 🔗 MERGE MODE: Attaching OCR to existing XML record");
+                _logger?.LogInformation("   └─ MergeTargetInvoiceId: {TargetInvoiceId}", finalResult.MergeTargetInvoiceId);
+
                 var existingInvoice = await _unitOfWork.Invoices.GetByIdAsync(finalResult.MergeTargetInvoiceId.Value);
                 if (existingInvoice == null)
                 {
+                    _logger?.LogError("   ❌ Target invoice not found in database");
                     finalResult.AddError("ERR_MERGE_FAILED", "Không tìm thấy hóa đơn XML gốc để đính kèm bản thể hiện.");
                     return finalResult;
                 }
 
+                _logger?.LogInformation("   ✅ Target invoice found");
+                _logger?.LogInformation("      • Current Status: {Status}", existingInvoice.Status);
+                _logger?.LogInformation("      • Current RiskLevel: {RiskLevel}", existingInvoice.RiskLevel);
+                _logger?.LogInformation("      • OriginalFileId: {OriginalFileId}", existingInvoice.OriginalFileId ?? null);
+
                 // Only attach the visual file — DO NOT override any data
                 existingInvoice.VisualFileId = visualFileId;
                 existingInvoice.UpdatedAt = DateTime.UtcNow;
+
+                _logger?.LogInformation("   📝 Updating VisualFileId to: {VisualFileId}", visualFileId);
 
                 // Audit Log — add directly to AuditLogs table (not through navigation property)
                 var mergeUser = await _unitOfWork.Users.GetByIdAsync(UserId);
@@ -1241,37 +1384,53 @@ namespace SmartInvoice.API.Services.Implementations
                 // Clear any non-critical errors/warnings from OCR validation since we didn't use any of that data
                 finalResult.ErrorDetails.Clear();
                 finalResult.WarningDetails.Clear();
+
+                overallStopwatch.Stop();
+                _logger?.LogInformation("[OCR] ✅ MERGE COMPLETED Successfully");
+                _logger?.LogInformation("   └─ Result: InvoiceId={InvoiceId}", existingInvoice.InvoiceId);
+                _logger?.LogInformation("   └─ Total duration: {TotalMs}ms", overallStopwatch.ElapsedMilliseconds);
+                _logger?.LogInformation("═══════════════════════════════════════════════════════════════\n");
                 return finalResult;
             }
 
             // ============================================================
             // NORMAL FLOW: CREATE NEW OCR-ONLY INVOICE (Yellow Risk)
             // ============================================================
+            _logger?.LogInformation("[OCR STEP 5/5] 💾 Creating new invoice record (normal flow)");
+
             var docTypes = await _unitOfWork.DocumentTypes.GetAllAsync();
             var docTypeId = 1;
-            
-            var typeStr = request.OcrResult.Invoice?.Type?.Value?.ToUpper();
+
+            var typeStr = request.OcrResult?.Invoice?.Type?.Value?.ToUpper();
             if (typeStr != null && typeStr.Contains("BÁN HÀNG"))
             {
                 var saleType = docTypes.FirstOrDefault(d => d.TypeCode == "SALE" || d.FormTemplate == "02GTTT");
                 docTypeId = saleType?.DocumentTypeId ?? 2;
+                _logger?.LogInformation("   └─ DocumentType: SALE (ID: {TypeId})", docTypeId);
             }
             else
             {
-                 var gtgtType = docTypes.FirstOrDefault(d => d.TypeCode == "GTGT" || d.FormTemplate == "01GTKT");
-                 docTypeId = gtgtType?.DocumentTypeId ?? 1;
+                var gtgtType = docTypes.FirstOrDefault(d => d.TypeCode == "GTGT" || d.FormTemplate == "01GTKT");
+                docTypeId = gtgtType?.DocumentTypeId ?? 1;
+                _logger?.LogInformation("   └─ DocumentType: GTGT (ID: {TypeId})", docTypeId);
             }
 
             var invoiceId = Guid.NewGuid();
             var isInvoiceValid = finalResult.IsValid;
+            var riskLevel = !isInvoiceValid ? "Red" : "Yellow";
+
+            _logger?.LogInformation("   ✅ New InvoiceId generated: {InvoiceId}", invoiceId);
+            _logger?.LogInformation("   └─ IsValid: {IsValid}", isInvoiceValid);
+            _logger?.LogInformation("   └─ RiskLevel: {RiskLevel}", riskLevel);
 
             // OCR-only: VisualFileId gets the image, OriginalFileId stays null (no XML yet)
             // Always add WARN_MISSING_XML_EVIDENCE for OCR-only uploads
             if (isInvoiceValid)
             {
-                finalResult.AddWarning("WARN_MISSING_XML_EVIDENCE", 
-                    "Hóa đơn được trích xuất từ ảnh/PDF bằng AI. Để đảm bảo 100% tính pháp lý khi khai thuế, bạn cần bổ sung file XML gốc.", 
+                finalResult.AddWarning("WARN_MISSING_XML_EVIDENCE",
+                    "Hóa đơn được trích xuất từ ảnh/PDF bằng AI. Để đảm bảo 100% tính pháp lý khi khai thuế, bạn cần bổ sung file XML gốc.",
                     "Tải lên file XML gốc của hóa đơn này để hệ thống xác thực chữ ký số và cập nhật dữ liệu chính xác.");
+                _logger?.LogInformation("   ⚠️  Added warning: WARN_MISSING_XML_EVIDENCE");
             }
 
             var invoice = new Invoice
@@ -1315,7 +1474,8 @@ namespace SmartInvoice.API.Services.Implementations
                 TotalAmountInWords = finalResult.ExtractedData?.TotalAmountInWords,
                 PaymentMethod = finalResult.ExtractedData?.PaymentTerms,
                 MCCQT = finalResult.ExtractedData?.MCCQT,
-                RawData = new InvoiceRawData { 
+                RawData = new InvoiceRawData
+                {
                     ObjectKey = request.S3Key,
                     OcrJobId = request.S3Key
                 },
@@ -1323,12 +1483,21 @@ namespace SmartInvoice.API.Services.Implementations
                 Status = hasFatalError ? nameof(InvoiceStatus.Rejected) : nameof(InvoiceStatus.Draft),
                 // OCR-only: Force Yellow risk even if math is correct (missing XML evidence)
                 RiskLevel = !isInvoiceValid ? "Red" : "Yellow",
-                Notes = !isInvoiceValid ? "Hóa đơn có lỗi, cần kiểm tra lại" 
+                Notes = !isInvoiceValid ? "Hóa đơn có lỗi, cần kiểm tra lại"
                         : "Hóa đơn từ OCR, cần bổ sung file XML gốc để xác thực pháp lý.",
                 Version = finalResult.NewVersion,
                 Workflow = new InvoiceWorkflow { UploadedBy = UserId },
                 CreatedAt = DateTime.UtcNow
             };
+
+            _logger?.LogInformation("   📋 Invoice properties populated:");
+            _logger?.LogInformation("      • InvoiceNumber: {Number}", invoice.InvoiceNumber);
+            _logger?.LogInformation("      • SerialNumber: {Serial}", invoice.SerialNumber);
+            _logger?.LogInformation("      • SellerTax: {SellerTax}", invoice.Seller?.TaxCode ?? "N/A");
+            _logger?.LogInformation("      • BuyerTax: {BuyerTax}", invoice.Buyer?.TaxCode ?? "N/A");
+            _logger?.LogInformation("      • Amount: {Amount}", invoice.TotalAmount);
+            _logger?.LogInformation("      • Status: {Status}", invoice.Status);
+            _logger?.LogInformation("      • RiskLevel: {RiskLevel}", invoice.RiskLevel);
 
             if (finalResult.IsReplacement && finalResult.ReplacedInvoiceId.HasValue)
             {
@@ -1365,7 +1534,7 @@ namespace SmartInvoice.API.Services.Implementations
             var checkStatus = isInvoiceValid ? (finalResult.WarningDetails.Any() ? "WARNING" : "PASS") : "FAIL";
             var priorityError = finalResult.ErrorDetails.FirstOrDefault();
             var priorityWarning = finalResult.WarningDetails.FirstOrDefault();
-            
+
             invoice.CheckResults.Add(new InvoiceCheckResult
             {
                 CheckId = Guid.NewGuid(),
@@ -1403,10 +1572,38 @@ namespace SmartInvoice.API.Services.Implementations
                 Comment = isInvoiceValid ? "Tải lên OCR hợp lệ. Cần bổ sung file XML gốc." : "Tải lên OCR không hợp lệ."
             });
 
+            _logger?.LogInformation("   💾 Saving invoice to database...");
             await _unitOfWork.Invoices.AddAsync(invoice);
             await _unitOfWork.CompleteAsync();
 
+            // Publish SQS message for VietQR validation if Seller TaxCode is available
+            if (!string.IsNullOrEmpty(invoice.Seller?.TaxCode))
+            {
+                try
+                {
+                    var sqsMessage = new SmartInvoice.API.DTOs.SQS.VietQrValidationMessage
+                    {
+                        InvoiceId = invoice.InvoiceId,
+                        TaxCode = invoice.Seller.TaxCode,
+                        SellerName = invoice.Seller.Name
+                    };
+                    await _sqsPublisher.PublishVietQrValidationAsync(sqsMessage, CancellationToken.None);
+                    _logger?.LogInformation("Invoice {InvoiceId} saved and VietQR validation message published to SQS successfully.", invoice.InvoiceId);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Invoice {InvoiceId} saved successfully, but failed to publish VietQR validation message to SQS.", invoice.InvoiceId);
+                }
+            }
+
             finalResult.InvoiceId = invoiceId;
+            overallStopwatch.Stop();
+            _logger?.LogInformation("[OCR] ✅ ProcessInvoiceOcrAsync COMPLETED Successfully");
+            _logger?.LogInformation("   └─ InvoiceId: {InvoiceId}", invoiceId);
+            _logger?.LogInformation("   └─ Status: {Status}", invoice.Status);
+            _logger?.LogInformation("   └─ RiskLevel: {RiskLevel}", invoice.RiskLevel);
+            _logger?.LogInformation("   └─ Total Processing Time: {TotalMs}ms", overallStopwatch.ElapsedMilliseconds);
+            _logger?.LogInformation("═══════════════════════════════════════════════════════════════\n");
             return finalResult;
         }
     }
