@@ -49,3 +49,6 @@ dist/
 dist-ssr/
 *.local
 .npm/
+
+# Test XML data
+test-xml-data/
