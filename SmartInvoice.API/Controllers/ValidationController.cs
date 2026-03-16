@@ -59,7 +59,6 @@ public class ValidationController : ControllerBase
                     .Where(c => c.Category != "AUTO_UPLOAD_VALIDATION")
                     .OrderBy(v => v.CheckOrder)
                     .Select(v => new { v.CheckOrder, ValidationStatus = v.Status })
-                    .ToList()
             })
             .ToListAsync();
 
@@ -146,7 +145,7 @@ public class ValidationController : ControllerBase
                 SellerName = i.Seller.Name,
                 SellerTaxCode = i.Seller.TaxCode,
                 RiskLevel = i.RiskLevel,
-                IssueCount = i.CheckResults.Count(c => c.Status.Equals(ValidationStatuses.Fail, StringComparison.OrdinalIgnoreCase) || c.Status.Equals(ValidationStatuses.Warning, StringComparison.OrdinalIgnoreCase)),
+                IssueCount = i.CheckResults.Count(c => c.Status == ValidationStatuses.Fail || c.Status == ValidationStatuses.Warning),
                 ValidatedAt = i.CheckResults
                     .Where(v => v.Category != "AUTO_UPLOAD_VALIDATION")
                     .OrderByDescending(v => v.CheckedAt)
