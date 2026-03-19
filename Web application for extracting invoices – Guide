@@ -1,12 +1,45 @@
-# 🧾 Invoice Extraction Web App – Hướng dẫn chạy
+🧾 Invoice OCR & Information Extraction System
 
-## 📦 1. Chuẩn bị model
+Hệ thống AI OCR + Information Extraction cho hóa đơn, sử dụng mô hình deep learning (LayoutLMv3) để trích xuất:
 
-Bạn cần **copy toàn bộ thư mục models** sang máy của bạn.
+🧩 Header (thông tin chung)
 
-Ví dụ cấu trúc:
+📊 Table (bảng hàng hóa)
 
-```
+🧾 Footer (tổng tiền, thuế,...)
+
+Hỗ trợ chạy qua web app để inference nhanh.
+
+🚀 Features
+
+End-to-end pipeline: OCR → Layout → Extraction
+
+Tách riêng model theo từng task:
+
+Header
+
+Table
+
+Footer
+
+Web UI đơn giản để test
+
+Xuất kết quả dạng JSON chuẩn backend
+
+Dễ tích hợp vào hệ thống Matching AI / ERP / RPA
+
+🏗️ Project Structure
+invoice_ocr/
+├── inference/
+│   └── web_app/
+│       ├── app.py
+│       ├── templates/
+│       └── static/
+├── requirements.txt
+├── requirements-gpu.txt
+
+📦 Model structure (external - NOT in repo):
+
 OCR_MODELS/
 └── model_final_layoutlmv3/
     ├── model_final_header/
@@ -15,86 +48,59 @@ OCR_MODELS/
     │   └── final_model/
     └── model_final_footer/
         └── final_model/
-```
+⚙️ Setup Environment
+1. Create virtual environment
+python -m venv venv
+2. Activate
 
----
+Windows:
 
-## ⚙️ 2. Set Environment Variables
+venv\Scripts\activate
 
-Mở PowerShell và chạy:
+macOS / Linux:
 
-```powershell
-$env:MODEL_PATH_HEADER="C:\path\to\OCR_MODELS\model_final_layoutlmv3\model_final_header\final_model"
-$env:MODEL_PATH_TABLE="C:\path\to\OCR_MODELS\model_final_layoutlmv3\model_final_table\final_model"
-$env:MODEL_PATH_FOOTER="C:\path\to\OCR_MODELS\model_final_layoutlmv3\model_final_footer\final_model"
-```
+source venv/bin/activate
+3. Install dependencies
+👉 CPU
+pip install --upgrade pip
+pip install -r invoice_ocr/requirements.txt
+👉 GPU (recommended for production)
+pip install --upgrade pip
+pip install -r invoice_ocr/requirements-gpt.txt
 
-👉 Thay `C:\path\to\...` bằng đường dẫn thực tế trên máy bạn
+⚠️ Ensure CUDA + PyTorch compatibility if using GPU
 
----
+🤖 Model Setup
 
-## 📁 3. Di chuyển tới thư mục web app
+⚠️ Models KHÔNG được commit trong repo
 
-```powershell
+Bạn cần:
+
+Copy từ internal storage / server
+
+Hoặc download từ nguồn được cung cấp
+
+Set Environment Variables
+$env:MODEL_PATH_HEADER="C:\path\to\model_final_header\final_model"
+$env:MODEL_PATH_TABLE="C:\path\to\model_final_table\final_model"
+$env:MODEL_PATH_FOOTER="C:\path\to\model_final_footer\final_model"
+
+👉 Linux/macOS:
+
+export MODEL_PATH_HEADER=/path/to/model_final_header/final_model
+export MODEL_PATH_TABLE=/path/to/model_final_table/final_model
+export MODEL_PATH_FOOTER=/path/to/model_final_footer/final_model
+▶️ Run Application
 cd invoice_ocr/inference/web_app
-```
-
----
-
-## ▶️ 4. Chạy ứng dụng
-
-```bash
 python app.py
-```
-
----
-
-## 🌐 5. Mở giao diện web
-
-Truy cập:
-
-```
+🌐 Access Web UI
 http://localhost:5000/
-```
+📤 How to Use
 
----
+Upload invoice (image/PDF)
 
-## 📤 6. Chạy inference
+Click Extract
 
-1. Upload file hóa đơn
-2. Nhấn nút **Extract**
-3. Đợi xử lý
+Wait for processing
 
----
-
-## 📋 7. Lấy kết quả JSON
-
-👉 Sau khi chạy xong:
-
-* Nhấn nút **Copy JSON**
-* Paste ra file `.json` nếu cần
-
----
-
-## ⚠️ Lưu ý
-
-* Model **không nằm trong GitHub repo**
-* Phải copy model thủ công hoặc download từ nơi được cung cấp
-* Nếu lỗi model → kiểm tra lại:
-
-  * Đường dẫn ENV
-  * Folder có chứa `config.json` và `pytorch_model.bin`
-
----
-
-## ✅ Checklist nhanh
-
-* [ ] Đã copy models
-* [ ] Đã set ENV
-* [ ] Đã cd đúng folder
-* [ ] App chạy không lỗi
-* [ ] Truy cập được localhost:5000
-
----
-
-🔥 Done! Giờ bạn có thể chạy inference full pipeline (header + table + footer)
+Copy JSON result
