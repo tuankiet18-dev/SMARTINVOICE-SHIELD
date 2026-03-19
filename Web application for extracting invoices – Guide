@@ -1,34 +1,32 @@
-🧾 Invoice OCR & Information Extraction System
+# 🧾 Invoice OCR & Information Extraction System
 
-Hệ thống AI OCR + Information Extraction cho hóa đơn, sử dụng mô hình deep learning (LayoutLMv3) để trích xuất:
+Hệ thống **AI OCR + Information Extraction** cho hóa đơn, sử dụng mô hình deep learning (LayoutLMv3) để trích xuất:
 
-🧩 Header (thông tin chung)
+* 🧩 Header (thông tin chung)
+* 📊 Table (bảng hàng hóa)
+* 🧾 Footer (tổng tiền, thuế,...)
 
-📊 Table (bảng hàng hóa)
+Hỗ trợ chạy qua **web app** để inference nhanh và dễ tích hợp backend.
 
-🧾 Footer (tổng tiền, thuế,...)
+---
 
-Hỗ trợ chạy qua web app để inference nhanh.
+## 🚀 Features
 
-🚀 Features
+* End-to-end pipeline: **OCR → Layout → Extraction**
+* Tách riêng model theo từng task:
 
-End-to-end pipeline: OCR → Layout → Extraction
+  * Header
+  * Table
+  * Footer
+* Web UI để test nhanh
+* Xuất kết quả dạng **JSON chuẩn backend**
+* Dễ tích hợp vào hệ thống **Matching AI / ERP / RPA**
 
-Tách riêng model theo từng task:
+---
 
-Header
+## 🏗️ Project Structure
 
-Table
-
-Footer
-
-Web UI đơn giản để test
-
-Xuất kết quả dạng JSON chuẩn backend
-
-Dễ tích hợp vào hệ thống Matching AI / ERP / RPA
-
-🏗️ Project Structure
+```
 invoice_ocr/
 ├── inference/
 │   └── web_app/
@@ -36,10 +34,12 @@ invoice_ocr/
 │       ├── templates/
 │       └── static/
 ├── requirements.txt
-├── requirements-gpu.txt
+├── requirements-gpt.txt
+```
 
-📦 Model structure (external - NOT in repo):
+📦 **Model structure (external - NOT in repo):**
 
+```
 OCR_MODELS/
 └── model_final_layoutlmv3/
     ├── model_final_header/
@@ -48,59 +48,155 @@ OCR_MODELS/
     │   └── final_model/
     └── model_final_footer/
         └── final_model/
-⚙️ Setup Environment
-1. Create virtual environment
+```
+
+---
+
+## ⚙️ Setup Environment
+
+### 1. Create virtual environment
+
+```bash
 python -m venv venv
-2. Activate
+```
 
-Windows:
+### 2. Activate
 
+* Windows:
+
+```powershell
 venv\Scripts\activate
+```
 
-macOS / Linux:
+* macOS / Linux:
 
+```bash
 source venv/bin/activate
-3. Install dependencies
-👉 CPU
+```
+
+---
+
+### 3. Install dependencies
+
+#### 👉 CPU
+
+```bash
 pip install --upgrade pip
 pip install -r invoice_ocr/requirements.txt
-👉 GPU (recommended for production)
+```
+
+#### 👉 GPU (recommended for production)
+
+```bash
 pip install --upgrade pip
 pip install -r invoice_ocr/requirements-gpt.txt
+```
 
-⚠️ Ensure CUDA + PyTorch compatibility if using GPU
+> ⚠️ Ensure CUDA + PyTorch compatibility if using GPU
 
-🤖 Model Setup
+---
 
-⚠️ Models KHÔNG được commit trong repo
+## 🤖 Model Setup
+
+⚠️ Models **KHÔNG được commit trong repo**
 
 Bạn cần:
 
-Copy từ internal storage / server
+* Copy từ internal storage / server
+* Hoặc download từ nguồn được cung cấp
 
-Hoặc download từ nguồn được cung cấp
+### Set Environment Variables
 
-Set Environment Variables
+#### Windows (PowerShell)
+
+```powershell
 $env:MODEL_PATH_HEADER="C:\path\to\model_final_header\final_model"
 $env:MODEL_PATH_TABLE="C:\path\to\model_final_table\final_model"
 $env:MODEL_PATH_FOOTER="C:\path\to\model_final_footer\final_model"
+```
 
-👉 Linux/macOS:
+#### Linux / macOS
 
+```bash
 export MODEL_PATH_HEADER=/path/to/model_final_header/final_model
 export MODEL_PATH_TABLE=/path/to/model_final_table/final_model
 export MODEL_PATH_FOOTER=/path/to/model_final_footer/final_model
-▶️ Run Application
+```
+
+---
+
+## ▶️ Run Application
+
+```bash
 cd invoice_ocr/inference/web_app
 python app.py
-🌐 Access Web UI
+```
+
+---
+
+## 🌐 Access Web UI
+
+```
 http://localhost:5000/
-📤 How to Use
+```
 
-Upload invoice (image/PDF)
+---
 
-Click Extract
+## 📤 How to Use
 
-Wait for processing
+1. Upload invoice (image/PDF)
+2. Click **Extract**
+3. Wait for processing
+4. Copy JSON result
 
-Copy JSON result
+---
+## ⚠️ Troubleshooting
+
+### ❌ Model not found
+
+* Check ENV path
+* Ensure:
+
+  * `config.json`
+  * `pytorch_model.bin`
+
+---
+
+### ❌ CUDA error
+
+* Check:
+
+  * `nvidia-smi`
+  * PyTorch version
+
+---
+
+### ❌ Slow inference
+
+* Use GPU
+* Batch processing
+* Optimize image size
+
+---
+
+## ✅ Checklist
+
+* [ ] Virtual env created
+* [ ] Dependencies installed
+* [ ] Models copied
+* [ ] ENV variables set
+* [ ] App runs successfully
+* [ ] Web UI accessible
+
+---
+
+## 🔐 Notes
+
+* Models là **tài sản nội bộ**
+* Không commit model lên Git
+* Nên lưu ở:
+
+  * S3 / GCS
+  * Internal storage
+  * Model registry
+
