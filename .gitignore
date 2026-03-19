@@ -52,3 +52,19 @@ dist-ssr/
 
 # Test XML data
 test-xml-data/
+# Model weights and artifacts (large files)
+*.bin
+*.safetensors
+*.onnx
+*.pt
+*.pth
+*.ckpt
+*.model
+*.zip
+
+# Local data / results (not checked into source control)
+invoice_ocr/inference/results/
+invoice_ocr/inference/tmp/
+invoice_ocr/inference/real_invoices/
+invoice_ocr/inference/web_app/logs/
+invoice_ocr/synthetic_invoices/output/
