@@ -1207,6 +1207,17 @@ namespace SmartInvoice.API.Services.Implementations
             }
         }
 
+        /// <summary>
+        /// Creates a draft invoice with Status="Processing" for the async OCR pipeline.
+        /// Called by InvoicesController.UploadImage before publishing SQS message.
+        /// </summary>
+        public async Task CreateDraftInvoiceAsync(Invoice invoice)
+        {
+            await _unitOfWork.Invoices.AddAsync(invoice);
+            await _unitOfWork.CompleteAsync();
+            _logger?.LogInformation("Created draft invoice {InvoiceId} with Status=Processing", invoice.InvoiceId);
+        }
+
         public async Task<ValidationResultDto> ProcessInvoiceOcrAsync(ProcessOcrRequestDto request, string userId, string companyId)
         {
             if (request.OcrResult == null)

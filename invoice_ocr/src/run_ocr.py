@@ -261,7 +261,8 @@ class OCRRunner:
 
         return PaddleOCR(
             lang=lang,
-            use_gpu=False,
+            use_gpu=(self.device == "cuda"),
+            gpu_mem=1000,
             det=True,
             rec=True,
             use_angle_cls=use_angle_cls,

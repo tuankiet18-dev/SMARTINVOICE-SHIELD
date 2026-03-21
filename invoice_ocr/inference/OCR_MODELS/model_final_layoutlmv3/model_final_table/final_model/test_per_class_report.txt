@@ -1,0 +1,31 @@
+TEST EVALUATION — PER CLASS REPORT
+============================================================
+F1 weighted : 0.9997
+Accuracy    : 0.9997
+============================================================
+
+                    precision    recall  f1-score   support
+
+       B-ITEM_NAME     0.9987    0.9987    0.9987      1501
+       B-ITEM_UNIT     0.9992    1.0000    0.9996      1320
+   B-ITEM_QUANTITY     1.0000    1.0000    1.0000      1240
+ B-ITEM_UNIT_PRICE     1.0000    1.0000    1.0000      1310
+B-ITEM_TOTAL_PRICE     0.9992    1.0000    0.9996      1302
+   B-ITEM_DISCOUNT     0.9929    1.0000    0.9964       140
+   B-ITEM_VAT_RATE     1.0000    1.0000    1.0000       387
+   B-ITEM_LINE_TAX     1.0000    0.9975    0.9987       393
+  B-ITEM_ROW_TOTAL     1.0000    1.0000    1.0000       148
+       I-ITEM_NAME     0.9997    0.9997    0.9997      6192
+       I-ITEM_UNIT     1.0000    1.0000    1.0000         4
+   I-ITEM_QUANTITY     0.0000    0.0000    0.0000         0
+ I-ITEM_UNIT_PRICE     1.0000    1.0000    1.0000         4
+I-ITEM_TOTAL_PRICE     1.0000    1.0000    1.0000        13
+   I-ITEM_DISCOUNT     0.0000    0.0000    0.0000         1
+   I-ITEM_VAT_RATE     0.0000    0.0000    0.0000         0
+   I-ITEM_LINE_TAX     0.0000    0.0000    0.0000         0
+  I-ITEM_ROW_TOTAL     0.0000    0.0000    0.0000         0
+                 O     1.0000    0.9999    0.9999      8146
+
+          accuracy                         0.9997     22101
+         macro avg     0.7363    0.7366    0.7365     22101
+      weighted avg     0.9996    0.9997    0.9997     22101

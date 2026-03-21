@@ -25,18 +25,35 @@ openpyxl==3.1.2
 vietocr==0.3.12
 
 # =========================
-# NLP / SER (CPU-safe)
+# NLP / SER
 # =========================
 transformers==4.36.2
 sentencepiece==0.1.99
 
 # =========================
-# Utils / UI
+# Deep Learning
+# =========================
+torch
+torchvision
+datasets
+huggingface-hub
+
+# =========================
+# Utils
 # =========================
 tqdm==4.66.1
 PyYAML==6.0.1
-PyQt5==5.15.9
 
-torch
-datasets
-huggingface-hub
+# =========================
+# Web API / Config
+# =========================
+flask
+python-dotenv
+
+# =========================
+# Optional (LLM / Gemini)
+# =========================
+google-generativeai
+
+# =========================
+# PyQt5==5.15.9

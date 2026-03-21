@@ -243,6 +243,40 @@ export const invoiceService = {
         return response.data;
     },
 
+    // --- Async OCR Upload (Event-Driven Pipeline) ---
+
+    /** Upload image → S3 → SQS → OcrWorkerService (async). Returns 202 immediately. */
+    async uploadImage(file: File): Promise<{ invoiceId: string; s3Key: string; status: string; message: string }> {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await apiClient.post('/invoices/upload-image', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+    },
+
+    /** Poll invoice status until it leaves "Processing". */
+    async pollInvoiceUntilDone(
+        invoiceId: string,
+        onStatusChange?: (status: string) => void,
+        maxAttempts: number = 60,
+        intervalMs: number = 3000
+    ): Promise<InvoiceDetailDto> {
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, intervalMs));
+            try {
+                const detail = await this.getInvoiceDetail(invoiceId);
+                onStatusChange?.(detail.status);
+                if (detail.status !== 'Processing') {
+                    return detail;
+                }
+            } catch {
+                // Retry on network errors
+            }
+        }
+        throw new Error('OCR processing timed out after ' + (maxAttempts * intervalMs / 1000) + 's');
+    },
+
     async getInvoiceStats(startDate: string, endDate: string, status?: string): Promise<InvoiceStatsDto> {
         const res = await apiClient.get('/invoices/stats', {
             params: { startDate, endDate, status }

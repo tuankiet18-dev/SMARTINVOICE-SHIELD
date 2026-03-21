@@ -20,6 +20,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - DB_CONNECTION_STRING=Host=postgres;Port=5432;Database=SmartInvoiceDb;Username=postgres;Password=yourdescription
       - DOTNET_WATCH_SUPPRESS_PROMPTS=1
+      - OCR_API_ENDPOINT=http://smartinvoice-ocr:5000
     depends_on:
       - postgres
     networks:
@@ -62,14 +63,30 @@ services:
     networks:
       - smartinvoice-network
   # ---------------------------------------------------------------------------
-  # AI SERVICE (Python) - Placeholder
+  # AI SERVICE (Python OCR)
   # ---------------------------------------------------------------------------
-  # ai-service:
-  #   build: ./ai
-  #   ports:
-  #     - "8000:8000"
-  #   networks:
-  #     - smartinvoice-network
+  smartinvoice-ocr:
+    build:
+      context: ./invoice_ocr
+      dockerfile: Dockerfile
+    container_name: smartinvoice-ocr
+    ports:
+      - "5000:5000"
+    environment:
+      - DEVICE=cuda
+      - HOST=0.0.0.0
+      - PORT=5000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ./invoice_ocr:/app
+    networks:
+      - smartinvoice-network
 
 networks:
   smartinvoice-network:

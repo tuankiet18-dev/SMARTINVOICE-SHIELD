@@ -68,3 +68,10 @@ invoice_ocr/inference/tmp/
 invoice_ocr/inference/real_invoices/
 invoice_ocr/inference/web_app/logs/
 invoice_ocr/synthetic_invoices/output/
+
+# Python Virtual Environment & Cache
+ocr-env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

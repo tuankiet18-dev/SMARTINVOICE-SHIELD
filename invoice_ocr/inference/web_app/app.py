@@ -319,31 +319,27 @@ class ModelManager:
         self._init_error:  Optional[str] = None
         self._init_lock    = threading.Lock()
 
-        self.ocr_runner:  Optional[OCRRunner]                        = None
-        self.engine:      Optional[InvoiceExtractionEngine]          = None
+        self.ocr_runner: Optional[OCRRunner] = None
+        self.engine:     Optional[InvoiceExtractionEngine] = None
 
-        self.header_processor: Optional[LayoutLMv3Processor]              = None
-        self.header_model:     Optional[LayoutLMv3ForTokenClassification] = None
-        self.header_label2id:  Dict[str, int] = {}
-        self.header_id2label:  Dict[int, str] = {}
+        # --- Lazy Load Private Storage ---
+        self._header_processor: Optional[LayoutLMv3Processor]              = None
+        self._header_model:     Optional[LayoutLMv3ForTokenClassification] = None
+        self.header_label2id:   Dict[str, int] = {}
+        self.header_id2label:   Dict[int, str] = {}
 
-        self.table_processor:  Optional[LayoutLMv3Processor]              = None
-        self.table_model:      Optional[LayoutLMv3ForTokenClassification] = None
-        self.table_label2id:   Dict[str, int] = {}
-        self.table_id2label:   Dict[int, str] = {}
+        self._table_processor:  Optional[LayoutLMv3Processor]              = None
+        self._table_model:      Optional[LayoutLMv3ForTokenClassification] = None
+        self.table_label2id:    Dict[str, int] = {}
+        self.table_id2label:    Dict[int, str] = {}
 
-        self.footer_processor: Optional[LayoutLMv3Processor]              = None
-        self.footer_model:     Optional[LayoutLMv3ForTokenClassification] = None
-        self.footer_label2id:  Dict[str, int] = {}
-        self.footer_id2label:  Dict[int, str] = {}
+        self._footer_processor: Optional[LayoutLMv3Processor]              = None
+        self._footer_model:     Optional[LayoutLMv3ForTokenClassification] = None
+        self.footer_label2id:   Dict[str, int] = {}
+        self.footer_id2label:   Dict[int, str] = {}
 
         self.device: str = Config.DEVICE
-
-        # Backward-compat aliases
-        self.processor: Optional[LayoutLMv3Processor]              = None
-        self.model:     Optional[LayoutLMv3ForTokenClassification] = None
-        self.id2label:  Dict[int, str] = {}
-        self.label2id:  Dict[str, int] = {}
+        self._lazy_lock = threading.Lock()
 
     @classmethod
     def get(cls) -> "ModelManager":
@@ -352,6 +348,81 @@ class ModelManager:
                 if cls._instance is None:
                     cls._instance = cls()
         return cls._instance
+
+    # ── Header Model Property ─────────────────────────────────────────
+    @property
+    def header_processor(self) -> LayoutLMv3Processor:
+        if self._header_processor is None: self._ensure_header()
+        return self._header_processor
+
+    @property
+    def header_model(self) -> LayoutLMv3ForTokenClassification:
+        if self._header_model is None: self._ensure_header()
+        return self._header_model
+
+    def _ensure_header(self):
+        with self._lazy_lock:
+            if self._header_model is not None: return
+            p = Path(Config.MODEL_PATH_HEADER)
+            logger.info("⚡ Lazy-loading Header model from %s", p)
+            self._header_processor = LayoutLMv3Processor.from_pretrained(str(p), apply_ocr=False)
+            self._header_model = LayoutLMv3ForTokenClassification.from_pretrained(str(p))
+            self._header_model.to(self.device)
+            self._header_model.eval()
+            with open(p / "label2id.json", encoding="utf-8") as f:
+                self.header_label2id = json.load(f)
+            with open(p / "id2label.json", encoding="utf-8") as f:
+                self.header_id2label = {int(k): v for k, v in json.load(f).items()}
+
+    # ── Table Model Property ──────────────────────────────────────────
+    @property
+    def table_processor(self) -> LayoutLMv3Processor:
+        if self._table_processor is None: self._ensure_table()
+        return self._table_processor
+
+    @property
+    def table_model(self) -> LayoutLMv3ForTokenClassification:
+        if self._table_model is None: self._ensure_table()
+        return self._table_model
+
+    def _ensure_table(self):
+        with self._lazy_lock:
+            if self._table_model is not None: return
+            p = Path(Config.MODEL_PATH_TABLE)
+            logger.info("⚡ Lazy-loading Table model from %s", p)
+            self._table_processor = LayoutLMv3Processor.from_pretrained(str(p), apply_ocr=False)
+            self._table_model = LayoutLMv3ForTokenClassification.from_pretrained(str(p))
+            self._table_model.to(self.device)
+            self._table_model.eval()
+            with open(p / "label2id.json", encoding="utf-8") as f:
+                self.table_label2id = json.load(f)
+            with open(p / "id2label.json", encoding="utf-8") as f:
+                self.table_id2label = {int(k): v for k, v in json.load(f).items()}
+
+    # ── Footer Model Property ──────────────────────────────────────────
+    @property
+    def footer_processor(self) -> LayoutLMv3Processor:
+        if self._footer_processor is None: self._ensure_footer()
+        return self._footer_processor
+
+    @property
+    def footer_model(self) -> LayoutLMv3ForTokenClassification:
+        if self._footer_model is None: self._ensure_footer()
+        return self._footer_model
+
+    def _ensure_footer(self):
+        with self._lazy_lock:
+            if self._footer_model is not None: return
+            p = Path(Config.MODEL_PATH_FOOTER)
+            logger.info("⚡ Lazy-loading Footer model from %s", p)
+            self._footer_processor = LayoutLMv3Processor.from_pretrained(str(p), apply_ocr=False)
+            self._footer_model = LayoutLMv3ForTokenClassification.from_pretrained(str(p))
+            self._footer_model.to(self.device)
+            self._footer_model.eval()
+            with open(p / "label2id.json", encoding="utf-8") as f:
+                self.footer_label2id = json.load(f)
+            with open(p / "id2label.json", encoding="utf-8") as f:
+                self.footer_id2label = {int(k): v for k, v in json.load(f).items()}
 
     def load(self, log: logging.Logger):
         if self._ready:
@@ -362,26 +433,18 @@ class ModelManager:
             try:
                 self._load_components(log)
                 self._ready = True
-                print(f"[Startup] GEMINI_ENABLED={GEMINI_ENABLED}")
-                print(f"[Startup] Key present={'YES' if os.environ.get('GEMINI_API_KEY') else 'NO'}")
-                print(f"[Startup] .env path={_ENV_FILE} exists={_ENV_FILE.exists()}")
+                log.info("✅ ModelManager: Base components (OCR + Engine) loaded.")
+                if not GEMINI_ENABLED:
+                    log.info("   GEMINI_ENABLED=False -> Pre-warming local models...")
+                    self._ensure_header()
+                    self._ensure_table()
+                    self._ensure_footer()
             except Exception as exc:
                 self._init_error = str(exc)
                 log.error("ModelManager.load() FAILED", exc_info=True)
                 raise
 
     def _load_components(self, log: logging.Logger):
-        header_path = Path(Config.MODEL_PATH_HEADER)
-        table_path  = Path(Config.MODEL_PATH_TABLE)
-        footer_path = Path(Config.MODEL_PATH_FOOTER)
-
-        if not header_path.exists():
-            raise FileNotFoundError(f"Header model not found: {header_path}")
-        if not table_path.exists():
-            raise FileNotFoundError(f"Table model not found: {table_path}")
-        if not footer_path.exists():
-            raise FileNotFoundError(f"Footer model not found: {footer_path}")
-
         # ── [1/5] OCR ─────────────────────────────────────────────
         log.info("[1/5] Loading OCR runner (PaddleOCR + VietOCR)...")
         t = time.monotonic()
@@ -392,60 +455,6 @@ class ModelManager:
         )
         log.info("      OCR ready in %.1fs", time.monotonic() - t)
 
-        # ── [2/5] Header model ─────────────────────────────────────
-        log.info("[2/5] Loading Header LayoutLMv3 processor + model...")
-        t = time.monotonic()
-        self.header_processor = LayoutLMv3Processor.from_pretrained(
-            str(header_path), apply_ocr=False
-        )
-        self.header_model = LayoutLMv3ForTokenClassification.from_pretrained(
-            str(header_path)
-        )
-        self.header_model.to(self.device)
-        self.header_model.eval()
-        with open(header_path / "label2id.json", encoding="utf-8") as f:
-            self.header_label2id = json.load(f)
-        with open(header_path / "id2label.json", encoding="utf-8") as f:
-            self.header_id2label = {int(k): v for k, v in json.load(f).items()}
-        log.info("      Header ready in %.1fs — %d classes",
-                 time.monotonic() - t, len(self.header_id2label))
-
-        # ── [3/5] Table model ──────────────────────────────────────
-        log.info("[3/5] Loading Table LayoutLMv3 processor + model...")
-        t = time.monotonic()
-        self.table_processor = LayoutLMv3Processor.from_pretrained(
-            str(table_path), apply_ocr=False
-        )
-        self.table_model = LayoutLMv3ForTokenClassification.from_pretrained(
-            str(table_path)
-        )
-        self.table_model.to(self.device)
-        self.table_model.eval()
-        with open(table_path / "label2id.json", encoding="utf-8") as f:
-            self.table_label2id = json.load(f)
-        with open(table_path / "id2label.json", encoding="utf-8") as f:
-            self.table_id2label = {int(k): v for k, v in json.load(f).items()}
-        log.info("      Table ready in %.1fs — %d classes",
-                 time.monotonic() - t, len(self.table_id2label))
-
-        # ── [4/5] Footer model ─────────────────────────────────────
-        log.info("[4/5] Loading Footer LayoutLMv3 processor + model...")
-        t = time.monotonic()
-        self.footer_processor = LayoutLMv3Processor.from_pretrained(
-            str(footer_path), apply_ocr=False
-        )
-        self.footer_model = LayoutLMv3ForTokenClassification.from_pretrained(
-            str(footer_path)
-        )
-        self.footer_model.to(self.device)
-        self.footer_model.eval()
-        with open(footer_path / "label2id.json", encoding="utf-8") as f:
-            self.footer_label2id = json.load(f)
-        with open(footer_path / "id2label.json", encoding="utf-8") as f:
-            self.footer_id2label = {int(k): v for k, v in json.load(f).items()}
-        log.info("      Footer ready in %.1fs — %d classes",
-                 time.monotonic() - t, len(self.footer_id2label))
-
         # ── [5/5] Engine ───────────────────────────────────────────
         log.info("[5/5] Initializing InvoiceExtractionEngine...")
         self.engine = InvoiceExtractionEngine(
@@ -453,13 +462,15 @@ class ModelManager:
             min_confidence = Config.MIN_CONFIDENCE,
         )
 
-        log.info("✅ ModelManager triple-model fully initialized.")
-
-        # Backward-compat aliases
-        self.processor = self.header_processor
-        self.model     = self.header_model
-        self.id2label  = self.header_id2label
-        self.label2id  = self.header_label2id
+    # Backward-compat aliases
+    @property
+    def processor(self) -> LayoutLMv3Processor: return self.header_processor
+    @property
+    def model(self) -> LayoutLMv3ForTokenClassification: return self.header_model
+    @property
+    def id2label(self) -> Dict[int, str]: return self.header_id2label
+    @property
+    def label2id(self) -> Dict[str, int]: return self.header_label2id
 
     @property
     def ready(self) -> bool:
@@ -2682,67 +2693,60 @@ def run_full_pipeline(
         log.info("Stage 2 ✅ ocr  words=%d", len(words))
 
         # ── Stage 3+4: Gemini Flash (primary) or LayoutLMv3 (fallback) ──────
-        GEMINI_ENABLED_LOCAL = GEMINI_ENABLED
         raw_result = None
+        
+        if GEMINI_ENABLED:
+            try:
+                log.info("Attempting extraction with Gemini Flash...")
+                import cv2 as _cv2
+                _encode_success, _jpeg_buf = _cv2.imencode(
+                    ".jpg", img_bgr,
+                    [_cv2.IMWRITE_JPEG_QUALITY, 92]
+                )
+                if not _encode_success:
+                    raise RuntimeError("Failed to encode img_bgr to JPEG for Gemini")
+                
+                _gemini_bytes = _jpeg_buf.tobytes()
+                
+                # Internal retry logic for Gemini transient errors (429, etc)
+                MAX_RETRIES = 2
+                RETRY_DELAYS = [5, 15]
+                for attempt in range(MAX_RETRIES + 1):
+                    try:
+                        raw_result = GEMINI_EXTRACTOR.extract(
+                            image_bytes=_gemini_bytes,
+                            ocr_words=words,
+                            mime_type="image/jpeg",
+                        )
+                        if raw_result:
+                            log.info("Stage 3+4 ✅ Gemini done  items=%d", len(raw_result.get("items", [])))
+                            break
+                    except Exception as gemini_err:
+                        err_str = str(gemini_err)
+                        is_rate_limit = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
+                        if is_rate_limit and attempt < MAX_RETRIES:
+                            delay = RETRY_DELAYS[attempt]
+                            log.warning("[Gemini] Rate limit (attempt %d) — retrying in %ds", attempt + 1, delay)
+                            time.sleep(delay)
+                            continue
+                        raise # Break retry loop and hit the outer fallback except
+                
+            except Exception as e:
+                log.warning(f"⚠️ Gemini extraction failed ({e}). Falling back to local LayoutLMv3 models...")
+                raw_result = None
 
-        if GEMINI_ENABLED_LOCAL:
-            import time as _time
-            MAX_RETRIES = 2
-            RETRY_DELAYS = [5, 15]  # seconds between retries
-
-            for attempt in range(MAX_RETRIES + 1):
-                try:
-                    log.info("Stage 3+4 ✅ Gemini Flash extraction (attempt %d/%d)",
-                             attempt + 1, MAX_RETRIES + 1)
-                    import cv2 as _cv2
-                    _encode_success, _jpeg_buf = _cv2.imencode(
-                        ".jpg", img_bgr,
-                        [_cv2.IMWRITE_JPEG_QUALITY, 92]
-                    )
-                    if not _encode_success:
-                        raise RuntimeError("Failed to encode img_bgr to JPEG for Gemini")
-                    _gemini_bytes = _jpeg_buf.tobytes()
-                    raw_result = GEMINI_EXTRACTOR.extract(
-                        image_bytes=_gemini_bytes,
-                        ocr_words=words,
-                        mime_type="image/jpeg",
-                    )
-                    # Skip stages 3, 4 — go directly to validation
-                    log.info("Stage 3+4 ✅ Gemini done  items=%d",
-                             len(raw_result.get("items", [])))
-                    break  # Success — exit retry loop
-
-                except Exception as gemini_err:
-                    err_str = str(gemini_err)
-                    is_rate_limit = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
-
-                    if is_rate_limit and attempt < MAX_RETRIES:
-                        delay = RETRY_DELAYS[attempt]
-                        log.warning("[Gemini] Rate limit (attempt %d) — retrying in %ds",
-                                    attempt + 1, delay)
-                        _time.sleep(delay)
-                        continue
-
-                    # Final failure → fallback
-                    log.warning(
-                        "Stage 3+4 ⚠️ Gemini failed after %d attempts (%s) "
-                        "— falling back to LayoutLMv3",
-                        attempt + 1,
-                        str(gemini_err)[:150]
-                    )
-                    GEMINI_ENABLED_LOCAL = False
-                    raw_result = None
-                    break
-
-        if not GEMINI_ENABLED_LOCAL or raw_result is None:
+        # --- Local Model Extraction Logic (Fallback / Default) ---
+        if raw_result is None:
             t = time.monotonic()
+            log.info("Executing local LayoutLMv3 models (Stage 3 & 4)...")
             (header_labels, header_confs,
              table_labels,  table_confs,
              footer_labels, footer_confs,
              sw_items) = stage3_inference(mm, img_bgr, words, bboxes, log)
             met.record_stage("3_inference", (time.monotonic() - t) * 1000)
-            log.info(
-                "Stage 3 ✅ inference  header_non_O=%d  table_non_O=%d  footer_non_O=%d",
+            
+            log.debug(
+                "  Stage 3 ✅ inference  header_non_O=%d  table_non_O=%d  footer_non_O=%d",
                 sum(1 for l in header_labels if l != "O"),
                 sum(1 for l in table_labels  if l != "O"),
                 sum(1 for l in footer_labels if l != "O"),
@@ -2758,7 +2762,7 @@ def run_full_pipeline(
                 sw_items=sw_items,
             )
             met.record_stage("4_postprocess", (time.monotonic() - t) * 1000)
-            log.info("Stage 4 ✅ postprocess")
+            log.info("Stage 4 ✅ postprocess done")
         # ── end stage 3+4 ───────────────────────────────────────────────────
 
         from src.validators.invoice_validator import InvoiceValidator

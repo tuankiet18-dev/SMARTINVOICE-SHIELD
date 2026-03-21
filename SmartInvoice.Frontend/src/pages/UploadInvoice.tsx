@@ -254,57 +254,174 @@ const UploadInvoice: React.FC = () => {
         }
 
         try {
-          const { uploadUrl, s3Key } = await invoiceService.getUploadUrl(
-            fileObj.name,
-            fileObj.type || "application/xml",
-          );
-          await invoiceService.uploadToS3(uploadUrl, fileObj);
-          if (currentStep < 2) setCurrentStep(2);
+          if (activeTab === "xml") {
+            // ══════ XML TAB: Existing sync flow (unchanged) ══════
+            const { uploadUrl, s3Key } = await invoiceService.getUploadUrl(
+              fileObj.name,
+              fileObj.type || "application/xml",
+            );
+            await invoiceService.uploadToS3(uploadUrl, fileObj);
+            if (currentStep < 2) setCurrentStep(2);
 
-          const validation = await invoiceService.processXml(s3Key);
-          const hasErrors = !!validation.errors?.length;
-          const hasWarnings = !!validation.warnings?.length;
+            const validation = await invoiceService.processXml(s3Key);
+            const hasErrors = !!validation.errors?.length;
+            const hasWarnings = !!validation.warnings?.length;
 
-          setResults((prev) => {
-            const next = prev.map((item, idx) => {
-              if (idx !== i) return item;
+            setResults((prev) => {
+              const next = prev.map((item, idx) => {
+                if (idx !== i) return item;
 
-              let finalErrorMessage = undefined;
-              if (
-                validation.errorDetails &&
-                validation.errorDetails.length > 0
-              ) {
-                finalErrorMessage = validation.errorDetails
-                  .map((e) => e.errorMessage)
-                  .join(" | ");
-              } else if (hasErrors) {
-                finalErrorMessage = validation.errors.join(" | ");
-              } else if (
-                validation.warningDetails &&
-                validation.warningDetails.length > 0
-              ) {
-                finalErrorMessage =
-                  validation.warningDetails[0].errorMessage || undefined;
-              } else if (hasWarnings) {
-                finalErrorMessage = validation.warnings[0];
-              }
+                let finalErrorMessage = undefined;
+                if (
+                  validation.errorDetails &&
+                  validation.errorDetails.length > 0
+                ) {
+                  finalErrorMessage = validation.errorDetails
+                    .map((e) => e.errorMessage)
+                    .join(" | ");
+                } else if (hasErrors) {
+                  finalErrorMessage = validation.errors.join(" | ");
+                } else if (
+                  validation.warningDetails &&
+                  validation.warningDetails.length > 0
+                ) {
+                  finalErrorMessage =
+                    validation.warningDetails[0].errorMessage || undefined;
+                } else if (hasWarnings) {
+                  finalErrorMessage = validation.warnings[0];
+                }
 
-              return {
-                ...item,
-                status: hasErrors
-                  ? "error"
-                  : hasWarnings
-                    ? "warning"
-                    : "success",
-                result: validation as ValidationResultExtended,
-                invoiceId: validation.invoiceId,
-                errorMessage: finalErrorMessage,
-                submitStatus: "idle",
-              } as ProcessResult;
+                return {
+                  ...item,
+                  status: hasErrors
+                    ? "error"
+                    : hasWarnings
+                      ? "warning"
+                      : "success",
+                  result: validation as ValidationResultExtended,
+                  invoiceId: validation.invoiceId,
+                  errorMessage: finalErrorMessage,
+                  submitStatus: "idle",
+                } as ProcessResult;
+              });
+              setSelectedRowKeys(getDefaultSelected(next));
+              return next;
             });
-            setSelectedRowKeys(getDefaultSelected(next));
-            return next;
-          });
+          } else {
+            // ══════ OCR TAB: Async upload + polling flow ══════
+            // Step 1: Upload image → backend uploads to S3 + publishes SQS
+            const uploadResult = await invoiceService.uploadImage(fileObj);
+            if (currentStep < 2) setCurrentStep(2);
+
+            // Step 2: Poll until OCR worker finishes
+            setResults((prev) =>
+              prev.map((item, idx) =>
+                idx === i
+                  ? {
+                      ...item,
+                      status: "processing",
+                      invoiceId: uploadResult.invoiceId,
+                      errorMessage: "Đang chờ OCR xử lý...",
+                    }
+                  : item,
+              ),
+            );
+
+            const detail = await invoiceService.pollInvoiceUntilDone(
+              uploadResult.invoiceId,
+              (status) => {
+                // Update status text while polling
+                setResults((prev) =>
+                  prev.map((item, idx) =>
+                    idx === i && item.status === "processing"
+                      ? {
+                          ...item,
+                          errorMessage:
+                            status === "Processing"
+                              ? "Đang chờ OCR xử lý..."
+                              : `Trạng thái: ${status}`,
+                        }
+                      : item,
+                  ),
+                );
+              },
+            );
+
+            // Step 3: Map InvoiceDetailDto → ProcessResult
+            const isFailed = detail.status === "Failed" || detail.status === "Rejected";
+            const hasWarnings = detail.riskLevel === "Yellow" || detail.riskLevel === "Orange";
+
+            // Build validation-like result from detail
+            const warningDetails: Array<{ errorCode: string | null; errorMessage: string | null; suggestion: string | null }> = [];
+            const errorDetails: Array<{ errorCode: string | null; errorMessage: string | null; suggestion: string | null }> = [];
+
+            // Extract from validationLayers
+            if (detail.validationLayers) {
+              for (const layer of detail.validationLayers) {
+                if (layer.validationStatus === "Fail" || !layer.isValid) {
+                  errorDetails.push({
+                    errorCode: layer.errorCode,
+                    errorMessage: layer.errorMessage,
+                    suggestion: null,
+                  });
+                } else if (layer.validationStatus === "Warning" || layer.validationStatus === "WARNING") {
+                  warningDetails.push({
+                    errorCode: layer.errorCode,
+                    errorMessage: layer.errorMessage,
+                    suggestion: null,
+                  });
+                }
+              }
+            }
+
+            // If OCR-only, add a default warning if nothing else
+            if (!isFailed && warningDetails.length === 0 && errorDetails.length === 0) {
+              warningDetails.push({
+                errorCode: "WARN_MISSING_XML_EVIDENCE",
+                errorMessage: "Hóa đơn từ OCR, cần bổ sung XML để xác thực pháp lý.",
+                suggestion: "Tải lên file XML gốc để xác thực chữ ký số.",
+              });
+            }
+
+            const ocrValidation: ValidationResultExtended = {
+              isValid: !isFailed,
+              errors: errorDetails.map(e => e.errorMessage || ""),
+              warnings: warningDetails.map(w => w.errorMessage || ""),
+              errorDetails,
+              warningDetails,
+              signerSubject: null,
+              extractedData: null,
+              invoiceId: detail.invoiceId,
+            };
+
+            let finalErrorMessage = undefined;
+            if (isFailed) {
+              finalErrorMessage = detail.notes || errorDetails[0]?.errorMessage || "OCR thất bại";
+            } else if (warningDetails.length > 0) {
+              finalErrorMessage = warningDetails[0]?.errorMessage || undefined;
+            }
+
+            const finalIdx = i;
+            setResults((prev) => {
+              const next = prev.map((item, idx) => {
+                if (idx !== finalIdx) return item;
+                return {
+                  ...item,
+                  status: isFailed
+                    ? "error"
+                    : hasWarnings
+                      ? "warning"
+                      : "success",
+                  result: ocrValidation,
+                  invoiceId: detail.invoiceId,
+                  errorMessage: finalErrorMessage,
+                  submitStatus: "idle",
+                } as ProcessResult;
+              });
+              setSelectedRowKeys(getDefaultSelected(next));
+              return next;
+            });
+          }
         } catch (error: any) {
           const resData = error.response?.data;
           const errMsg =

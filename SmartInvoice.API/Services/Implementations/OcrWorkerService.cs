@@ -1,0 +1,575 @@
+using SmartInvoice.API.Constants;
+using SmartInvoice.API.DTOs.Invoice;
+using SmartInvoice.API.DTOs.SQS;
+using SmartInvoice.API.Entities;
+using SmartInvoice.API.Entities.JsonModels;
+using SmartInvoice.API.Repositories.Interfaces;
+using SmartInvoice.API.Services.Interfaces;
+using System.Text.Json;
+
+namespace SmartInvoice.API.Services.Implementations;
+
+/// <summary>
+/// Background service that polls the OCR SQS queue, downloads invoice images from S3,
+/// sends them to the local Python OCR API, and updates the database with extraction results.
+///
+/// Architecture follows the same pattern as VietQrSqsConsumerService:
+/// - Long polling (20s wait) to minimize API calls
+/// - New DI scope per message to isolate EF Core contexts
+/// - Failed messages stay in queue for retry; permanently bad messages get deleted
+/// </summary>
+public class OcrWorkerService : BackgroundService
+{
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<OcrWorkerService> _logger;
+
+    private string? _queueUrl;
+    private const int WaitTimeSeconds = 20;
+    private const int MaxNumberOfMessages = 5; // Process fewer OCR jobs per poll (heavy workload)
+
+    public OcrWorkerService(
+        IServiceScopeFactory scopeFactory,
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        ILogger<OcrWorkerService> logger)
+    {
+        _scopeFactory = scopeFactory;
+        _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        _logger.LogInformation("🚀 OcrWorkerService is starting...");
+
+        try
+        {
+            _queueUrl = _configuration["AWS_SQS_OCR_URL"];
+            if (string.IsNullOrEmpty(_queueUrl))
+            {
+                _logger.LogWarning("⚠️ AWS_SQS_OCR_URL not configured — OcrWorkerService is DISABLED.");
+                return;
+            }
+
+            _logger.LogInformation("OCR Worker configured. Queue URL: {QueueUrl}", _queueUrl);
+
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await PollAndProcessAsync(stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogInformation("OCR Worker polling canceled.");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in OCR Worker polling loop. Retrying in 5s...");
+                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogCritical(ex, "Fatal error in OcrWorkerService. Service will stop.");
+            throw;
+        }
+        finally
+        {
+            _logger.LogInformation("OcrWorkerService has stopped.");
+        }
+    }
+
+    private async Task PollAndProcessAsync(CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var sqsService = scope.ServiceProvider.GetRequiredService<ISqsService>();
+
+        var messages = await sqsService.ReceiveMessagesAsync(_queueUrl!, MaxNumberOfMessages, WaitTimeSeconds, ct);
+
+        if (messages.Count == 0)
+        {
+            _logger.LogDebug("No OCR jobs in queue (long poll timeout).");
+            return;
+        }
+
+        _logger.LogInformation("Received {Count} OCR job(s) from SQS.", messages.Count);
+
+        foreach (var message in messages)
+        {
+            try
+            {
+                await ProcessSingleJobAsync(message.Body, ct);
+
+                // Delete message after successful processing
+                await sqsService.DeleteMessageAsync(_queueUrl!, message.ReceiptHandle, ct);
+                _logger.LogInformation("OCR job completed and SQS message deleted. MessageId={MessageId}", message.MessageId);
+            }
+            catch (JsonException ex)
+            {
+                // Permanently bad message — delete to avoid infinite retry
+                _logger.LogError(ex, "Invalid OCR job message format. Deleting poison message {MessageId}.", message.MessageId);
+                await sqsService.DeleteMessageAsync(_queueUrl!, message.ReceiptHandle, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing OCR job {MessageId}. Message will be retried after visibility timeout.", message.MessageId);
+                // Don't delete — let SQS retry after visibility timeout
+            }
+        }
+    }
+
+    private async Task ProcessSingleJobAsync(string messageBody, CancellationToken ct)
+    {
+        // ── 1. Deserialize message ──
+        var job = JsonSerializer.Deserialize<OcrJobMessage>(messageBody, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        }) ?? throw new JsonException("Failed to deserialize OcrJobMessage");
+
+        var overallStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        _logger.LogInformation(
+            "═══════════════════════════════════════════════════════════════");
+        _logger.LogInformation(
+            "🧾 [OCR_WORKER] START Processing InvoiceId={InvoiceId}, S3Key={S3Key}",
+            job.InvoiceId, job.S3Key);
+        _logger.LogInformation(
+            "   └─ CompanyId: {CompanyId}, UserId: {UserId}", job.CompanyId, job.UserId);
+
+        using var scope = _scopeFactory.CreateScope();
+        var s3Service = scope.ServiceProvider.GetRequiredService<IAwsS3Service>();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        var invoiceProcessor = scope.ServiceProvider.GetRequiredService<IInvoiceProcessorService>();
+        var sqsPublisher = scope.ServiceProvider.GetRequiredService<ISqsMessagePublisher>();
+        var configProvider = scope.ServiceProvider.GetRequiredService<ISystemConfigProvider>();
+
+        // ══════════════════════════════════════════════════
+        // STEP 1/7: Download image from S3
+        // ══════════════════════════════════════════════════
+        _logger.LogInformation("[OCR_WORKER STEP 1/7] 📥 Downloading image from S3...");
+        byte[] imageBytes;
+        try
+        {
+            imageBytes = await s3Service.DownloadFileAsync(job.S3Key);
+            _logger.LogInformation("[OCR_WORKER STEP 1/7] ✅ Downloaded {Size} bytes.", imageBytes.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[OCR_WORKER STEP 1/7] ❌ Failed to download S3 file {S3Key}.", job.S3Key);
+            await UpdateInvoiceStatus(unitOfWork, job.InvoiceId, "Failed", "Red",
+                $"Không thể tải file từ S3: {ex.Message}");
+            throw; // Re-throw so SQS retries
+        }
+
+        // ══════════════════════════════════════════════════
+        // STEP 2/7: Call Python OCR API
+        // ══════════════════════════════════════════════════
+        _logger.LogInformation("[OCR_WORKER STEP 2/7] 🧠 Calling OCR API...");
+        OcrApiResponse? ocrResponse;
+        try
+        {
+            ocrResponse = await CallOcrApiAsync(imageBytes, job.FileName, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[OCR_WORKER STEP 2/7] ❌ OCR API call failed.");
+            await UpdateInvoiceStatus(unitOfWork, job.InvoiceId, "Failed", "Red",
+                $"OCR API lỗi: {ex.Message}");
+            throw;
+        }
+
+        if (ocrResponse == null || !ocrResponse.Success || ocrResponse.Data == null)
+        {
+            var errorMsg = ocrResponse?.Error ?? "Unknown OCR error";
+            _logger.LogWarning("[OCR_WORKER STEP 2/7] ❌ OCR returned failure: {Error}", errorMsg);
+            await UpdateInvoiceStatus(unitOfWork, job.InvoiceId, "Failed", "Red",
+                $"OCR trích xuất thất bại: {errorMsg}");
+            return; // Permanent failure → message will be deleted
+        }
+
+        _logger.LogInformation("[OCR_WORKER STEP 2/7] ✅ OCR succeeded in {LatencyMs}ms.", ocrResponse.LatencyMs);
+        var ocrResult = ocrResponse.Data;
+
+        // ══════════════════════════════════════════════════
+        // STEP 3/7: Validate Business Logic (duplicate, owner, etc.)
+        // ══════════════════════════════════════════════════
+        _logger.LogInformation("[OCR_WORKER STEP 3/7] 🔍 Validating OCR business logic...");
+        var swLogic = System.Diagnostics.Stopwatch.StartNew();
+        var logicResult = await invoiceProcessor.ValidateOcrBusinessLogicAsync(ocrResult, job.CompanyId, ct);
+        swLogic.Stop();
+
+        _logger.LogInformation("[OCR_WORKER STEP 3/7] ✅ Business logic validation completed ({DurationMs}ms)", swLogic.ElapsedMilliseconds);
+        _logger.LogInformation("   └─ IsValid: {IsValid}, Errors: {ErrorCount}, Warnings: {WarningCount}",
+            logicResult.IsValid,
+            logicResult.ErrorDetails?.Count ?? 0,
+            logicResult.WarningDetails?.Count ?? 0);
+
+        // Collect all errors/warnings
+        var finalErrors = new List<ValidationErrorDetail>();
+        var finalWarnings = new List<ValidationErrorDetail>();
+        finalErrors.AddRange(logicResult.ErrorDetails ?? new List<ValidationErrorDetail>());
+        finalWarnings.AddRange(logicResult.WarningDetails ?? new List<ValidationErrorDetail>());
+
+        // Check for fatal errors (duplicate / not owner)
+        // NOTE: Do NOT return early — always flow through Steps 4-6 so FileStorage & ExtractedData are saved.
+        var fatalErrorCodes = new HashSet<string> { ErrorCodes.LogicDuplicate, ErrorCodes.LogicDuplicateRejected, ErrorCodes.LogicOwner };
+        var hasFatalError = finalErrors.Any(e =>
+            !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode));
+
+        if (hasFatalError)
+        {
+            var fatalErr = finalErrors.First(e => !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode!));
+            _logger.LogWarning("[OCR_WORKER STEP 3/7] ⚠️ FATAL ERROR detected — will mark as Rejected but continue processing.");
+            _logger.LogWarning("   └─ {ErrorCode}: {ErrorMessage}", fatalErr.ErrorCode, fatalErr.ErrorMessage);
+        }
+
+        // ══════════════════════════════════════════════════
+        // STEP 4/7: Extract OCR data → InvoiceExtractedData
+        // ══════════════════════════════════════════════════
+        _logger.LogInformation("[OCR_WORKER STEP 4/7] 🧠 Extracting invoice data from OCR result...");
+        var extractedData = invoiceProcessor.ExtractOcrData(ocrResult);
+
+        _logger.LogInformation("[OCR_WORKER STEP 4/7] ✅ Extracted: Seller={Seller}, Buyer={Buyer}, Amount={Amount}",
+            extractedData?.SellerName ?? "N/A",
+            extractedData?.BuyerName ?? "N/A",
+            extractedData?.TotalAmount ?? 0);
+
+        // ══════════════════════════════════════════════════
+        // STEP 5/7: Create FileStorage record for the visual file
+        // ══════════════════════════════════════════════════
+        _logger.LogInformation("[OCR_WORKER STEP 5/7] 💾 Creating FileStorage record...");
+        Guid? visualFileId = null;
+        if (!string.IsNullOrEmpty(job.S3Key))
+        {
+            // Check if FileStorage already exists for this S3Key
+            var existingFile = await unitOfWork.FileStorages.FindByS3KeyAsync(job.S3Key);
+            if (existingFile != null)
+            {
+                visualFileId = existingFile.FileId;
+                _logger.LogInformation("   └─ ℹ️  FileStorage already exists: {FileId}", visualFileId);
+            }
+            else
+            {
+                var bucketName = Environment.GetEnvironmentVariable("AWS_BUCKET_NAME")
+                                 ?? _configuration["AWS:BucketName"]
+                                 ?? "smartinvoice-storage-team-dat";
+
+                var ext = Path.GetExtension(job.FileName).ToLowerInvariant();
+                var mimeType = ext switch
+                {
+                    ".png" => "image/png",
+                    ".jpg" or ".jpeg" => "image/jpeg",
+                    ".pdf" => "application/pdf",
+                    ".tiff" or ".tif" => "image/tiff",
+                    _ => "application/octet-stream"
+                };
+
+                var fileStorage = new FileStorage
+                {
+                    FileId = Guid.NewGuid(),
+                    CompanyId = job.CompanyId,
+                    UploadedBy = job.UserId,
+                    OriginalFileName = Path.GetFileName(job.FileName),
+                    FileExtension = ext,
+                    FileSize = imageBytes.Length,
+                    MimeType = mimeType,
+                    S3BucketName = bucketName,
+                    S3Key = job.S3Key,
+                    IsProcessed = true,
+                    ProcessedAt = DateTime.UtcNow
+                };
+
+                visualFileId = fileStorage.FileId;
+                await unitOfWork.FileStorages.AddAsync(fileStorage);
+                _logger.LogInformation("   └─ ✅ FileStorage created: {FileId}", visualFileId);
+            }
+        }
+
+        // ══════════════════════════════════════════════════
+        // STEP 6/7: Update Invoice in DB
+        // ══════════════════════════════════════════════════
+        _logger.LogInformation("[OCR_WORKER STEP 6/7] 📝 Updating invoice record...");
+
+        var invoice = await unitOfWork.Invoices.GetByIdAsync(job.InvoiceId);
+        if (invoice == null)
+        {
+            _logger.LogWarning("[OCR_WORKER STEP 6/7] ⚠️ Invoice {InvoiceId} not found in DB. Skipping.", job.InvoiceId);
+            return;
+        }
+
+        var isCompletelyValid = !finalErrors.Any();
+
+        // Add WARN_MISSING_XML_EVIDENCE for OCR-only uploads (only if no fatal errors)
+        if (isCompletelyValid)
+        {
+            finalWarnings.Add(new ValidationErrorDetail
+            {
+                ErrorCode = "WARN_MISSING_XML_EVIDENCE",
+                ErrorMessage = "Hóa đơn được trích xuất từ ảnh/PDF bằng AI. Để đảm bảo 100% tính pháp lý khi khai thuế, bạn cần bổ sung file XML gốc.",
+                Suggestion = "Tải lên file XML gốc của hóa đơn này để hệ thống xác thực chữ ký số và cập nhật dữ liệu chính xác."
+            });
+        }
+
+        // ── Update invoice fields ──
+        // Use hasFatalError for strict Rejection; isCompletelyValid for normal errors
+        invoice.Status = hasFatalError ? "Rejected" : "Draft";
+        invoice.RiskLevel = hasFatalError ? "Red" : "Yellow"; // Always Yellow if no XML, unless fatal
+        invoice.ProcessingMethod = "API";
+        invoice.ExtractedData = extractedData;
+        invoice.VisualFileId = visualFileId;
+        invoice.Notes = hasFatalError
+            ? finalErrors.FirstOrDefault(e => !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode!))?.ErrorMessage ?? "Hóa đơn có lỗi nghiêm trọng."
+            : (isCompletelyValid ? "Hóa đơn từ OCR, cần bổ sung file XML gốc để xác thực pháp lý." : "Hóa đơn có lỗi, cần kiểm tra lại.");
+
+        // Map key fields
+        invoice.InvoiceNumber = extractedData?.InvoiceNumber ?? "UNKNOWN";
+        invoice.FormNumber = extractedData?.InvoiceTemplateCode;
+        invoice.SerialNumber = extractedData?.InvoiceSymbol;
+        invoice.InvoiceCurrency = extractedData?.InvoiceCurrency ?? "VND";
+        invoice.ExchangeRate = extractedData?.ExchangeRate ?? 1;
+        invoice.TotalAmountBeforeTax = extractedData?.TotalPreTax;
+        invoice.TotalTaxAmount = extractedData?.TotalTaxAmount;
+        invoice.TotalAmount = extractedData?.TotalAmount ?? 0;
+        invoice.TotalAmountInWords = extractedData?.TotalAmountInWords;
+        invoice.PaymentMethod = extractedData?.PaymentTerms;
+        invoice.MCCQT = extractedData?.MCCQT;
+
+        if (extractedData?.InvoiceDate != null)
+            invoice.InvoiceDate = DateTime.SpecifyKind(extractedData.InvoiceDate.Value, DateTimeKind.Utc);
+
+        if (invoice.Seller == null) invoice.Seller = new SellerInfo();
+        invoice.Seller.Name = extractedData?.SellerName;
+        invoice.Seller.TaxCode = extractedData?.SellerTaxCode;
+        invoice.Seller.Address = extractedData?.SellerAddress;
+        invoice.Seller.Phone = extractedData?.SellerPhone;
+        invoice.Seller.Email = extractedData?.SellerEmail;
+        invoice.Seller.BankAccount = extractedData?.SellerBankAccount;
+        invoice.Seller.BankName = extractedData?.SellerBankName;
+
+        if (invoice.Buyer == null) invoice.Buyer = new BuyerInfo();
+        invoice.Buyer.Name = extractedData?.BuyerName;
+        invoice.Buyer.TaxCode = extractedData?.BuyerTaxCode;
+        invoice.Buyer.Address = extractedData?.BuyerAddress;
+        invoice.Buyer.Phone = extractedData?.BuyerPhone;
+        invoice.Buyer.Email = extractedData?.BuyerEmail;
+        invoice.Buyer.ContactPerson = extractedData?.BuyerContactPerson;
+
+        // ── Determine document type ──
+        var docTypes = await unitOfWork.DocumentTypes.GetAllAsync();
+        var typeStr = ocrResult.Invoice?.Type?.Value?.ToUpper();
+        if (typeStr != null && typeStr.Contains("BÁN HÀNG"))
+        {
+            var saleType = docTypes.FirstOrDefault(d => d.TypeCode == "SALE" || d.FormTemplate == "02GTTT");
+            invoice.DocumentTypeId = saleType?.DocumentTypeId ?? 2;
+        }
+        else
+        {
+            var gtgtType = docTypes.FirstOrDefault(d => d.TypeCode == "GTGT" || d.FormTemplate == "01GTKT");
+            invoice.DocumentTypeId = gtgtType?.DocumentTypeId ?? 1;
+        }
+
+        // ── Business Logic CheckResult ──
+        var logicErrInfo = (logicResult.ErrorDetails ?? Enumerable.Empty<ValidationErrorDetail>()).FirstOrDefault()
+                        ?? (logicResult.WarningDetails ?? Enumerable.Empty<ValidationErrorDetail>()).FirstOrDefault();
+
+        string GetLayerStatus(bool valid, List<ValidationErrorDetail>? warnings) =>
+            !valid ? "Fail" : (warnings != null && warnings.Any()) ? "Warning" : "Pass";
+
+        await unitOfWork.InvoiceCheckResults.AddAsync(new InvoiceCheckResult
+        {
+            CheckId = Guid.NewGuid(),
+            InvoiceId = job.InvoiceId,
+            Category = "BUSINESS_LOGIC",
+            CheckName = "BusinessLogic",
+            CheckOrder = 3,
+            IsValid = logicResult.IsValid,
+            Status = GetLayerStatus(logicResult.IsValid, logicResult.WarningDetails),
+            ErrorCode = logicErrInfo?.ErrorCode,
+            ErrorMessage = logicErrInfo?.ErrorMessage,
+            Suggestion = logicErrInfo?.Suggestion,
+            DurationMs = (int)swLogic.ElapsedMilliseconds
+        });
+
+        // ── AUTO_UPLOAD_VALIDATION CheckResult ──
+        var checkStatus = isCompletelyValid ? (finalWarnings.Any() ? "WARNING" : "PASS") : "FAIL";
+        var priorityError = finalErrors.FirstOrDefault();
+        var priorityWarning = finalWarnings.FirstOrDefault();
+
+        await unitOfWork.InvoiceCheckResults.AddAsync(new InvoiceCheckResult
+        {
+            CheckId = Guid.NewGuid(),
+            InvoiceId = job.InvoiceId,
+            Category = "AUTO_UPLOAD_VALIDATION",
+            CheckName = "AUTO_UPLOAD_VALIDATION",
+            CheckOrder = 4,
+            IsValid = isCompletelyValid,
+            Status = checkStatus,
+            ErrorCode = priorityError?.ErrorCode ?? priorityWarning?.ErrorCode,
+            ErrorMessage = priorityError?.ErrorMessage ?? priorityWarning?.ErrorMessage,
+            Suggestion = priorityError?.Suggestion ?? priorityWarning?.Suggestion,
+            DurationMs = (int)swLogic.ElapsedMilliseconds,
+            ErrorDetails = JsonSerializer.Serialize(new
+            {
+                ErrorDetails = finalErrors,
+                WarningDetails = finalWarnings
+            })
+        });
+
+        // ── Audit log ──
+        var uploadUser = await unitOfWork.Users.GetByIdAsync(job.UserId);
+        await unitOfWork.InvoiceAuditLogs.AddAsync(new InvoiceAuditLog
+        {
+            AuditId = Guid.NewGuid(),
+            InvoiceId = job.InvoiceId,
+            UserId = job.UserId,
+            UserEmail = uploadUser?.Email,
+            UserRole = uploadUser?.Role,
+            Action = "OCR_COMPLETED",
+            Changes = new List<AuditChange>
+            {
+                new() { Field = "Status", OldValue = "Processing", NewValue = invoice.Status, ChangeType = "UPDATE" },
+                new() { Field = "RiskLevel", OldValue = null, NewValue = invoice.RiskLevel, ChangeType = "UPDATE" }
+            },
+            Comment = hasFatalError
+                ? "OCR worker hoàn tất nhưng hóa đơn bị từ chối do lỗi nghiệp vụ."
+                : (isCompletelyValid ? "OCR worker hoàn tất trích xuất dữ liệu từ ảnh hóa đơn." : "OCR worker hoàn tất nhưng hóa đơn có cảnh báo/lỗi.")
+        });
+
+        invoice.UpdatedAt = DateTime.UtcNow;
+        unitOfWork.Invoices.Update(invoice);
+        await unitOfWork.CompleteAsync();
+
+        _logger.LogInformation("[OCR_WORKER STEP 6/7] ✅ Invoice {InvoiceId} updated → Status={Status}, RiskLevel={RiskLevel}",
+            job.InvoiceId, invoice.Status, invoice.RiskLevel);
+
+        // ══════════════════════════════════════════════════
+        // STEP 7/7: Publish VietQR validation to SQS
+        // ══════════════════════════════════════════════════
+        if (!string.IsNullOrEmpty(invoice.Seller?.TaxCode)
+            && !hasFatalError
+            && await configProvider.GetBoolAsync("ENABLE_VIETQR_VALIDATION", true))
+        {
+            _logger.LogInformation("[OCR_WORKER STEP 7/7] 📤 Publishing VietQR validation to SQS...");
+            try
+            {
+                var sqsMessage = new VietQrValidationMessage
+                {
+                    InvoiceId = invoice.InvoiceId,
+                    TaxCode = invoice.Seller.TaxCode,
+                    SellerName = invoice.Seller.Name ?? "N/A"
+                };
+
+                await sqsPublisher.PublishVietQrValidationAsync(sqsMessage, ct);
+                _logger.LogInformation("[OCR_WORKER STEP 7/7] ✅ VietQR message published for TaxCode={TaxCode}", invoice.Seller.TaxCode);
+            }
+            catch (Exception ex)
+            {
+                // Don't fail the whole job — VietQR is non-critical
+                _logger.LogError(ex, "[OCR_WORKER STEP 7/7] ⚠️ Failed to publish VietQR message. Invoice saved OK.");
+            }
+        }
+        else
+        {
+            _logger.LogInformation("[OCR_WORKER STEP 7/7] ⏭️ Skipped VietQR (no seller tax code, invalid, or disabled).");
+        }
+
+        overallStopwatch.Stop();
+        _logger.LogInformation("[OCR_WORKER] ✅ COMPLETED. InvoiceId={InvoiceId}, Total={TotalMs}ms",
+            job.InvoiceId, overallStopwatch.ElapsedMilliseconds);
+        _logger.LogInformation(
+            "═══════════════════════════════════════════════════════════════\n");
+    }
+
+    /// <summary>
+    /// Calls the Python OCR API with multipart/form-data containing the image file.
+    /// </summary>
+    private async Task<OcrApiResponse?> CallOcrApiAsync(byte[] imageBytes, string fileName, CancellationToken ct)
+    {
+        var client = _httpClientFactory.CreateClient("OcrWorker");
+
+        using var content = new MultipartFormDataContent();
+        using var fileContent = new ByteArrayContent(imageBytes);
+
+        // Determine content type
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var mimeType = ext switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".pdf" => "application/pdf",
+            ".tiff" or ".tif" => "image/tiff",
+            _ => "application/octet-stream"
+        };
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mimeType);
+        content.Add(fileContent, "file", fileName);
+
+        var response = await client.PostAsync("/api/v1/extract", content, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("OCR API returned {StatusCode}: {Body}",
+                response.StatusCode, responseBody[..Math.Min(500, responseBody.Length)]);
+            return new OcrApiResponse { Success = false, Error = $"HTTP {response.StatusCode}" };
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<OcrApiResponse>(responseBody, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to deserialize OCR API response. Format mismatch.");
+            return new OcrApiResponse { Success = false, Error = "Lỗi đọc dữ liệu từ AI (Sai định dạng JSON)." };
+        }
+    }
+
+    /// <summary>
+    /// Helper to update invoice status when OCR fails.
+    /// </summary>
+    private static async Task UpdateInvoiceStatus(
+        IUnitOfWork unitOfWork, Guid invoiceId, string status, string riskLevel, string notes)
+    {
+        var invoice = await unitOfWork.Invoices.GetByIdAsync(invoiceId);
+        if (invoice != null)
+        {
+            invoice.Status = status;
+            invoice.RiskLevel = riskLevel;
+            invoice.Notes = notes;
+            invoice.UpdatedAt = DateTime.UtcNow;
+            await unitOfWork.CompleteAsync();
+        }
+    }
+}
+
+// ── Response DTOs for the Python OCR API ──
+
+/// <summary>
+/// Top-level response from POST /api/v1/extract
+/// </summary>
+public class OcrApiResponse
+{
+    [System.Text.Json.Serialization.JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("request_id")]
+    public string? RequestId { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("latency_ms")]
+    public double LatencyMs { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("data")]
+    public OcrInvoiceResult? Data { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("error")]
+    public string? Error { get; set; }
+}

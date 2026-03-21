@@ -32,5 +32,11 @@ namespace SmartInvoice.API.Services.Interfaces
                 Task<bool> ValidateInvoiceAsync(Guid id);
                 Task<ValidationResultDto> ProcessInvoiceXmlAsync(string s3Key, string userId, string companyId);
                 Task<ValidationResultDto> ProcessInvoiceOcrAsync(ProcessOcrRequestDto request, string userId, string companyId);
+
+                // ─── Async OCR Pipeline ───
+                /// <summary>
+                /// Creates a draft invoice with Status="Processing" for the async OCR pipeline.
+                /// </summary>
+                Task CreateDraftInvoiceAsync(Invoice invoice);
         }
 }

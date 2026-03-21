@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartInvoice.API.Data;
 using SmartInvoice.API.DTOs;
 using SmartInvoice.API.DTOs.Invoice;
+using SmartInvoice.API.DTOs.SQS;
 using SmartInvoice.API.Entities;
 using SmartInvoice.API.Entities.JsonModels;
 using SmartInvoice.API.Services;
@@ -29,15 +30,29 @@ namespace SmartInvoice.API.Controller
         private readonly IInvoiceService _invoiceService;
         private readonly IQuotaService _quotaService;
         private readonly ISystemConfigProvider _configProvider;
+        private readonly IAwsS3Service _s3Service;
+        private readonly ISqsService _sqsService;
+        private readonly IConfiguration _configuration;
 
         [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-        public InvoicesController(StorageService storageService, IInvoiceProcessorService invoiceProcessor, IInvoiceService invoiceService, IQuotaService quotaService, ISystemConfigProvider configProvider)
+        public InvoicesController(
+            StorageService storageService,
+            IInvoiceProcessorService invoiceProcessor,
+            IInvoiceService invoiceService,
+            IQuotaService quotaService,
+            ISystemConfigProvider configProvider,
+            IAwsS3Service s3Service,
+            ISqsService sqsService,
+            IConfiguration configuration)
         {
             _storageService = storageService;
             _invoiceProcessor = invoiceProcessor;
             _invoiceService = invoiceService;
             _quotaService = quotaService;
             _configProvider = configProvider;
+            _s3Service = s3Service;
+            _sqsService = sqsService;
+            _configuration = configuration;
         }
 
         // ════════════════════════════════════════════
@@ -125,6 +140,102 @@ namespace SmartInvoice.API.Controller
             catch (UnauthorizedAccessException)
             {
                 return Unauthorized(new { Message = "User identity or company information is missing in token." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = $"Internal server error: {ex.Message}" });
+            }
+        }
+
+        // ════════════════════════════════════════════
+        //  UPLOAD IMAGE → S3 → SQS (Async OCR Pipeline)
+        // ════════════════════════════════════════════
+
+        [HttpPost("upload-image")]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
+        public async Task<IActionResult> UploadImage(IFormFile file)
+        {
+            // ── Validate file ──
+            if (file == null || file.Length == 0)
+                return BadRequest(new { Message = "Vui lòng chọn file ảnh hóa đơn." });
+
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".pdf", ".tiff", ".tif" };
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(ext))
+                return BadRequest(new { Message = $"File không hợp lệ. Chỉ chấp nhận: {string.Join(", ", allowedExtensions)}" });
+
+            var maxFileSizeMb = await _configProvider.GetIntAsync("MAX_UPLOAD_SIZE_MB", 10);
+            if (file.Length > (long)maxFileSizeMb * 1024 * 1024)
+                return BadRequest(new { Message = $"Dung lượng file vượt quá giới hạn cho phép ({maxFileSizeMb} MB)." });
+
+            try
+            {
+                var (userId, companyId, _, _) = GetUserInfo();
+
+                // Quota check
+                await _quotaService.ValidateAndConsumeInvoiceQuotaAsync(companyId);
+
+                // ── 1. Upload to S3 ──
+                string s3Key;
+                using (var stream = file.OpenReadStream())
+                {
+                    s3Key = await _s3Service.UploadInvoiceImageAsync(stream, file.FileName, file.ContentType, companyId);
+                }
+
+                // ── 2. Create draft Invoice (Status: Processing) ──
+                var invoiceId = Guid.NewGuid();
+                var invoice = new Invoice
+                {
+                    InvoiceId = invoiceId,
+                    CompanyId = companyId,
+                    DocumentTypeId = 1, // Default GTGT; will be updated by OCR worker
+                    ProcessingMethod = "API",
+                    InvoiceNumber = "PROCESSING",
+                    Status = "Processing",
+                    RiskLevel = "Yellow",
+                    Notes = "Đang xử lý OCR...",
+                    VisualFileId = null,
+                    RawData = new InvoiceRawData { ObjectKey = s3Key, OcrJobId = s3Key },
+                    Workflow = new InvoiceWorkflow { UploadedBy = userId },
+                    InvoiceDate = DateTime.UtcNow,
+                    InvoiceCurrency = "VND",
+                    ExchangeRate = 1,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                // Use InvoiceService's UnitOfWork indirectly — inject via a direct DB call
+                await _invoiceService.CreateDraftInvoiceAsync(invoice);
+
+                // ── 3. Publish OCR job to SQS ──
+                var ocrQueueUrl = _configuration["AWS_SQS_OCR_URL"];
+                if (!string.IsNullOrEmpty(ocrQueueUrl))
+                {
+                    await _sqsService.SendMessageAsync(new OcrJobMessage
+                    {
+                        InvoiceId = invoiceId,
+                        S3Key = s3Key,
+                        CompanyId = companyId,
+                        UserId = userId,
+                        FileName = file.FileName
+                    }, ocrQueueUrl);
+                }
+
+                // ── 4. Return 202 Accepted ──
+                return Accepted(new
+                {
+                    InvoiceId = invoiceId,
+                    S3Key = s3Key,
+                    Status = "Processing",
+                    Message = "Hóa đơn đã được tải lên và đang được xử lý OCR."
+                });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
             }
             catch (Exception ex)
             {

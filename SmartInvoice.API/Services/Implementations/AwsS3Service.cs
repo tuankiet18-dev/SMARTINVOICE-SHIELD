@@ -34,6 +34,40 @@ public class AwsS3Service : IAwsS3Service
         return s3Key;
     }
 
+    public async Task<string> UploadInvoiceImageAsync(Stream fileStream, string fileName, string contentType, Guid companyId)
+    {
+        var datePath = DateTime.UtcNow.ToString("yyyy-MM");
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var s3Key = $"invoices/{companyId}/{datePath}/{Guid.NewGuid()}{ext}";
+
+        var request = new PutObjectRequest
+        {
+            BucketName = _bucketName,
+            Key = s3Key,
+            InputStream = fileStream,
+            ContentType = contentType,
+            ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256
+        };
+
+        await _s3Client.PutObjectAsync(request);
+
+        return s3Key;
+    }
+
+    public async Task<byte[]> DownloadFileAsync(string s3Key)
+    {
+        var request = new GetObjectRequest
+        {
+            BucketName = _bucketName,
+            Key = s3Key
+        };
+
+        using var response = await _s3Client.GetObjectAsync(request);
+        using var ms = new MemoryStream();
+        await response.ResponseStream.CopyToAsync(ms);
+        return ms.ToArray();
+    }
+
     public string GeneratePreSignedUrl(string s3Key, int expireMinutes = 15)
     {
         var request = new GetPreSignedUrlRequest
@@ -47,3 +81,4 @@ public class AwsS3Service : IAwsS3Service
         return _s3Client.GetPreSignedURL(request);
     }
 }
+

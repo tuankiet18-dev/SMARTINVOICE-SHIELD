@@ -97,7 +97,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
 // Register Internal OCR Client
-var ocrApiEndpoint = builder.Configuration["OCR_API_ENDPOINT"] ?? "http://localhost:8000";
+// Note: OCR Python runs on host machine (not Docker), so use host.docker.internal
+var ocrApiEndpoint = builder.Configuration["OCR_API_ENDPOINT"] ?? "http://host.docker.internal:5000";
 builder.Services.AddHttpClient<IOcrClientService, OcrClientService>(client =>
 {
     client.BaseAddress = new Uri(ocrApiEndpoint);
@@ -160,6 +161,21 @@ builder.Services.AddScoped<ISqsMessagePublisher, SqsMessagePublisher>();
 // This service continuously polls SQS for validation requests and updates invoices
 builder.Services.AddHostedService<VietQrSqsConsumerService>();
 // ==================== END SQS CONFIGURATION ====================
+
+// ==================== OCR WORKER CONFIGURATION ====================
+// Generic SQS service used by both the upload endpoint (producer) and OCR worker (consumer)
+builder.Services.AddScoped<ISqsService, SqsService>();
+
+// Named HttpClient for OCR Worker → calls Python OCR at localhost:5000
+builder.Services.AddHttpClient("OcrWorker", client =>
+{
+    client.BaseAddress = new Uri(ocrApiEndpoint);
+    client.Timeout = TimeSpan.FromMinutes(3); // OCR can be slow on large invoices
+});
+
+// Background worker that polls SQS OCR queue, downloads from S3, calls OCR API, updates DB
+builder.Services.AddHostedService<OcrWorkerService>();
+// ==================== END OCR WORKER CONFIGURATION ====================
 
 
 
