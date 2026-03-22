@@ -67,6 +67,11 @@ export const authService = {
         return response.data;
     },
 
+    async resendVerificationCode(email: string) {
+        const response = await apiClient.post('/auth/resend-verification', { email });
+        return response.data;
+    },
+
     async refreshToken(refreshToken: string, email: string) {
         const response = await apiClient.post<LoginResponse>('/auth/refresh-token', { refreshToken, email });
         return response.data;

@@ -137,6 +137,21 @@ namespace SmartInvoice.API.Controllers
             }
         }
 
+        [HttpPost("resend-verification")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResendVerificationEmail([FromBody] ResendVerificationRequest request)
+        {
+            try
+            {
+                await _authService.ResendVerificationEmailAsync(request);
+                return Ok(new { Message = "Verification code resent successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
         [HttpPost("seed-superadmin")]
         [AllowAnonymous] // TEMPORARY: Remove or secure this after use
         public async Task<IActionResult> SeedSuperAdmin([FromBody] SeedSuperAdminRequest request)

@@ -536,6 +536,28 @@ namespace SmartInvoice.API.Services.Implementations
             }
         }
 
+        public async Task ResendVerificationEmailAsync(ResendVerificationRequest request)
+        {
+            try
+            {
+                var normalizedEmail = request.Email.ToLower().Trim();
+                var secretHash = CalculateSecretHash(normalizedEmail);
+                
+                var resendRequest = new ResendConfirmationCodeRequest
+                {
+                    ClientId = _clientId,
+                    SecretHash = secretHash,
+                    Username = normalizedEmail
+                };
+
+                await _cognitoClient.ResendConfirmationCodeAsync(resendRequest);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Resend verification failed: " + ex.Message);
+            }
+        }
+
         public async Task SeedSuperAdminAsync(SeedSuperAdminRequest request)
         {
             var normalizedEmail = request.Email.ToLower().Trim();

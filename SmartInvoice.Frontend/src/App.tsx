@@ -10,6 +10,8 @@ import SuperAdminLayout from './layouts/SuperAdminLayout';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import TermsOfUse from './pages/TermsOfUse';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import Dashboard from './pages/Dashboard';
 import InvoiceList from './pages/InvoiceList';
 import InvoiceDetail from './pages/InvoiceDetail';
@@ -40,6 +42,8 @@ const App = () => (
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/terms-of-use" element={<TermsOfUse />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             {/* Company Routes (Member & CompanyAdmin only) */}
             <Route path="/app" element={<ProtectedRoute allowedRoles={['Member', 'CompanyAdmin']} />}>
               <Route element={<AppLayout />}>

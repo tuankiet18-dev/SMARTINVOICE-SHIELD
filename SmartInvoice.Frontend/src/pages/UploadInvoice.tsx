@@ -1109,7 +1109,7 @@ const UploadInvoice: React.FC = () => {
                             color: "#1677ff",
                           }}
                         >
-                          💡 Khuyến nghị: Ưu tiên sử dụng file XML (QĐ
+                          Khuyến nghị: Ưu tiên sử dụng file XML (QĐ
                           1550/QĐ-TCT) để bóc tách chính xác 100%.
                         </Tag>
                       </div>

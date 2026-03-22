@@ -10,6 +10,7 @@ namespace SmartInvoice.API.Services.Interfaces
         Task<LoginResponse> LoginAsync(LoginRequest request);
         Task<LoginResponse> RefreshTokenAsync(RefreshTokenRequest request);
         Task VerifyEmailAsync(VerifyEmailRequest request);
+        Task ResendVerificationEmailAsync(ResendVerificationRequest request);
         Task<LoginResponse> RespondToNewPasswordRequiredAsync(RespondToNewPasswordRequest request);
         Task SeedSuperAdminAsync(SeedSuperAdminRequest request);
     }

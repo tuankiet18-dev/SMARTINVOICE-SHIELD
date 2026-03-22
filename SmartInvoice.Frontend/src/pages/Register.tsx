@@ -148,6 +148,25 @@ const Register: React.FC = () => {
     }
   };
 
+  const handleResendCode = async () => {
+    if (!formData.adminEmail) {
+      message.error("Không tìm thấy email cần xác thực.");
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      await authService.resendVerificationCode(formData.adminEmail);
+      message.success("Mã xác thực mới đã được gửi đến email của bạn.");
+    } catch (error: any) {
+      message.error(
+        error.response?.data?.message || "Không thể gửi lại mã xác thực. Vui lòng thử lại sau.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const stepItems = [
     { title: "Công ty", icon: <BankOutlined /> },
     { title: "Quản trị viên", icon: <UserOutlined /> },
@@ -466,11 +485,11 @@ const Register: React.FC = () => {
             >
               <Checkbox className="text-slate-500 font-medium text-[14px]">
                 Tôi đồng ý với{" "}
-                <a href="#" className="text-blue-600 hover:underline">
+                <a href="/terms-of-use" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                   Điều khoản sử dụng
                 </a>{" "}
                 và{" "}
-                <a href="#" className="text-blue-600 hover:underline">
+                <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                   Chính sách bảo mật
                 </a>
               </Checkbox>
@@ -544,10 +563,9 @@ const Register: React.FC = () => {
               <div className="text-center">
                 <button
                   type="button"
-                  onClick={() =>
-                    message.info("Chức năng gửi lại đang được phát triển")
-                  }
-                  className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                  onClick={handleResendCode}
+                  disabled={loading}
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Gửi lại mã xác thực
                 </button>
