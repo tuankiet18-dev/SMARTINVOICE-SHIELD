@@ -133,7 +133,7 @@ const AuditLogPage: React.FC = () => {
           {info.icon}
         </div>
       ),
-      children: (
+      content: (
         <div style={{ paddingBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
             <Tag color={isUpload ? uploadTagColor : info.tagColor} style={{ margin: 0, fontSize: 11 }}>{isUpload ? uploadLabel : info.label}</Tag>
@@ -197,7 +197,7 @@ const AuditLogPage: React.FC = () => {
         </div>
       </div>
 
-      <Card bordered={false} className="bg-dash-card rounded-[14px] shadow-dash" bodyStyle={{ padding: 0 }}>
+      <Card variant="borderless" className="bg-dash-card rounded-[14px] shadow-dash" styles={{ body: { padding: 0 } }}>
         {/* Search & Filter */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0' }}>
           <Row gutter={12} align="middle">

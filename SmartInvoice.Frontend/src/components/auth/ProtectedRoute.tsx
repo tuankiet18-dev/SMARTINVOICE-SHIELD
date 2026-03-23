@@ -15,7 +15,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
     if (isLoading) {
         return (
             <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <Spin size="large" tip="Đang kiểm tra quyền truy cập..." />
+                <Spin size="large" description="Đang kiểm tra quyền truy cập..." />
             </div>
         );
     }

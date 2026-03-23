@@ -51,9 +51,6 @@ public class AIProcessingLog
     public int? ProcessingTimeMs { get; set; }
     public int? TokensUsed { get; set; }
 
-    [Column(TypeName = "jsonb")]
-    public string? ProcessedData { get; set; }
-
     [Column(TypeName = "decimal(10,4)")]
     public decimal? EstimatedCostUSD { get; set; }
 

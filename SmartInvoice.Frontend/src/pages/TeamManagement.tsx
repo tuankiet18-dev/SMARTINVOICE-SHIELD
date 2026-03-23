@@ -196,7 +196,7 @@ const TeamManagement: React.FC = () => {
                 </Button>
             </div>
 
-            <Card bordered={false} style={{ borderRadius: 12 }}>
+            <Card variant="borderless" style={{ borderRadius: 12 }}>
                 <Row style={{ marginBottom: 16 }}>
                     <Col span={8}>
                         <Input prefix={<SearchOutlined />} placeholder="Tìm kiếm theo Tên hoặc Email..." />
@@ -211,7 +211,7 @@ const TeamManagement: React.FC = () => {
                 open={isCreateModalOpen}
                 onCancel={() => setIsCreateModalOpen(false)}
                 footer={null}
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form
                     form={createForm}
@@ -257,10 +257,10 @@ const TeamManagement: React.FC = () => {
                 placement="right"
                 onClose={() => setIsDrawerOpen(false)}
                 open={isDrawerOpen}
-                width={400}
+                size={400}
             >
                 {selectedUser && (
-                    <Space direction="vertical" style={{ width: '100%' }} size={24}>
+                    <Space orientation="vertical" style={{ width: '100%' }} size={24}>
                         <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 8 }}>
                             <Text strong style={{ fontSize: 13, color: '#1a4b8c' }}>THÔNG TIN NHÂN SỰ</Text>
                             <div style={{ marginTop: 8 }}>

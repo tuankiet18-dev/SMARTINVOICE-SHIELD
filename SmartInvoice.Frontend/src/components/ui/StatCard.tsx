@@ -25,9 +25,9 @@ const StatCard: React.FC<StatCardProps> = ({
 }) => {
     return (
         <Card
-            bordered={false}
+            variant="borderless"
             className="bg-dash-card rounded-[14px] shadow-dash h-full"
-            bodyStyle={{ padding: '24px' }}
+            styles={{ body: { padding: '24px' } }}
         >
             <div className="flex justify-between items-start">
                 <div>

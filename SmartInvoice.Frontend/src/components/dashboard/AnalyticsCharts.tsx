@@ -33,8 +33,8 @@ const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ monthlyTrends, riskTr
     <PanelGroup direction="horizontal">
       <Panel defaultSize={50} minSize={25}>
         <div className="h-full pr-2">
-          <Card bordered={false} title="Hóa đơn theo tháng" style={{ borderRadius: 12, height: '100%' }}
-            bodyStyle={{ padding: '8px 16px 16px' }}>
+          <Card variant="borderless" title="Hóa đơn theo tháng" style={{ borderRadius: 12, height: '100%' }}
+            styles={{ body: { padding: '8px 16px 16px' } }}>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={monthlyTrends} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,15%,92%)" />
@@ -53,8 +53,8 @@ const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ monthlyTrends, riskTr
       <ResizeHandle />
       <Panel defaultSize={50} minSize={25}>
         <div className="h-full pl-2">
-          <Card bordered={false} title="Xu hướng rủi ro (%)" style={{ borderRadius: 12, height: '100%' }}
-            bodyStyle={{ padding: '8px 16px 16px' }}>
+          <Card variant="borderless" title="Xu hướng rủi ro (%)" style={{ borderRadius: 12, height: '100%' }}
+            styles={{ body: { padding: '8px 16px 16px' } }}>
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart data={riskTrends}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,15%,92%)" />
@@ -77,8 +77,8 @@ const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ monthlyTrends, riskTr
     <PanelGroup direction="horizontal">
       <Panel defaultSize={50} minSize={25}>
         <div className="h-full pr-2">
-          <Card bordered={false} title="Tỷ lệ trạng thái" style={{ borderRadius: 12, height: '100%' }}
-            bodyStyle={{ padding: '8px 16px 16px' }}>
+          <Card variant="borderless" title="Tỷ lệ trạng thái" style={{ borderRadius: 12, height: '100%' }}
+            styles={{ body: { padding: '8px 16px 16px' } }}>
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
                 <Pie data={statusDistribution} cx="50%" cy="50%" innerRadius={55} outerRadius={95}
@@ -97,8 +97,8 @@ const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ monthlyTrends, riskTr
       <ResizeHandle />
       <Panel defaultSize={50} minSize={25}>
         <div className="h-full pl-2">
-          <Card bordered={false} title="Tổng hóa đơn theo tháng" style={{ borderRadius: 12, height: '100%' }}
-            bodyStyle={{ padding: '8px 16px 16px' }}>
+          <Card variant="borderless" title="Tổng hóa đơn theo tháng" style={{ borderRadius: 12, height: '100%' }}
+            styles={{ body: { padding: '8px 16px 16px' } }}>
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={monthlyTrends}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,15%,92%)" />

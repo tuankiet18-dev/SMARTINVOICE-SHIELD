@@ -50,7 +50,7 @@ namespace SmartInvoice.API.Security
 
                 var user = await dbContext.Users
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(u => u.CognitoSub == subClaim.Value || u.Email == claimValue);
+                    .FirstOrDefaultAsync(u => u.CognitoSub == subClaim.Value || u.Email.ToLower() == claimValue);
 
                 if (user != null)
                 {

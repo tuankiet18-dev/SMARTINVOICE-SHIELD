@@ -38,6 +38,20 @@ namespace SmartInvoice.API.Services
             return (_s3Client.GetPreSignedURL(request), key);
         }
 
+        public string GenerateDownloadUrl(string s3Key)
+        {
+            var bucketName = _config["AWS:BucketName"] ?? "smartinvoice-default-bucket";
+            var request = new GetPreSignedUrlRequest
+            {
+                BucketName = bucketName,
+                Key = s3Key,
+                Verb = HttpVerb.GET,
+                Expires = DateTime.UtcNow.AddMinutes(60) // Expire in 60 mins
+            };
+
+            return _s3Client.GetPreSignedURL(request);
+        }
+
         public async Task<string> DownloadToTempFileAsync(string s3Key)
         {
             var bucketName = _config["AWS:BucketName"] ?? "smartinvoice-default-bucket";

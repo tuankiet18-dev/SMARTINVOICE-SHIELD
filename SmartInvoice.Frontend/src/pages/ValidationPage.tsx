@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Card, Row, Col, Typography, Tag, Table, Badge, Space, Button, Input, Select, Spin, Empty, Pagination, Tooltip } from 'antd';
 import {
   SafetyCertificateOutlined, CheckCircleOutlined, WarningOutlined,
@@ -58,7 +58,12 @@ const ValidationPage: React.FC = () => {
       key: 'invoiceNo',
       render: (_: unknown, record: InvoiceValidationSummary) => (
         <div>
-          <Text strong style={{ color: '#1a4b8c' }}>{record.invoiceNumber || 'N/A'}</Text>
+          <Space size={6} align="center">
+            <Text strong style={{ color: '#1a4b8c' }}>{record.invoiceNumber || 'N/A'}</Text>
+            <Tag color="blue" style={{ marginRight: 0, fontSize: 11, lineHeight: '18px', padding: '0 5px' }}>
+              v{record.version}{record.isLatest ? ' (Mới nhất)' : ''}
+            </Tag>
+          </Space>
           <br />
           <Text type="secondary" style={{ fontSize: 12 }}>{record.sellerName || '—'}</Text>
           {record.sellerTaxCode && (
@@ -72,7 +77,7 @@ const ValidationPage: React.FC = () => {
       dataIndex: 'layer1Status',
       key: 'layer1',
       align: 'center' as const,
-      width: 120,
+      width: 95,
       render: (v: string | null) => layerIcon(v),
     },
     {
@@ -80,7 +85,7 @@ const ValidationPage: React.FC = () => {
       dataIndex: 'layer2Status',
       key: 'layer2',
       align: 'center' as const,
-      width: 120,
+      width: 95,
       render: (v: string | null) => layerIcon(v),
     },
     {
@@ -88,7 +93,7 @@ const ValidationPage: React.FC = () => {
       dataIndex: 'layer3Status',
       key: 'layer3',
       align: 'center' as const,
-      width: 120,
+      width: 95,
       render: (v: string | null) => layerIcon(v),
     },
     {
@@ -108,12 +113,23 @@ const ValidationPage: React.FC = () => {
       ),
     },
     {
-      title: '',
+      title: 'Chi tiết',
       key: 'action',
-      width: 90,
+      width: 100,
       render: (_: unknown, record: InvoiceValidationSummary) => (
-        <Button type="link" icon={<FileSearchOutlined />} size="small"
-          onClick={() => navigate(`/app/invoices/${record.invoiceId}`)}>
+        <Button
+          type="text"
+          icon={<FileSearchOutlined style={{ fontSize: 16 }} />}
+          size="small"
+          onClick={(e) => { e.stopPropagation(); navigate(`/app/invoices/${record.invoiceId}`); }}
+          style={{
+            color: '#1a4b8c',
+            fontWeight: 600,
+            borderRadius: 8,
+            transition: 'all 0.2s',
+          }}
+          className="validation-detail-btn"
+        >
           Chi tiết
         </Button>
       ),
@@ -147,6 +163,23 @@ const ValidationPage: React.FC = () => {
 
   return (
     <div className="animate-fade-in-up">
+      {/* Inline styles for CTA hover effect */}
+      <style>{`
+        .validation-detail-btn:hover {
+          background: #e8f0fe !important;
+          color: #1a4b8c !important;
+        }
+        .validation-expandable-table .ant-table-row-expand-icon-cell,
+        .validation-expandable-table .ant-table-expand-icon-th {
+          width: 32px !important;
+          min-width: 32px !important;
+          padding-left: 8px !important;
+        }
+        .validation-expandable-table .ant-table-expanded-row > td {
+          background: #f8fafc !important;
+        }
+      `}</style>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <Title level={3} className="text-dash-textMain font-bold tracking-tight m-0">
@@ -154,7 +187,7 @@ const ValidationPage: React.FC = () => {
           </Title>
           <Text className="text-dash-textMuted text-sm font-medium block mt-1">
             Kiểm tra 3 lớp: Cấu trúc XSD &rarr; Chữ ký số &rarr; Nghiệp vụ
-            {data ? ` • ${data.totalValidated} hóa đơn đã kiểm tra` : ''}
+            {data ? ` • ${data.totalValidationRuns} lượt rà soát / ${data.totalUniqueInvoices} hóa đơn` : ''}
           </Text>
         </div>
       </div>
@@ -169,8 +202,8 @@ const ValidationPage: React.FC = () => {
           <Row gutter={16} style={{ marginBottom: 24 }}>
             {stats.map((layer, i) => (
               <Col xs={24} md={8} key={i}>
-                <Card bordered={false} className="bg-dash-card rounded-[14px] shadow-dash"
-                  style={{ borderTop: `3px solid ${layer.color}` }} bodyStyle={{ padding: 20 }}>
+                <Card variant="borderless" className="bg-dash-card rounded-[14px] shadow-dash"
+                  style={{ borderTop: `3px solid ${layer.color}` }} styles={{ body: { padding: 20 } }}>
                   <Space align="start">
                     <div style={{
                       width: 40, height: 40, borderRadius: 10,
@@ -202,7 +235,7 @@ const ValidationPage: React.FC = () => {
               { label: 'Không đạt', count: data.redCount, color: '#d63031', pct: data.totalValidated ? Math.round(data.redCount * 100 / data.totalValidated) : 0 },
             ].map((item, i) => (
               <Col xs={24} sm={8} key={i}>
-                <Card bordered={false} className="bg-dash-card rounded-[14px] shadow-dash" bodyStyle={{ padding: 16, textAlign: 'center' }}>
+                <Card variant="borderless" className="bg-dash-card rounded-[14px] shadow-dash" styles={{ body: { padding: 16, textAlign: 'center' } }}>
                   <div style={{
                     width: 48, height: 48, borderRadius: '50%',
                     background: `${item.color}14`, display: 'inline-flex',
@@ -221,7 +254,7 @@ const ValidationPage: React.FC = () => {
           </Row>
 
           {/* ── Results Table ──────────────────────────────── */}
-          <Card bordered={false} className="bg-dash-card rounded-[14px] shadow-dash" bodyStyle={{ padding: 0 }}>
+          <Card variant="borderless" className="bg-dash-card rounded-[14px] shadow-dash" styles={{ body: { padding: 0 } }}>
             {/* Search & Filters */}
             <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0' }}>
               <Row gutter={12} align="middle">
@@ -283,14 +316,34 @@ const ValidationPage: React.FC = () => {
               )}
             </div>
 
-            {/* Table */}
+            {/* Table with Expandable Rows */}
             <Table
+              className="validation-expandable-table"
               columns={columns}
               dataSource={data.items}
               rowKey="invoiceId"
               pagination={false}
               size="middle"
               style={{ padding: '0 8px' }}
+              expandable={{
+                expandedRowRender: (record) =>
+                  record.children && record.children.length > 0 ? (
+                    <Table
+                      columns={columns}
+                      dataSource={record.children}
+                      rowKey="invoiceId"
+                      pagination={false}
+                      size="small"
+                      showHeader={false}
+                      style={{ margin: '-8px 0' }}
+                      onRow={(childRecord) => ({
+                        style: { cursor: 'pointer', background: '#f8fafc' },
+                        onClick: () => navigate(`/app/invoices/${childRecord.invoiceId}`),
+                      })}
+                    />
+                  ) : null,
+                rowExpandable: (record) => !!(record.children && record.children.length > 0),
+              }}
               onRow={(record) => ({
                 style: { cursor: 'pointer' },
                 onClick: () => navigate(`/app/invoices/${record.invoiceId}`),

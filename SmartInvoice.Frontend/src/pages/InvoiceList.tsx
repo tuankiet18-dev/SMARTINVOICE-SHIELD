@@ -300,7 +300,20 @@ const InvoiceList: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 140,
-      render: (st: string) => <div style={{ whiteSpace: 'nowrap' }}><StatusBadge type="status" value={st} /></div>,
+      render: (st: string, record: any) => {
+        // Support both shapes: `validationLayers` (detail DTO) or legacy `validationResults`.
+        // The list DTO doesn't include `validationLayers`; treat a Draft as NOT pending
+        // when the server already returned a `riskLevel` (i.e. validation completed server-side).
+        const hasValidationLayers = Array.isArray(record.validationLayers) && record.validationLayers.length > 0;
+        const hasLegacyValidation = record.validationResults && Array.isArray(record.validationResults.layerResults) && record.validationResults.layerResults.length > 0;
+        const hasRiskLevel = !!record.riskLevel && record.riskLevel !== 'Unknown';
+        const isPending = st === 'Draft' && !(hasValidationLayers || hasLegacyValidation || hasRiskLevel);
+        return (
+          <div style={{ whiteSpace: 'nowrap' }}>
+            <StatusBadge type="status" value={st} isPending={isPending} />
+          </div>
+        );
+      },
     },
     {
       title: 'Rủi ro',
@@ -367,7 +380,7 @@ const InvoiceList: React.FC = () => {
         </Space>
       </div>
 
-      <Card bordered={false} className="bg-dash-card rounded-[14px] shadow-dash overflow-hidden" bodyStyle={{ padding: 0 }}>
+      <Card variant="borderless" className="bg-dash-card rounded-[14px] shadow-dash overflow-hidden" styles={{ body: { padding: 0 } }}>
         {/* Bulk Action Bar */}
         {selectedRowKeys.length > 0 && (
           <div style={{ padding: '12px 24px', background: '#f0f5ff', borderBottom: '1px solid #d6e4ff', display: 'flex', alignItems: 'center', gap: 12 }}>

@@ -225,8 +225,6 @@ public class ProcessingConfig
     [JsonPropertyName("confidence_threshold")]
     public float ConfidenceThreshold { get; set; }
 
-    [JsonPropertyName("auto_approve_threshold")]
-    public float AutoApproveThreshold { get; set; }
 }
 
 // --- AUDIT ---

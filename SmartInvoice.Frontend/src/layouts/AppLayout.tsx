@@ -16,9 +16,12 @@ import {
   TeamOutlined,
   AppstoreOutlined,
   BankOutlined,
+  GiftOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFeatureFlags } from '@/hooks/useFeatureFlag';
+import NotificationBell from '@/components/common/NotificationBell';
 
 const { Sider, Header, Content } = Layout;
 const { Text } = Typography;
@@ -28,6 +31,7 @@ const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { hasRiskWarning, hasAuditLog } = useFeatureFlags();
 
   const isCompanyAdmin = user?.role === 'CompanyAdmin';
 
@@ -35,13 +39,18 @@ const AppLayout: React.FC = () => {
     { key: '/app/dashboard', icon: <DashboardOutlined />, label: 'Tổng quan' },
     { key: '/app/invoices', icon: <FileTextOutlined />, label: 'Hóa đơn' },
     { key: '/app/upload', icon: <UploadOutlined />, label: 'Tải lên' },
-    { key: '/app/validation', icon: <SafetyCertificateOutlined />, label: 'Rà soát rủi ro' },
+    ...(hasRiskWarning ? [
+      { key: '/app/validation', icon: <SafetyCertificateOutlined />, label: 'Rà soát rủi ro' },
+    ] : []),
     { key: '/app/reports', icon: <BarChartOutlined />, label: 'Báo cáo' },
     ...(isCompanyAdmin ? [
+      { key: '/app/subscription', icon: <GiftOutlined />, label: 'Gói dịch vụ' },
       { key: '/app/approval-dashboard', icon: <AppstoreOutlined />, label: 'Duyệt ngoại lệ' },
       { key: '/app/team', icon: <TeamOutlined />, label: 'Quản lý Team' },
       { key: 'divider-1', type: 'divider' as const },
-      { key: '/app/audit-log', icon: <AuditOutlined />, label: 'Nhật ký Audit' },
+      ...(hasAuditLog ? [
+        { key: '/app/audit-log', icon: <AuditOutlined />, label: 'Nhật ký Audit' },
+      ] : []),
     ] : []),
     { key: 'divider-settings', type: 'divider' as const },
     { key: '/app/settings', icon: <SettingOutlined />, label: 'Cài đặt' },
@@ -60,6 +69,8 @@ const AppLayout: React.FC = () => {
       navigate('/login');
     } else if (key === 'profile') {
       navigate('/app/profile');
+    } else if (key === 'settings') {
+      navigate('/app/settings');
     } else {
       console.log('Clicked', key);
     }
@@ -163,9 +174,7 @@ const AppLayout: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <Badge count={3} size="small">
-              <Button type="text" icon={<BellOutlined />} style={{ fontSize: 18 }} />
-            </Badge>
+            <NotificationBell />
 
             <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight" trigger={['click']}>
               <div style={{

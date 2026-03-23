@@ -162,7 +162,7 @@ const ApprovalDrawer: React.FC<ApprovalDrawerProps> = ({ open, onClose, invoice 
 
                     <Divider style={{ margin: '16px 0' }}>Dữ liệu bóc tách (XML)</Divider>
                     
-                    <Card size="small" bordered={false} style={{ background: '#fafafa' }}>
+                    <Card size="small" variant="borderless" style={{ background: '#fafafa' }}>
                         <Row gutter={[16, 12]}>
                             <Col span={8}><Text type="secondary">Số hóa đơn:</Text></Col>
                             <Col span={16}><Text strong>{invoiceNo}</Text></Col>

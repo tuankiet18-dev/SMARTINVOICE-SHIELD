@@ -19,10 +19,10 @@ const RiskDistributionCard: React.FC<RiskDistributionCardProps> = ({ data }) => 
         <Card
             bordered={false}
             className="bg-dash-card rounded-[14px] shadow-dash h-full"
-            bodyStyle={{ padding: '24px' }}
+            styles={{ body: { padding: '24px' } }}
         >
             <h3 className="text-dash-textMain font-bold text-lg mb-6">Phân bổ rủi ro</h3>
-            <Space direction="vertical" className="w-full" size={24}>
+            <Space orientation="vertical" className="w-full" size={24}>
                 {data.map((item, i) => (
                     <div key={i}>
                         <div className="flex justify-between mb-2">
@@ -33,7 +33,7 @@ const RiskDistributionCard: React.FC<RiskDistributionCardProps> = ({ data }) => 
                             percent={item.percent}
                             showInfo={false}
                             strokeColor={item.color}
-                            trailColor="#E2E8F0"
+                            railColor="#E2E8F0"
                             size="small"
                         />
                     </div>

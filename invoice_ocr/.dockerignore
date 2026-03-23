@@ -1,0 +1,16 @@
+ocr-env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+uploads/
+tmp_normalized/
+results/
+logs/
+.git/
+.gitignore
+*.md

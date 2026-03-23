@@ -40,14 +40,23 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [period, setPeriod] = useState<DashboardPeriod>('30d');
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
 
-
-
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, isFetching } = useQuery({
     queryKey: ['dashboard-stats', period],
     queryFn: () => dashboardService.getStats(period),
-    refetchInterval: 60_000, // auto-refresh every 60s
+    refetchInterval: 30_000, // auto-refresh every 30s for better responsiveness
+    meta: {
+      onSuccess: () => setLastRefreshTime(new Date()),
+    },
   });
+
+  const getTimeAgoText = (): string => {
+    const diffSeconds = Math.floor((new Date().getTime() - lastRefreshTime.getTime()) / 1000);
+    if (diffSeconds < 2) return 'just now';
+    if (diffSeconds < 60) return `${diffSeconds}s ago`;
+    return `${Math.floor(diffSeconds / 60)}m ago`;
+  };
 
   const changeText = periodChangeText[period];
 
@@ -93,7 +102,7 @@ const Dashboard: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Spin size="large" tip="Đang tải dữ liệu..." />
+        <Spin size="large" description="Đang tải dữ liệu..." />
       </div>
     );
   }
@@ -106,7 +115,7 @@ const Dashboard: React.FC = () => {
             {user?.role === 'Member' ? 'Tổng quan cá nhân' : 'Tổng quan hệ thống'}
           </h1>
           <p className="text-dash-textMuted font-medium text-sm">
-            Cập nhật lúc {dayjs().format('DD/MM/YYYY HH:mm')}
+            {isFetching ? '⏳ Cập nhật...' : `✓ Cập nhật cách đây ${getTimeAgoText()}`}
           </p>
         </div>
         <Select

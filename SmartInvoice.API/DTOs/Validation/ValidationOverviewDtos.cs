@@ -25,6 +25,8 @@ public class ValidationOverviewDto
 {
     // ── Summary statistics ──────────────────────────────
     public int TotalValidated { get; set; }
+    public int TotalUniqueInvoices { get; set; }
+    public int TotalValidationRuns { get; set; }
     public int PassCount { get; set; }
     public int WarningCount { get; set; }
     public int FailCount { get; set; }
@@ -73,4 +75,13 @@ public class InvoiceValidationSummaryDto
 
     /// <summary>Overall validation status derived from layers: Pass / Warning / Fail.</summary>
     public string OverallStatus { get; set; } = "Pass";
+
+    /// <summary>Version number of this invoice upload (1, 2, 3...).</summary>
+    public int Version { get; set; } = 1;
+
+    /// <summary>Whether this is the latest version of this invoice.</summary>
+    public bool IsLatest { get; set; } = true;
+
+    /// <summary>Previous versions of this invoice (only populated on the latest/parent row).</summary>
+    public List<InvoiceValidationSummaryDto>? Children { get; set; }
 }

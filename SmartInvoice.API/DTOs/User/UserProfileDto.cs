@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace SmartInvoice.API.DTOs.User
 {
@@ -8,7 +9,7 @@ namespace SmartInvoice.API.DTOs.User
         public Guid Id { get; set; }
         public string Email { get; set; } = null!;
         public string FullName { get; set; } = null!;
-        public string? EmployeeId { get; set; }
+        public string EmployeeId { get; set; } = null!;
         public Guid CompanyId { get; set; }
         public string? CompanyName { get; set; }
         public string Role { get; set; } = null!;
