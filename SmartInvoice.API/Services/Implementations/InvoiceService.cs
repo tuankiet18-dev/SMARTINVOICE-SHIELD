@@ -864,6 +864,17 @@ namespace SmartInvoice.API.Services.Implementations
                 if (hasFatalError)
                 {
                     _logger?.LogInformation("Fatal validation error detected for S3Key={S3Key}; aborting save. Errors={Errors}", s3Key, System.Text.Json.JsonSerializer.Serialize(finalResult.ErrorDetails));
+
+                    try 
+                    {
+                        await _storageService.DeleteFileAsync(s3Key);
+                        _logger?.LogInformation("Deleted orphaned S3 file due to fatal error: {S3Key}", s3Key);
+                    }
+                    catch (Exception ex) 
+                    {
+                        _logger?.LogError(ex, "Failed to delete orphaned S3 file: {S3Key}", s3Key);
+                    }
+
                     return finalResult; // Trả kết quả ngay, KHÔNG lưu vào Database
                 }
 
@@ -1429,6 +1440,20 @@ namespace SmartInvoice.API.Services.Implementations
                 _logger?.LogWarning("[OCR STEP 3/5] ❌ FATAL ERROR - Aborting OCR processing");
                 var fatalErr = finalResult.ErrorDetails.First(e => !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode));
                 _logger?.LogWarning("   └─ FatalError: {ErrorCode} - {ErrorMessage}", fatalErr.ErrorCode, fatalErr.ErrorMessage);
+
+                if (!string.IsNullOrEmpty(request.S3Key))
+                {
+                    try 
+                    {
+                        await _storageService.DeleteFileAsync(request.S3Key);
+                        _logger?.LogInformation("Deleted orphaned OCR S3 file due to fatal error: {S3Key}", request.S3Key);
+                    }
+                    catch (Exception ex) 
+                    {
+                        _logger?.LogError(ex, "Failed to delete orphaned OCR S3 file: {S3Key}", request.S3Key);
+                    }
+                }
+
                 overallStopwatch.Stop();
                 _logger?.LogWarning("[OCR] ❌ ProcessInvoiceOcrAsync FAILED - Total duration: {TotalMs}ms", overallStopwatch.ElapsedMilliseconds);
                 return finalResult;

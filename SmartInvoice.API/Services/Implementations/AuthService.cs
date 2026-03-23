@@ -558,6 +558,48 @@ namespace SmartInvoice.API.Services.Implementations
             }
         }
 
+        public async Task ForgotPasswordAsync(SmartInvoice.API.DTOs.Auth.ForgotPasswordRequest request)
+        {
+            try
+            {
+                var normalizedEmail = request.Email.ToLower().Trim();
+                var secretHash = CalculateSecretHash(normalizedEmail);
+                var fpRequest = new Amazon.CognitoIdentityProvider.Model.ForgotPasswordRequest
+                {
+                    ClientId = _clientId,
+                    Username = normalizedEmail,
+                    SecretHash = secretHash
+                };
+                await _cognitoClient.ForgotPasswordAsync(fpRequest);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Forgot password failed: " + ex.Message);
+            }
+        }
+
+        public async Task ConfirmForgotPasswordAsync(SmartInvoice.API.DTOs.Auth.ConfirmForgotPasswordRequest request)
+        {
+            try
+            {
+                var normalizedEmail = request.Email.ToLower().Trim();
+                var secretHash = CalculateSecretHash(normalizedEmail);
+                var cfpRequest = new Amazon.CognitoIdentityProvider.Model.ConfirmForgotPasswordRequest
+                {
+                    ClientId = _clientId,
+                    Username = normalizedEmail,
+                    ConfirmationCode = request.ConfirmationCode,
+                    Password = request.NewPassword,
+                    SecretHash = secretHash
+                };
+                await _cognitoClient.ConfirmForgotPasswordAsync(cfpRequest);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Confirm forgot password failed: " + ex.Message);
+            }
+        }
+
         public async Task SeedSuperAdminAsync(SeedSuperAdminRequest request)
         {
             var normalizedEmail = request.Email.ToLower().Trim();
