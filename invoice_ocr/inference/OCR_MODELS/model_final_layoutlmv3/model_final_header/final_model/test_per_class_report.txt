@@ -1,0 +1,37 @@
+TEST EVALUATION — PER CLASS REPORT
+============================================================
+F1 weighted : 0.9984
+Accuracy    : 0.9984
+============================================================
+
+                             precision    recall  f1-score   support
+
+             B-INVOICE_TYPE     1.0000    1.0000    1.0000       200
+             B-INVOICE_DATE     1.0000    1.0000    1.0000       200
+           B-INVOICE_SYMBOL     0.9901    1.0000    0.9950       201
+           B-INVOICE_NUMBER     1.0000    1.0000    1.0000       200
+              B-SELLER_NAME     1.0000    0.9902    0.9951       205
+          B-SELLER_TAX_CODE     1.0000    1.0000    1.0000       199
+B-SELLER_TAX_AUTHORITY_CODE     1.0000    1.0000    1.0000       200
+           B-SELLER_ADDRESS     0.9849    0.9751    0.9800       201
+               B-BUYER_NAME     0.9772    0.9796    0.9784       393
+           B-BUYER_TAX_CODE     1.0000    1.0000    1.0000       200
+            B-BUYER_ADDRESS     0.9706    0.9706    0.9706       204
+           B-PAYMENT_METHOD     1.0000    1.0000    1.0000       186
+             I-INVOICE_TYPE     1.0000    1.0000    1.0000      1118
+             I-INVOICE_DATE     1.0000    1.0000    1.0000      1000
+           I-INVOICE_SYMBOL     0.0000    0.0000    0.0000         2
+           I-INVOICE_NUMBER     0.0000    0.0000    0.0000         0
+              I-SELLER_NAME     0.9990    1.0000    0.9995      2090
+          I-SELLER_TAX_CODE     0.0000    0.0000    0.0000         0
+I-SELLER_TAX_AUTHORITY_CODE     1.0000    1.0000    1.0000         9
+           I-SELLER_ADDRESS     0.9985    0.9996    0.9990      2580
+               I-BUYER_NAME     0.9988    0.9981    0.9985      2593
+           I-BUYER_TAX_CODE     0.0000    0.0000    0.0000         1
+            I-BUYER_ADDRESS     0.9992    0.9984    0.9988      2505
+           I-PAYMENT_METHOD     1.0000    1.0000    1.0000       164
+                          O     0.9991    0.9993    0.9992     12654
+
+                   accuracy                         0.9984     27305
+                  macro avg     0.8367    0.8364    0.8366     27305
+               weighted avg     0.9983    0.9984    0.9984     27305

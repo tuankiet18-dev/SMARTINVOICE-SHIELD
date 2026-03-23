@@ -39,6 +39,10 @@ public class User : ISoftDelete
     [Column(TypeName = "jsonb")]
     public List<string>? Permissions { get; set; } = new();
 
+    // --- Preferences ---
+    public bool ReceiveEmailNotifications { get; set; } = true;
+    public bool ReceiveInAppNotifications { get; set; } = true;
+
     // --- Activity & Audit ---
     public bool IsActive { get; set; } = true;
 

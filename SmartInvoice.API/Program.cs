@@ -1,5 +1,6 @@
 using Amazon.S3;
 using Amazon.CognitoIdentityProvider;
+using Amazon.SQS;
 using Microsoft.EntityFrameworkCore;
 using SmartInvoice.API.Data;
 using SmartInvoice.API.Repositories.Interfaces;
@@ -17,6 +18,12 @@ using Microsoft.AspNetCore.Authentication;
 using SmartInvoice.API.Security;
 using System.Reflection;
 using SmartInvoice.API.Constants;
+using Polly;
+using Polly.CircuitBreaker;
+using Polly.Retry;
+using Polly.Timeout;
+using System.Security.Claims;
+using SmartInvoice.API.Middleware;
 // DotNetEnv logic removed since we now use parameter store
 
 var builder = WebApplication.CreateBuilder(args);
@@ -74,28 +81,101 @@ builder.Services.AddScoped<ILocalBlacklistService, LocalBlacklistService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ISystemConfigurationService, SystemConfigurationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IVnPayService, VnPayService>();
+builder.Services.AddScoped<IQuotaService, QuotaService>();
+builder.Services.AddScoped<IAwsS3Service, AwsS3Service>();
+builder.Services.AddScoped<IExportConfigService, ExportConfigService>();
+builder.Services.AddScoped<IExportService, ExportService>();
 
 // Add HttpClient for Services to use (like VietQR API calls)
 builder.Services.AddHttpClient();
 
 // Add Memory Cache
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ISystemConfigProvider, SystemConfigProvider>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
 // Register Internal OCR Client
-var ocrApiEndpoint = builder.Configuration["OCR_API_ENDPOINT"] ?? "http://localhost:8000";
+// Note: OCR Python runs on host machine (not Docker), so use host.docker.internal
+var ocrApiEndpoint = builder.Configuration["OCR_API_ENDPOINT"] ?? "http://host.docker.internal:5000";
 builder.Services.AddHttpClient<IOcrClientService, OcrClientService>(client =>
 {
     client.BaseAddress = new Uri(ocrApiEndpoint);
 });
 
+// ==================== VIETQR SERVICE WITH RESILIENCE POLICIES ====================
+// Register VietQR HttpClient with Polly resilience policies:
+// - Timeout: 5 seconds per request
+// - Retry: 3 attempts with exponential backoff (1s, 2s, 4s) for 429 and 5xx errors
+// - Circuit Breaker: Break after 5 consecutive failures, stay broken for 1 minute
+builder.Services.AddHttpClient("VietQR")
+    .AddTransientHttpErrorPolicy(p =>
+        p.Or<HttpRequestException>()
+          .WaitAndRetryAsync(
+              retryCount: 3,
+              sleepDurationProvider: attempt =>
+              {
+                  // Exponential backoff: 2^attempt seconds (1s, 2s, 4s)
+                  var delaySeconds = Math.Pow(2, attempt);
+                  return TimeSpan.FromSeconds(delaySeconds);
+              },
+              onRetry: (outcome, timespan, retryCount, context) =>
+              {
+                  System.Diagnostics.Debug.WriteLine($"[VietQR Retry] Attempt {retryCount} after {timespan.TotalSeconds}s");
+              }))
+    .AddTransientHttpErrorPolicy(p =>
+        p.Or<HttpRequestException>()
+          .CircuitBreakerAsync(
+              handledEventsAllowedBeforeBreaking: 5,
+              durationOfBreak: TimeSpan.FromMinutes(1),
+              onBreak: (outcome, timespan, context) =>
+              {
+                  System.Diagnostics.Debug.WriteLine($"[VietQR Circuit Breaker] Circuit opened for {timespan.TotalMinutes} minutes");
+              },
+              onReset: (context) =>
+              {
+                  System.Diagnostics.Debug.WriteLine("[VietQR Circuit Breaker] Circuit reset");
+              }))
+    .AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(TimeSpan.FromSeconds(5)));
+
+// Register VietQR Service
+builder.Services.AddScoped<IVietQrClientService, VietQrClientService>();
+
+// ==================== END VIETQR CONFIGURATION ====================
+
 // Configure Custom Claims Transformer
 builder.Services.AddTransient<IClaimsTransformation, ClaimsTransformer>();
 
-// 5. Config AWS Cognito
+// ==================== AWS SERVICES CONFIGURATION ====================
+// 5. Config AWS Cognito & SQS
 builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
 builder.Services.AddAWSService<IAmazonCognitoIdentityProvider>();
+builder.Services.AddAWSService<IAmazonSQS>();
+
+// ==================== SQS PUBLISHER & BACKGROUND CONSUMER ====================
+// Register SQS message publisher for VietQR validation requests
+builder.Services.AddScoped<ISqsMessagePublisher, SqsMessagePublisher>();
+
+// Register VietQR SQS Consumer as a hosted background service
+// This service continuously polls SQS for validation requests and updates invoices
+builder.Services.AddHostedService<VietQrSqsConsumerService>();
+// ==================== END SQS CONFIGURATION ====================
+
+// ==================== OCR WORKER CONFIGURATION ====================
+// Generic SQS service used by both the upload endpoint (producer) and OCR worker (consumer)
+builder.Services.AddScoped<ISqsService, SqsService>();
+
+// Named HttpClient for OCR Worker → calls Python OCR at localhost:5000
+builder.Services.AddHttpClient("OcrWorker", client =>
+{
+    client.BaseAddress = new Uri(ocrApiEndpoint);
+    client.Timeout = TimeSpan.FromMinutes(3); // OCR can be slow on large invoices
+});
+
+// Background worker that polls SQS OCR queue, downloads from S3, calls OCR API, updates DB
+builder.Services.AddHostedService<OcrWorkerService>();
+// ==================== END OCR WORKER CONFIGURATION ====================
 
 
 
@@ -118,7 +198,8 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = authority,
         ValidateAudience = false, // Cognito Access Token often doesn't contain audience, Id Token does.
         ValidateLifetime = true,
-        ValidateIssuerSigningKey = true
+        ValidateIssuerSigningKey = true,
+        RoleClaimType = ClaimTypes.Role
     };
 });
 
@@ -188,7 +269,20 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    try
+    var logger = services.GetRequiredService<ILogger<Program>>();
+
+    // Sử dụng Polly để thử lại tối đa 5 lần, mỗi lần cách nhau 3 giây
+    var retryPolicy = Policy
+        .Handle<Exception>()
+        .WaitAndRetryAsync(
+            retryCount: 5,
+            sleepDurationProvider: attempt => TimeSpan.FromSeconds(3),
+            onRetry: (exception, timeSpan, attempt, context) =>
+            {
+                logger.LogWarning($"[Auto-Migrate] Database chưa sẵn sàng, đang thử lại lần {attempt} sau {timeSpan.TotalSeconds}s... Lỗi: {exception.Message}");
+            });
+
+    await retryPolicy.ExecuteAsync(async () =>
     {
         var context = services.GetRequiredService<AppDbContext>();
         await context.Database.MigrateAsync();
@@ -198,34 +292,13 @@ using (var scope = app.Services.CreateScope())
         if (!context.Set<DocumentType>().Any())
         {
             context.Set<DocumentType>().AddRange(
-                new DocumentType
-                {
-                    TypeCode = "GTGT",
-                    TypeName = "Hóa đơn giá trị gia tăng",
-                    IsActive = true,
-                    DisplayOrder = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                },
-                new DocumentType
-                {
-                    TypeCode = "SALE",
-                    TypeName = "Hóa đơn bán hàng",
-                    IsActive = true,
-                    DisplayOrder = 2,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                }
+                new DocumentType { TypeCode = "GTGT", TypeName = "Hóa đơn giá trị gia tăng", IsActive = true, DisplayOrder = 1, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new DocumentType { TypeCode = "SALE", TypeName = "Hóa đơn bán hàng", IsActive = true, DisplayOrder = 2, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
             );
             await context.SaveChangesAsync();
             Console.WriteLine("Seeded initial DocumentTypes.");
         }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"An error occurred while migrating the database: {ex.Message}");
-        // In production, you might want to stop the app if DB fails, but for now we log it.
-    }
+    });
 }
 
 // Configure the HTTP request pipeline.
@@ -244,6 +317,8 @@ app.UseCors(x => x
     .AllowCredentials());
 
 // app.UseCors("AllowAmplify");
+
+app.UseMiddleware<MaintenanceMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();

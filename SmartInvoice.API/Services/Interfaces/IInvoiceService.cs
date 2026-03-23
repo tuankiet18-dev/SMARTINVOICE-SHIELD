@@ -11,9 +11,12 @@ namespace SmartInvoice.API.Services.Interfaces
         {
                 // ─── Query ───
                 Task<InvoiceDetailDto?> GetInvoiceDetailAsync(Guid invoiceId, Guid companyId, Guid userId, string userRole);
+                Task<string?> GetVisualFileUrlAsync(Guid invoiceId, Guid companyId);
                 Task<IEnumerable<Invoice>> GetAllInvoicesAsync();
                 Task<PagedResult<InvoiceDto>> GetInvoicesAsync(GetInvoicesQueryDto query, Guid companyId, Guid userId, string userRole);
                 Task<IEnumerable<InvoiceAuditLogDto>> GetAuditLogsAsync(Guid invoiceId);
+                Task<InvoiceStatsDto> GetInvoiceStatsAsync(DateTime startDate, DateTime endDate, string? statusFilter, Guid companyId);
+                Task<List<InvoiceVersionDto>> GetInvoiceVersionsAsync(Guid invoiceId, Guid companyId);
 
                 // ─── CRUD ───
                 Task<Invoice> CreateInvoiceAsync(Invoice invoice);
@@ -29,5 +32,12 @@ namespace SmartInvoice.API.Services.Interfaces
                 // ─── Processing ───
                 Task<bool> ValidateInvoiceAsync(Guid id);
                 Task<ValidationResultDto> ProcessInvoiceXmlAsync(string s3Key, string userId, string companyId);
+                Task<ValidationResultDto> ProcessInvoiceOcrAsync(ProcessOcrRequestDto request, string userId, string companyId);
+
+                // ─── Async OCR Pipeline ───
+                /// <summary>
+                /// Creates a draft invoice with Status="Processing" for the async OCR pipeline.
+                /// </summary>
+                Task CreateDraftInvoiceAsync(Invoice invoice);
         }
 }

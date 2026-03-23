@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice Extractor · AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Sora:wght@300;400;600;700&display=swap"
+    rel="stylesheet" />
+  <style>
+    /* ── RESET & BASE ──────────────────────────────────────────── */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0d0f12;
+      --surface: #13161b;
+      --surface2: #0f1117;
+      --border: #1e2330;
+      --accent: #4fffb0;
+      --accent2: #00c8ff;
+      --warning: #ffd166;
+      --danger: #ff4f6d;
+      --muted: #4a5168;
+      --text: #d6dae8;
+      --text-dim: #717891;
+      --mono: 'DM Mono', monospace;
+      --sans: 'Sora', sans-serif;
+      --radius: 12px;
+    }
+
+    html,
+    body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── GRID BACKGROUND ───────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-image:
+        linear-gradient(rgba(78, 255, 176, .03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(78, 255, 176, .03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ── LAYOUT ────────────────────────────────────────────────── */
+    .app {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── HEADER ────────────────────────────────────────────────── */
+    header {
+      padding: 36px 0 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-end;
+      gap: 20px;
+    }
+
+    .logo-block .tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo-block .tag::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(79, 255, 176, .4);
+      }
+
+      50% {
+        opacity: .7;
+        box-shadow: 0 0 0 6px rgba(79, 255, 176, 0);
+      }
+    }
+
+    .logo-block h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -.02em;
+    }
+
+    .logo-block h1 span {
+      color: var(--accent);
+    }
+
+    .model-badge {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 100px;
+      white-space: nowrap;
+    }
+
+    /* ── MAIN ──────────────────────────────────────────────────── */
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      padding: 28px 0;
+      align-items: start;
+    }
+
+    @media (max-width: 768px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ── PANEL ─────────────────────────────────────────────────── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .panel-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--text-dim);
+    }
+
+    .panel-body {
+      padding: 24px;
+    }
+
+    /* ── DROP ZONE ─────────────────────────────────────────────── */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 48px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .25s;
+      position: relative;
+    }
+
+    #drop-zone:hover,
+    #drop-zone.dragging {
+      border-color: var(--accent);
+      background: rgba(79, 255, 176, .04);
+    }
+
+    #drop-zone input[type=file] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      font-size: 40px;
+      margin-bottom: 14px;
+      filter: grayscale(.4);
+    }
+
+    .drop-label {
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+
+    .drop-label strong {
+      color: var(--text);
+    }
+
+    .drop-formats {
+      margin-top: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ── PREVIEW ───────────────────────────────────────────────── */
+    #preview-wrap {
+      display: none;
+      margin-top: 20px;
+    }
+
+    #preview-img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      max-height: 320px;
+      object-fit: contain;
+      background: #080a0d;
+    }
+
+    .preview-name {
+      margin-top: 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      word-break: break-all;
+    }
+
+    /* ── BUTTON ────────────────────────────────────────────────── */
+    #btn-extract {
+      margin-top: 20px;
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: #060809;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: .03em;
+      transition: all .2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    #btn-extract:hover:not(:disabled) {
+      background: #6effbe;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(79, 255, 176, .2);
+    }
+
+    #btn-extract:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* ── SPINNER ───────────────────────────────────────────────── */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(6, 8, 9, .3);
+      border-top-color: #060809;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ── STATUS BAR ────────────────────────────────────────────── */
+    #status-bar {
+      margin-top: 16px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #status-bar.info {
+      background: rgba(0, 200, 255, .08);
+      color: var(--accent2);
+      border: 1px solid rgba(0, 200, 255, .2);
+    }
+
+    #status-bar.success {
+      background: rgba(79, 255, 176, .08);
+      color: var(--accent);
+      border: 1px solid rgba(79, 255, 176, .2);
+    }
+
+    #status-bar.error {
+      background: rgba(255, 79, 109, .08);
+      color: var(--danger);
+      border: 1px solid rgba(255, 79, 109, .2);
+    }
+
+    #status-bar.warning {
+      background: rgba(255, 209, 102, .08);
+      color: var(--warning);
+      border: 1px solid rgba(255, 209, 102, .2);
+    }
+
+    /* ── REQUEST META (latency + request_id) ────────────────────── */
+    #req-meta {
+      display: none;
+      margin-top: 10px;
+      padding: 8px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    #req-meta .meta-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    #req-meta .meta-pill .label {
+      color: var(--muted);
+    }
+
+    #req-meta .meta-pill .value {
+      color: var(--text-dim);
+    }
+
+    #req-meta .meta-pill .value.fast {
+      color: var(--accent);
+    }
+
+    #req-meta .meta-pill .value.slow {
+      color: var(--warning);
+    }
+
+    /* ── RESULT PLACEHOLDER ────────────────────────────────────── */
+    #result-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      color: var(--muted);
+      gap: 12px;
+      text-align: center;
+    }
+
+    #result-placeholder .ph-icon {
+      font-size: 36px;
+      opacity: .4;
+    }
+
+    #result-placeholder p {
+      font-size: 13px;
+    }
+
+    /* ── FIELD TABLE ───────────────────────────────────────────── */
+    #fields-wrap {
+      display: none;
+    }
+
+    .conf-badge {
+      display: block;
+      margin-top: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      font-family: var(--mono);
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .conf-badge .dot { font-size: 12px; vertical-align: middle; margin-right: 3px; }
+
+    .green { color: var(--accent); }
+    .yellow { color: var(--warning); }
+    .red { color: var(--danger); }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      padding: 16px 20px 8px;
+      border-top: 1px solid var(--border);
+    }
+
+    .section-label:first-child {
+      border-top: none;
+      padding-top: 20px;
+    }
+
+    .field-row {
+      display: flex;
+      padding: 9px 20px;
+      gap: 12px;
+      align-items: baseline;
+      border-bottom: 1px solid rgba(255, 255, 255, .03);
+      transition: background .15s;
+    }
+
+    .field-row:hover {
+      background: rgba(255, 255, 255, .02);
+    }
+
+    .field-key {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      min-width: 160px;
+      flex-shrink: 0;
+    }
+
+    .field-val {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text);
+      word-break: break-all;
+    }
+
+    .field-val.empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    .field-val.number {
+      color: var(--accent2);
+    }
+
+    /* ── META SECTION (pipeline info từ _meta) ──────────────────── */
+    .meta-section {
+      margin: 12px 20px;
+      padding: 10px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .meta-section .m-item {
+      display: flex;
+      gap: 5px;
+    }
+
+    .meta-section .m-key {
+      color: var(--muted);
+    }
+
+    .meta-section .m-val {
+      color: var(--text-dim);
+    }
+
+    /* ── RAW JSON ──────────────────────────────────────────────── */
+    #raw-toggle {
+      margin: 16px 20px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      cursor: pointer;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      transition: all .2s;
+    }
+
+    #raw-toggle:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    #raw-json {
+      display: none;
+      margin: 0 20px 20px;
+      background: #080a0d;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      white-space: pre;
+      overflow: auto;
+      max-height: 400px;
+    }
+
+    /* ── COPY BTN ──────────────────────────────────────────────── */
+    .copy-btn {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all .2s;
+    }
+
+    .copy-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── ERROR DETAIL ──────────────────────────────────────────── */
+    .error-block {
+      padding: 20px 24px;
+      color: var(--danger);
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .error-block .stage-tag {
+      display: inline-block;
+      margin-bottom: 10px;
+      padding: 3px 10px;
+      border-radius: 100px;
+      background: rgba(255, 79, 109, .12);
+      border: 1px solid rgba(255, 79, 109, .3);
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .error-block details {
+      margin-top: 12px;
+      color: var(--text-dim);
+      font-size: 11px;
+    }
+
+    .error-block pre {
+      margin-top: 8px;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+
+    /* ── RATE LIMIT WARNING ────────────────────────────────────── */
+    .rate-limit-block {
+      padding: 24px;
+      text-align: center;
+      color: var(--warning);
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .rate-limit-block .icon {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    /* ── FOOTER ────────────────────────────────────────────────── */
+    footer {
+      padding: 20px 0;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    footer span {
+      color: var(--text-dim);
+    }
+
+    footer a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color .2s;
+    }
+
+    footer a:hover {
+      color: var(--accent);
+    }
+
+    /* ── PROGRESS BAR ──────────────────────────────────────────── */
+    #progress-bar {
+      height: 2px;
+      background: var(--border);
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 999;
+      transform-origin: left;
+      transform: scaleX(0);
+      transition: transform .3s;
+    }
+
+    #progress-bar.active {
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="progress-bar"></div>
+
+  <div class="app">
+
+    <!-- ── HEADER ─────────────────────────────────────────────── -->
+    <header>
+      <div class="logo-block">
+        <div class="tag">AI Pipeline · LayoutLMv3</div>
+        <h1>Invoice <span>Extractor</span></h1>
+      </div>
+      <div class="model-badge">🧠 Vietnamese OCR + NER</div>
+    </header>
+
+    <!-- ── MAIN ───────────────────────────────────────────────── -->
+    <main>
+
+      <!-- LEFT: Upload -->
+      <div>
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">📤 Upload Invoice</span>
+          </div>
+          <div class="panel-body">
+
+            <!-- Drop Zone -->
+            <div id="drop-zone">
+              <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.pdf" />
+              <div class="drop-icon">🧾</div>
+              <div class="drop-label">
+                <strong>Kéo &amp; thả file hoặc nhấn để chọn</strong>
+              </div>
+              <div class="drop-formats">PNG · JPG · JPEG · PDF &nbsp;|&nbsp; Tối đa 50MB</div>
+            </div>
+
+            <!-- Image Preview -->
+            <div id="preview-wrap">
+              <img id="preview-img" src="" alt="preview" />
+              <div class="preview-name" id="preview-name"></div>
+            </div>
+
+            <!-- Extract Button -->
+            <button id="btn-extract" disabled>
+              <div class="spinner" id="spinner"></div>
+              <span id="btn-text">⚡ Trích xuất thông tin</span>
+            </button>
+
+            <!-- Status Bar -->
+            <div id="status-bar"></div>
+
+            <!-- Request Meta: latency + request_id -->
+            <div id="req-meta">
+              <span class="meta-pill">
+                <span class="label">⏱ Latency</span>
+                <span class="value" id="meta-latency">—</span>
+              </span>
+              <span class="meta-pill">
+                <span class="label">🔖 Request ID</span>
+                <span class="value" id="meta-reqid">—</span>
+              </span>
+              <span class="meta-pill">
+                <span class="label">🖥 Device</span>
+                <span class="value" id="meta-device">—</span>
+              </span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Results -->
+      <div>
+        <div class="panel" style="min-height: 400px;">
+          <div class="panel-header">
+            <span class="panel-title">📋 Kết quả trích xuất</span>
+            <button class="copy-btn" id="copy-btn" style="display:none">Copy JSON</button>
+          </div>
+
+          <!-- Placeholder -->
+          <div id="result-placeholder">
+            <div class="ph-icon">🔍</div>
+            <p>Upload hoá đơn và nhấn<br /><strong>Trích xuất thông tin</strong></p>
+          </div>
+
+          <!-- Field rows injected here -->
+          <div id="fields-wrap"></div>
+
+          <!-- Raw JSON toggle -->
+          <button id="raw-toggle" style="display:none">{ } Raw JSON</button>
+          <pre id="raw-json"></pre>
+
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ── FOOTER ─────────────────────────────────────────────── -->
+    <footer>
+      <div>Pipeline: <span>OCR → LayoutLMv3 → NER → Extraction</span></div>
+      <div>Supports: <span>VAT · Sales · Supermarket Receipts</span></div>
+      <div>API: <a href="/docs" target="_blank">/docs ↗</a></div>
+      <div>Health: <a href="/api/v1/health" target="_blank">/api/v1/health ↗</a></div>
+      <div>Metrics: <a href="/api/v1/metrics" target="_blank">/api/v1/metrics ↗</a></div>
+    </footer>
+
+  </div>
+
+  <script>
+    // ════════════════════════════════════════════════════════════════
+    // CONFIGURATION — must match app.py Config class
+    // ════════════════════════════════════════════════════════════════
+    const API = {
+      EXTRACT: '/api/v1/extract',   // ← app.py: POST /api/v1/extract (sync)
+      HEALTH: '/api/v1/health',
+      METRICS: '/api/v1/metrics',
+    };
+
+    // Threshold (ms) — latency above this is shown as "slow" in yellow
+    const SLOW_THRESHOLD_MS = 8000;
+
+    // ════════════════════════════════════════════════════════════════
+    // FIELD DISPLAY MAP
+    // Mirrors the nested structure returned by stage5_format() in app.py
+    // ════════════════════════════════════════════════════════════════
+    const FIELD_MAP = {
+      seller: {
+        label: '🏢 Người bán',
+        fields: {
+          name: 'Tên công ty',
+          tax_code: 'Mã số thuế',
+          tax_authority_code: 'CQT quản lý',
+          address: 'Địa chỉ',
+        },
+      },
+      buyer: {
+        label: '🏬 Người mua',
+        fields: {
+          name: 'Tên công ty / cá nhân',
+          tax_code: 'Mã số thuế',
+          address: 'Địa chỉ',
+        },
+      },
+      invoice: {
+        label: '📄 Thông tin hoá đơn',
+        fields: {
+          type: 'Loại hoá đơn',
+          symbol: 'Ký hiệu',
+          number: 'Số hoá đơn',
+          date: 'Ngày phát hành',
+          payment_method: 'Hình thức thanh toán',
+          subtotal: 'Cộng tiền hàng',
+          vat_rate: 'Thuế suất VAT',
+          vat_amount: 'Tiền thuế VAT',
+          total_amount: 'Tổng tiền thanh toán',
+          currency: 'Đơn vị tiền tệ',
+        },
+      },
+    };
+
+    // ════════════════════════════════════════════════════════════════
+    // DOM REFS
+    // ════════════════════════════════════════════════════════════════
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const previewWrap = document.getElementById('preview-wrap');
+    const previewImg = document.getElementById('preview-img');
+    const previewName = document.getElementById('preview-name');
+    const btnExtract = document.getElementById('btn-extract');
+    const btnText = document.getElementById('btn-text');
+    const spinner = document.getElementById('spinner');
+    const statusBar = document.getElementById('status-bar');
+    const reqMeta = document.getElementById('req-meta');
+    const metaLatency = document.getElementById('meta-latency');
+    const metaReqId = document.getElementById('meta-reqid');
+    const metaDevice = document.getElementById('meta-device');
+    const fieldsWrap = document.getElementById('fields-wrap');
+    const placeholder = document.getElementById('result-placeholder');
+    const rawToggle = document.getElementById('raw-toggle');
+    const rawJson = document.getElementById('raw-json');
+    const copyBtn = document.getElementById('copy-btn');
+    const progressBar = document.getElementById('progress-bar');
+
+    // State
+    let selectedFile = null;
+    let lastResult = null;   // Stores json.data from last successful response
+
+    // ════════════════════════════════════════════════════════════════
+    // DRAG & DROP
+    // ════════════════════════════════════════════════════════════════
+    dropZone.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      dropZone.classList.add('dragging');
+    });
+
+    dropZone.addEventListener('dragleave', function () {
+      dropZone.classList.remove('dragging');
+    });
+
+    dropZone.addEventListener('drop', function (e) {
+      e.preventDefault();
+      dropZone.classList.remove('dragging');
+      var file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+
+    fileInput.addEventListener('change', function () {
+      if (fileInput.files[0]) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+      var ext = file.name.split('.').pop().toLowerCase();
+      if (!['png', 'jpg', 'jpeg', 'pdf'].includes(ext)) {
+        showStatus('error', '❌ Định dạng .' + ext + ' không được hỗ trợ. Dùng PNG, JPG, hoặc PDF.');
+        return;
+      }
+
+      // Max size check client-side (mirrors app.py Config.MAX_UPLOAD_BYTES = 50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        showStatus('error', '❌ File quá lớn (' + (file.size / 1048576).toFixed(1) + ' MB). Tối đa 50MB.');
+        return;
+      }
+
+      selectedFile = file;
+
+      // Preview
+      if (ext !== 'pdf') {
+        previewImg.src = URL.createObjectURL(file);
+        previewImg.style.display = 'block';
+      } else {
+        previewImg.style.display = 'none';
+      }
+      previewName.textContent = '📎 ' + file.name + '  (' + (file.size / 1024).toFixed(0) + ' KB)';
+      previewWrap.style.display = 'block';
+
+      btnExtract.disabled = false;
+      clearResult();
+      hideStatus();
+      hideReqMeta();
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // EXTRACT — POST to /api/v1/extract
+    // ════════════════════════════════════════════════════════════════
+    btnExtract.addEventListener('click', function () {
+      if (!selectedFile) return;
+      doExtract();
+    });
+
+    function doExtract() {
+      setLoading(true);
+      showStatus('info', '⏳ Đang chạy pipeline OCR + LayoutLMv3...');
+      startProgress();
+      clearResult();
+      hideReqMeta();
+
+      var formData = new FormData();
+      formData.append('file', selectedFile);
+
+      // ── Fetch POST /api/v1/extract ──────────────────────────────
+      fetch(API.EXTRACT, {
+        method: 'POST',
+        body: formData,
+      })
+        .then(function (resp) {
+          // Handle HTTP-level errors first
+          if (resp.status === 429) {
+            // Rate limit exceeded (from app.py RateLimiter)
+            return resp.json().then(function (body) {
+              throw { type: 'rate_limit', message: body.error || 'Too many requests', status: 429 };
+            });
+          }
+          if (resp.status === 503) {
+            // Model not ready (from app.py requires_model decorator)
+            return resp.json().then(function (body) {
+              throw { type: 'not_ready', message: body.error || 'Model chưa sẵn sàng', status: 503 };
+            });
+          }
+          return resp.json();
+        })
+        .then(function (json) {
+          // ── app.py success response ─────────────────────────────────
+          // {
+          //   "success":    true,
+          //   "request_id": "a1b2c3d4",
+          //   "latency_ms": 3241.5,
+          //   "data": { seller: {...}, buyer: {...}, invoice: {...}, _meta: {...} }
+          // }
+          if (json.success === true && json.data) {
+            showStatus('success', '✅ Trích xuất thành công — ' + selectedFile.name);
+            showReqMeta(json.request_id, json.latency_ms, json.data._meta);
+            renderResult(json.data);
+            lastResult = json.data;
+            copyBtn.style.display = 'inline-block';
+            return;
+          }
+
+          // ── app.py error response ───────────────────────────────────
+          // {
+          //   "error":      "...",
+          //   "request_id": "...",
+          //   "stage":      "2_ocr",      ← PipelineError only
+          //   "traceback":  "..."         ← debug=True only
+          // }
+          if (json.error) {
+            var errMsg = json.error;
+            if (json.stage) errMsg = '[Stage ' + json.stage + '] ' + errMsg;
+            showStatus('error', '❌ ' + errMsg);
+            renderError(json.error, json.stage, json.traceback, json.request_id);
+            return;
+          }
+
+          // Unexpected format
+          showStatus('error', '❌ Response format không hợp lệ từ server.');
+          console.error('Unexpected response:', json);
+        })
+        .catch(function (err) {
+          if (err.type === 'rate_limit') {
+            showStatus('warning', '⚠️ Quá nhiều request. Hãy đợi rồi thử lại.');
+            renderRateLimit();
+          } else if (err.type === 'not_ready') {
+            showStatus('warning', '⏳ Model đang khởi động. Vui lòng thử lại sau vài giây.');
+          } else {
+            showStatus('error', '❌ Lỗi kết nối: ' + (err.message || String(err)));
+          }
+        })
+        .finally(function () {
+          setLoading(false);
+          stopProgress();
+        });
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // HELPERS — extract value/confidence from {value, confidence} objects
+    // ════════════════════════════════════════════════════════════════
+    /**
+     * Standard field access — works when backend sends correct schema:
+     */
+    function getVal(field, fallback = "—") {
+      if (!field) return fallback;
+      let v = (typeof field === "object" && field !== null) ? field.value : field;
+      
+      // Handle stringified Python dicts (noise from some pipeline stages)
+      if (typeof v === "string" && v.startsWith("{'value':") && v.includes("'confidence':")) {
+        try {
+          const cleaned = v.replace(/'/g, '"').replace(/None/g, 'null').replace(/True/g, 'true').replace(/False/g, 'false');
+          const parsed = JSON.parse(cleaned);
+          v = parsed.value;
+        } catch(e) {}
+      }
+      
+      if (v === undefined || v === null || v === "") return fallback;
+      return v;
+    }
+
+    function getConf(field) {
+      if (!field) return 0.0;
+      if (typeof field.confidence === "number") return field.confidence;
+      
+      // Handle stringified confidence
+      if (typeof field === "string" && field.includes("'confidence':")) {
+         try {
+           const cleaned = field.replace(/'/g, '"').replace(/None/g, 'null').replace(/True/g, 'true').replace(/False/g, 'false');
+           return JSON.parse(cleaned).confidence || 0.0;
+         } catch(e) {}
+      }
+      return 0.0;
+    }
+
+    /**
+     * Format number as Vietnamese currency (no symbol).
+     * e.g. 2610733 → "2.610.733"
+     */
+    function fmtMoney(val) {
+      if (val === null || val === undefined || val === "" || val === "—") return "—";
+      const n = typeof val === "string"
+        ? parseInt(val.replace(/\D/g, ""), 10)
+        : Number(val);
+      if (isNaN(n) || n === 0) return (val === 0 ? "0" : "—");
+      return n.toLocaleString("vi-VN");
+    }
+
+    function confBadge(conf) {
+      if (conf === null || conf === undefined) return '';
+      var pct = (conf * 100).toFixed(0);
+      var cls = 'red';
+      if (conf >= 0.95) cls = 'green';
+      else if (conf >= 0.80) cls = 'yellow';
+      
+      return '<span class="conf-badge ' + cls + '">' +
+             '<span class="dot">●</span>' + pct + '%' +
+             '</span>';
+    }
+
+    function statusBadge(status) {
+      var map = {
+        success: { label: '✅ SUCCESS', color: 'var(--accent)' },
+        partial: { label: '⚠️ PARTIAL', color: 'var(--warning)' },
+        error: { label: '❌ ERROR', color: 'var(--danger)' },
+      };
+      var s = map[status] || map.partial;
+      return '<span style="display:inline-block;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:600;font-family:var(--mono);color:' + s.color + ';border:1px solid ' + s.color + ';">' + s.label + '</span>';
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // RENDER — SUCCESS
+    // Reads {value, confidence} per field from stage5_format() + InvoiceSchema.build()
+    // ════════════════════════════════════════════════════════════════
+    function renderResult(data) {
+      console.log("API response:", data);
+      placeholder.style.display = 'none';
+      fieldsWrap.style.display = 'block';
+      fieldsWrap.innerHTML = '';
+
+      // ── Status + Document Confidence header ────────────────────
+      var headerDiv = document.createElement('div');
+      headerDiv.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 20px;margin-bottom:4px;';
+      var statusHtml = statusBadge(data?.status ?? 'partial');
+      var docConf = data?.document_confidence;
+      if (docConf !== undefined && docConf !== null) {
+        var confPct = (docConf * 100).toFixed(1);
+        statusHtml += '<span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-left:16px;">Doc confidence: <strong>' + confPct + '%</strong></span>';
+      }
+      headerDiv.innerHTML = statusHtml;
+      fieldsWrap.appendChild(headerDiv);
+
+      // ── Validation warnings/errors ─────────────────────────────
+      var vld = data?._validation;
+      if (vld) {
+        if (vld.errors && vld.errors.length > 0) {
+          var errDiv = document.createElement('div');
+          errDiv.style.cssText = 'margin:4px 20px 8px;padding:10px 14px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);font-size:12px;font-family:var(--mono);color:#ef4444;';
+          errDiv.innerHTML = '<strong>Validation Errors:</strong><br>' + vld.errors.map(escapeHtml).join('<br>');
+          fieldsWrap.appendChild(errDiv);
+        }
+        if (vld.warnings && vld.warnings.length > 0) {
+          var warnDiv = document.createElement('div');
+          warnDiv.style.cssText = 'margin:4px 20px 8px;padding:10px 14px;border-radius:8px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);font-size:12px;font-family:var(--mono);color:var(--warning);';
+          warnDiv.innerHTML = '<strong>Warnings:</strong><br>' + vld.warnings.map(escapeHtml).join('<br>');
+          fieldsWrap.appendChild(warnDiv);
+        }
+      }
+
+      // ── Field groups: seller / buyer / invoice ──────────────────
+      var isNested = (
+        data?.seller && typeof data.seller === 'object' ||
+        data?.buyer && typeof data.buyer === 'object' ||
+        data?.invoice && typeof data.invoice === 'object'
+      );
+
+      if (isNested) {
+        for (var groupKey in FIELD_MAP) {
+          if (!FIELD_MAP.hasOwnProperty(groupKey)) continue;
+          var groupDef = FIELD_MAP[groupKey];
+          var groupData = data?.[groupKey];
+          if (!groupData) continue;
+
+          var sectionEl = document.createElement('div');
+          sectionEl.className = 'section-label';
+          sectionEl.textContent = groupDef.label;
+          fieldsWrap.appendChild(sectionEl);
+
+          for (var fieldKey in groupDef.fields) {
+            if (!groupDef.fields.hasOwnProperty(fieldKey)) continue;
+            var fieldLabel = groupDef.fields[fieldKey];
+            var fieldObj = groupData?.[fieldKey];
+            appendFieldRow(fieldsWrap, fieldLabel, fieldObj);
+          }
+        }
+
+        // ── Items table ──────────────────────────────────────────
+        if (data?.items && data.items.length > 0) {
+          var itemSectionEl = document.createElement('div');
+          itemSectionEl.className = 'section-label';
+          itemSectionEl.textContent = '📦 CHI TIẾT MẶT HÀNG (' + data.items.length + ' DÒNG)';
+          fieldsWrap.appendChild(itemSectionEl);
+
+          var tbl = '<div style="overflow-x:auto;margin:10px 20px;"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;color:var(--text-dim);text-align:left;">';
+          tbl += '<thead style="background:rgba(255,255,255,0.03);border-bottom:1px solid var(--border);">';
+          tbl += '<tr>';
+          tbl += '<th style="padding:10px;min-width:200px;">Tên hàng hóa</th>';
+          tbl += '<th style="padding:10px;">ĐVT</th>';
+          tbl += '<th style="padding:10px;text-align:right;">SL</th>';
+          tbl += '<th style="padding:10px;text-align:right;">Đơn giá</th>';
+          tbl += '<th style="padding:10px;text-align:right;">Chiết khấu</th>';
+          tbl += '<th style="padding:10px;text-align:right;">Thành tiền</th>';
+          tbl += '<th style="padding:10px;text-align:right;">Thuế suất %</th>';
+          tbl += '<th style="padding:10px;text-align:right;">Thuế</th>';
+          tbl += '<th style="padding:10px;text-align:right;">Tổng</th>';
+          tbl += '</tr></thead><tbody>';
+
+          data.items.forEach(function (item) {
+            const name      = getVal(item.name);
+            const unit      = getVal(item.unit);
+            const qty       = getVal(item.quantity,  0);
+            const price     = getVal(item.unit_price, 0);
+            const discount  = getVal(item.discount,   0);
+            const total     = getVal(item.total,     0);
+            const vatRateVal = item.vat_rate?.value ?? "";
+            const vatRateDisplay = (vatRateVal && vatRateVal !== "0" && vatRateVal !== "") ? vatRateVal + "%" : "—";
+            const lineTax   = getVal(item.line_tax,   0);
+            const rowTotal  = getVal(item.row_total,  0);
+
+            const nameConf  = getConf(item.name);
+            const unitConf  = getConf(item.unit);
+            const qtyConf   = getConf(item.quantity);
+            const priceConf = getConf(item.unit_price);
+            const discountConf = getConf(item.discount);
+            const totalConf = getConf(item.total);
+            const taxConf   = getConf(item.line_tax);
+            const rowConf   = getConf(item.row_total);
+
+            tbl += '<tr style="border-bottom:1px solid var(--border);transition:background .15s;" onmouseover="this.style.background=\'rgba(255,255,255,0.02)\'" onmouseout="this.style.background=\'transparent\'">';
+            tbl += '<td style="padding:10px;">' + escapeHtml(name) + (name !== "—" ? confBadge(nameConf) : "") + '</td>';
+            tbl += '<td style="padding:10px;">' + escapeHtml(unit) + (unit !== "—" ? confBadge(unitConf) : "") + '</td>';
+            tbl += '<td style="padding:10px;text-align:right;">' + (qty !== 0 ? qty : "—") + (qty !== 0 ? confBadge(qtyConf) : "") + '</td>';
+            tbl += '<td style="padding:10px;text-align:right;">' + fmtMoney(price) + (price !== 0 && price !== "—" ? confBadge(priceConf) : "") + '</td>';
+            tbl += '<td style="padding:10px;text-align:right;">' + (discount !== 0 && discount !== "—" ? fmtMoney(discount) : "—") + (discount !== 0 && discount !== "—" ? confBadge(discountConf) : "") + '</td>';
+            tbl += '<td style="padding:10px;text-align:right;">' + fmtMoney(total) + (total !== 0 && total !== "—" ? confBadge(totalConf) : "") + '</td>';
+            tbl += '<td style="padding:10px;text-align:right;">' + vatRateDisplay + '</td>';
+            tbl += '<td style="padding:10px;text-align:right;">' + (lineTax !== 0 && lineTax !== "—" ? fmtMoney(lineTax) : "—") + (lineTax !== 0 && lineTax !== "—" ? confBadge(taxConf) : "") + '</td>';
+            tbl += '<td style="padding:10px;text-align:right;">' + (rowTotal !== 0 && rowTotal !== "—" ? fmtMoney(rowTotal) : "—") + (rowTotal !== 0 && rowTotal !== "—" ? confBadge(rowConf) : "") + '</td>';
+            tbl += '</tr>';
+          });
+          tbl += '</tbody></table></div>';
+
+          var tableContainer = document.createElement('div');
+          tableContainer.innerHTML = tbl;
+          fieldsWrap.appendChild(tableContainer);
+        }
+
+        // ── _meta ──────────────────────────────────────────────────
+        if (data?._meta) {
+          renderMetaBlock(data._meta);
+        }
+
+      } else {
+        // Flat format fallback
+        for (var k in data) {
+          if (k.startsWith('_')) continue;
+          if (!data.hasOwnProperty(k)) continue;
+          appendFieldRow(fieldsWrap, k, data[k]);
+        }
+      }
+
+      // Raw JSON
+      rawJson.textContent = JSON.stringify(data, null, 2);
+      rawToggle.style.display = 'inline-block';
+    }
+
+    function appendFieldRow(parent, label, fieldObj) {
+      var val = getVal(fieldObj);
+      var conf = getConf(fieldObj);
+
+      var row = document.createElement('div');
+      row.className = 'field-row';
+
+      var keyEl = document.createElement('div');
+      keyEl.className = 'field-key';
+      keyEl.textContent = label;
+
+      var valEl = document.createElement('div');
+      valEl.className = 'field-val';
+
+      if (val === null || val === undefined || val === '' || val === '—') {
+        valEl.innerHTML = '<span class="empty">—</span>';
+      } else if (typeof val === 'number') {
+        valEl.innerHTML = '<span class="number">' + val.toLocaleString('vi-VN') + '</span>';
+      } else {
+        valEl.textContent = String(val);
+      }
+
+      // Append confidence badge
+      if (conf > 0) {
+        valEl.insertAdjacentHTML('beforeend', confBadge(conf));
+      }
+
+      row.appendChild(keyEl);
+      row.appendChild(valEl);
+      parent.appendChild(row);
+    }
+
+    // _meta block from stage5_format()
+    function renderMetaBlock(meta) {
+      var el = document.createElement('div');
+      el.className = 'meta-section';
+      el.innerHTML =
+        '<span class="m-item"><span class="m-key">model (header)</span><span class="m-val">' + (meta.model_header || '—') + '</span></span>' +
+        '<span class="m-item"><span class="m-key">model (table)</span><span class="m-val">' + (meta.model_table || '—') + '</span></span>' +
+        '<span class="m-item"><span class="m-key">device</span><span class="m-val">' + (meta.device || '—') + '</span></span>' +
+        '<span class="m-item"><span class="m-key">pipeline</span><span class="m-val">' + (meta.pipeline_ms ? meta.pipeline_ms + ' ms' : '—') + '</span></span>' +
+        '<span class="m-item"><span class="m-key">api</span><span class="m-val">' + (meta.api_version || '—') + '</span></span>' +
+        '<span class="m-item"><span class="m-key">processed</span><span class="m-val">' + (meta.processed_at ? meta.processed_at.replace('T', ' ').slice(0, 19) + ' UTC' : '—') + '</span></span>';
+      fieldsWrap.appendChild(el);
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // RENDER — ERROR
+    // Handles both ValidationError and PipelineError from app.py
+    // ════════════════════════════════════════════════════════════════
+    function renderError(msg, stage, tb, reqId) {
+      placeholder.style.display = 'none';
+      fieldsWrap.style.display = 'block';
+
+      var stageHtml = stage
+        ? '<div class="stage-tag">⚙️ Failed at Stage ' + stage + '</div>'
+        : '';
+
+      var tbHtml = tb
+        ? '<details><summary>Traceback (debug)</summary><pre>' + escapeHtml(tb) + '</pre></details>'
+        : '';
+
+      var reqHtml = reqId
+        ? '<div style="margin-top:10px;font-size:10px;color:var(--muted)">request_id: ' + reqId + '</div>'
+        : '';
+
+      fieldsWrap.innerHTML =
+        '<div class="error-block">' +
+        stageHtml +
+        '<div>❌ ' + escapeHtml(msg) + '</div>' +
+        tbHtml +
+        reqHtml +
+        '</div>';
+    }
+
+    function renderRateLimit() {
+      placeholder.style.display = 'none';
+      fieldsWrap.style.display = 'block';
+      fieldsWrap.innerHTML =
+        '<div class="rate-limit-block">' +
+        '<div class="icon">⏳</div>' +
+        '<div>Bạn đang gửi request quá nhanh.</div>' +
+        '<div style="margin-top:6px;font-size:11px;color:var(--muted)">Server giới hạn 20 request/phút mỗi IP.<br/>Đợi vài giây rồi thử lại.</div>' +
+        '</div>';
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // REQUEST META DISPLAY
+    // Shows request_id, latency_ms, device from app.py response
+    // ════════════════════════════════════════════════════════════════
+    function showReqMeta(reqId, latencyMs, meta) {
+      reqMeta.style.display = 'flex';
+
+      // Latency with color coding
+      if (latencyMs != null) {
+        var latStr = latencyMs.toFixed(0) + ' ms';
+        var isSlow = latencyMs > SLOW_THRESHOLD_MS;
+        metaLatency.textContent = latStr;
+        metaLatency.className = 'value ' + (isSlow ? 'slow' : 'fast');
+      } else {
+        metaLatency.textContent = '—';
+        metaLatency.className = 'value';
+      }
+
+      // Request ID
+      metaReqId.textContent = reqId ? reqId : '—';
+
+      // Device from _meta block
+      metaDevice.textContent = (meta && meta.device) ? meta.device : '—';
+    }
+
+    function hideReqMeta() {
+      reqMeta.style.display = 'none';
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // RAW JSON TOGGLE
+    // ════════════════════════════════════════════════════════════════
+    rawToggle.addEventListener('click', function () {
+      var visible = rawJson.style.display === 'block';
+      rawJson.style.display = visible ? 'none' : 'block';
+      rawToggle.textContent = visible ? '{ } Raw JSON' : '✕ Đóng JSON';
+    });
+
+    // ════════════════════════════════════════════════════════════════
+    // COPY JSON
+    // ════════════════════════════════════════════════════════════════
+    copyBtn.addEventListener('click', function () {
+      if (!lastResult) return;
+      var text = JSON.stringify(lastResult, null, 2);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          copyBtn.textContent = '✅ Copied!';
+          setTimeout(function () { copyBtn.textContent = 'Copy JSON'; }, 2000);
+        });
+      } else {
+        // Fallback for older browsers
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        copyBtn.textContent = '✅ Copied!';
+        setTimeout(function () { copyBtn.textContent = 'Copy JSON'; }, 2000);
+      }
+    });
+
+    // ════════════════════════════════════════════════════════════════
+    // HELPERS
+    // ════════════════════════════════════════════════════════════════
+    function setLoading(on) {
+      btnExtract.disabled = on;
+      spinner.style.display = on ? 'block' : 'none';
+      btnText.textContent = on ? 'Đang xử lý...' : '⚡ Trích xuất thông tin';
+    }
+
+    function clearResult() {
+      placeholder.style.display = 'flex';
+      fieldsWrap.style.display = 'none';
+      fieldsWrap.innerHTML = '';
+      rawToggle.style.display = 'none';
+      rawJson.style.display = 'none';
+      rawJson.textContent = '';
+      copyBtn.style.display = 'none';
+      lastResult = null;
+    }
+
+    function showStatus(type, msg) {
+      statusBar.className = type;
+      statusBar.textContent = msg;
+      statusBar.style.display = 'flex';
+    }
+
+    function hideStatus() {
+      statusBar.style.display = 'none';
+    }
+
+    function startProgress() {
+      progressBar.classList.add('active');
+      progressBar.style.transform = 'scaleX(0.05)';
+      var v = 0.05;
+      progressBar._iv = setInterval(function () {
+        v = Math.min(v + (1 - v) * 0.06, 0.9);
+        progressBar.style.transform = 'scaleX(' + v + ')';
+      }, 400);
+    }
+
+    function stopProgress() {
+      clearInterval(progressBar._iv);
+      progressBar.style.transform = 'scaleX(1)';
+      setTimeout(function () {
+        progressBar.style.transform = 'scaleX(0)';
+        progressBar.classList.remove('active');
+      }, 400);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+
+</html>

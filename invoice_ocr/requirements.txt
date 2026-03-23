@@ -1,0 +1,59 @@
+# =========================
+# Core OCR Engine (CPU)
+# =========================
+paddlepaddle==2.6.2
+paddleocr==2.7.3
+
+# =========================
+# Image & OCR Dependencies
+# =========================
+opencv-python<=4.6.0.66
+Pillow==10.1.0
+PyMuPDF==1.23.8
+pdf2image==1.16.3
+
+# =========================
+# Data Processing
+# =========================
+numpy==1.24.4
+pandas==2.1.4
+openpyxl==3.1.2
+
+# =========================
+# Vietnamese OCR
+# =========================
+vietocr==0.3.12
+
+# =========================
+# NLP / SER
+# =========================
+transformers==4.36.2
+sentencepiece==0.1.99
+
+# =========================
+# Deep Learning
+# =========================
+torch
+torchvision
+datasets
+huggingface-hub
+
+# =========================
+# Utils
+# =========================
+tqdm==4.66.1
+PyYAML==6.0.1
+
+# =========================
+# Web API / Config
+# =========================
+flask
+python-dotenv
+
+# =========================
+# Optional (LLM / Gemini)
+# =========================
+google-generativeai
+
+# =========================
+# PyQt5==5.15.9

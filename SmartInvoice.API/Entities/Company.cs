@@ -41,8 +41,15 @@ public class Company : ISoftDelete
     public string? BusinessLicense { get; set; }
 
     // --- Subscription Info ---
+    public Guid SubscriptionPackageId { get; set; }
+    [ForeignKey(nameof(SubscriptionPackageId))]
+    public SubscriptionPackage? SubscriptionPackage { get; set; }
+
     [MaxLength(50)]
     public string SubscriptionTier { get; set; } = "Free"; // Free, Starter, Professional, Enterprise
+
+    [MaxLength(20)]
+    public string BillingCycle { get; set; } = "Monthly"; // Monthly, SemiAnnual, Annual
 
     public DateTime? SubscriptionStartDate { get; set; }
     public DateTime? SubscriptionExpiredAt { get; set; }
@@ -50,6 +57,11 @@ public class Company : ISoftDelete
     public int MaxUsers { get; set; } = 5;
     public int MaxInvoicesPerMonth { get; set; } = 100;
     public int StorageQuotaGB { get; set; } = 5;
+
+    // --- Quota Tracking (Lazy Evaluation) ---
+    public int UsedInvoicesThisMonth { get; set; } = 0;
+    public int ExtraInvoicesBalance { get; set; } = 0;
+    public DateTime CurrentCycleStart { get; set; } = DateTime.UtcNow;
 
     // --- Status ---
     public bool IsActive { get; set; } = true;

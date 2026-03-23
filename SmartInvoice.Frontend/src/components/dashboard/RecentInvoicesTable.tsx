@@ -88,7 +88,7 @@ const RecentInvoicesTable: React.FC<RecentInvoicesTableProps> = ({ invoices, isL
         <Card
             bordered={false}
             className="bg-dash-card rounded-[14px] shadow-dash h-full overflow-hidden"
-            bodyStyle={{ padding: '24px 0 0 0' }}
+            styles={{ body: { padding: '24px 0 0 0' } }}
         >
             <div className="flex justify-between items-center mb-6 px-6">
                 <h3 className="text-dash-textMain font-bold text-lg m-0">Hóa đơn hệ thống</h3>

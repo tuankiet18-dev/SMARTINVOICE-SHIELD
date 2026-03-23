@@ -41,6 +41,10 @@ const SuperAdminLayout: React.FC = () => {
     if (key === 'logout') {
       await logout();
       navigate('/login');
+    } else if (key === 'profile') {
+      navigate('/admin/profile');
+    } else if (key === 'settings') {
+      navigate('/admin/settings');
     }
   };
 

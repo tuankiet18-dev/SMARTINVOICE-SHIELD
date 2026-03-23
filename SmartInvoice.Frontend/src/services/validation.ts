@@ -14,10 +14,15 @@ export interface InvoiceValidationSummary {
   layer2Status: string | null;
   layer3Status: string | null;
   overallStatus: string;
+  version: number;
+  isLatest: boolean;
+  children: InvoiceValidationSummary[] | null;
 }
 
 export interface ValidationOverview {
   totalValidated: number;
+  totalUniqueInvoices: number;
+  totalValidationRuns: number;
   passCount: number;
   warningCount: number;
   failCount: number;

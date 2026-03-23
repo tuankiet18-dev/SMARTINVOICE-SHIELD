@@ -244,7 +244,7 @@ const GlobalBlacklist: React.FC = () => {
                 </Space>
             </div>
 
-            <Card bordered={false} style={{ borderRadius: 12, borderTop: '3px solid #d63031' }}>
+            <Card variant="borderless" style={{ borderRadius: 12, borderTop: '3px solid #d63031' }}>
                 <Row style={{ marginBottom: 16 }}>
                     <Col span={8}>
                         <Input

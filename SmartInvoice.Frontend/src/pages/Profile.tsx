@@ -62,7 +62,7 @@ const Profile: React.FC = () => {
                 </div>
             </div>
 
-            <Card bordered={false} style={{ borderRadius: 12 }}>
+            <Card variant="borderless" style={{ borderRadius: 12 }}>
                 <Tabs defaultActiveKey="1">
                     <Tabs.TabPane tab={<span><UserOutlined /> Thông tin cơ bản</span>} key="1">
                         <Descriptions

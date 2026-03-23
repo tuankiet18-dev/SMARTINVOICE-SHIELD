@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartInvoice.API.Data;
 using SmartInvoice.API.DTOs;
 using SmartInvoice.API.DTOs.Invoice;
+using SmartInvoice.API.DTOs.SQS;
 using SmartInvoice.API.Entities;
 using SmartInvoice.API.Entities.JsonModels;
 using SmartInvoice.API.Services;
@@ -27,13 +28,31 @@ namespace SmartInvoice.API.Controller
         private readonly StorageService _storageService;
         private readonly IInvoiceProcessorService _invoiceProcessor;
         private readonly IInvoiceService _invoiceService;
+        private readonly IQuotaService _quotaService;
+        private readonly ISystemConfigProvider _configProvider;
+        private readonly IAwsS3Service _s3Service;
+        private readonly ISqsService _sqsService;
+        private readonly IConfiguration _configuration;
 
         [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
-        public InvoicesController(StorageService storageService, IInvoiceProcessorService invoiceProcessor, IInvoiceService invoiceService)
+        public InvoicesController(
+            StorageService storageService,
+            IInvoiceProcessorService invoiceProcessor,
+            IInvoiceService invoiceService,
+            IQuotaService quotaService,
+            ISystemConfigProvider configProvider,
+            IAwsS3Service s3Service,
+            ISqsService sqsService,
+            IConfiguration configuration)
         {
             _storageService = storageService;
             _invoiceProcessor = invoiceProcessor;
             _invoiceService = invoiceService;
+            _quotaService = quotaService;
+            _configProvider = configProvider;
+            _s3Service = s3Service;
+            _sqsService = sqsService;
+            _configuration = configuration;
         }
 
         // ════════════════════════════════════════════
@@ -62,8 +81,14 @@ namespace SmartInvoice.API.Controller
 
         [HttpPost("generate-upload-url")]
         [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
-        public IActionResult GetUploadUrl([FromBody] UploadRequestDto request)
+        public async Task<IActionResult> GetUploadUrl([FromBody] UploadRequestDto request)
         {
+            var maxFileSizeMb = await _configProvider.GetIntAsync("MAX_UPLOAD_SIZE_MB", 10);
+            if (request.FileSize > (long)maxFileSizeMb * 1024 * 1024)
+            {
+                return BadRequest(new { Message = $"Dung lượng file vượt quá giới hạn cho phép ({maxFileSizeMb} MB)." });
+            }
+
             var result = _storageService.GeneratePresignedUrl(request.FileName, request.ContentType);
             return Ok(new { UploadUrl = result.Url, S3Key = result.Key });
         }
@@ -78,12 +103,139 @@ namespace SmartInvoice.API.Controller
             try
             {
                 var (userId, companyId, _, _) = GetUserInfo();
+
+                // Quota check: lazy reset + consume
+                await _quotaService.ValidateAndConsumeInvoiceQuotaAsync(companyId);
+
                 var finalResult = await _invoiceService.ProcessInvoiceXmlAsync(request.S3Key, userId.ToString(), companyId.ToString());
                 return Ok(finalResult);
             }
             catch (UnauthorizedAccessException)
             {
                 return Unauthorized(new { Message = "User identity or company information is missing in token." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = $"Internal server error: {ex.Message}" });
+            }
+        }
+
+        [HttpPost("process-ocr")]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
+        public async Task<IActionResult> ProcessOcr([FromBody] ProcessOcrRequestDto request)
+        {
+            if (request.OcrResult == null)
+                return BadRequest(new { Message = "OCR data is required." });
+
+            try
+            {
+                var (userId, companyId, _, _) = GetUserInfo();
+                var finalResult = await _invoiceService.ProcessInvoiceOcrAsync(request, userId.ToString(), companyId.ToString());
+                return Ok(finalResult);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = $"Internal server error: {ex.Message}" });
+            }
+        }
+
+        // ════════════════════════════════════════════
+        //  UPLOAD IMAGE → S3 → SQS (Async OCR Pipeline)
+        // ════════════════════════════════════════════
+
+        [HttpPost("upload-image")]
+        [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
+        public async Task<IActionResult> UploadImage(IFormFile file)
+        {
+            // ── Validate file ──
+            if (file == null || file.Length == 0)
+                return BadRequest(new { Message = "Vui lòng chọn file ảnh hóa đơn." });
+
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".pdf", ".tiff", ".tif" };
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(ext))
+                return BadRequest(new { Message = $"File không hợp lệ. Chỉ chấp nhận: {string.Join(", ", allowedExtensions)}" });
+
+            var maxFileSizeMb = await _configProvider.GetIntAsync("MAX_UPLOAD_SIZE_MB", 10);
+            if (file.Length > (long)maxFileSizeMb * 1024 * 1024)
+                return BadRequest(new { Message = $"Dung lượng file vượt quá giới hạn cho phép ({maxFileSizeMb} MB)." });
+
+            try
+            {
+                var (userId, companyId, _, _) = GetUserInfo();
+
+                // Quota check
+                await _quotaService.ValidateAndConsumeInvoiceQuotaAsync(companyId);
+
+                // ── 1. Upload to S3 ──
+                string s3Key;
+                using (var stream = file.OpenReadStream())
+                {
+                    s3Key = await _s3Service.UploadInvoiceImageAsync(stream, file.FileName, file.ContentType, companyId);
+                }
+
+                // ── 2. Create draft Invoice (Status: Processing) ──
+                var invoiceId = Guid.NewGuid();
+                var invoice = new Invoice
+                {
+                    InvoiceId = invoiceId,
+                    CompanyId = companyId,
+                    DocumentTypeId = 1, // Default GTGT; will be updated by OCR worker
+                    ProcessingMethod = "API",
+                    InvoiceNumber = "PROCESSING",
+                    Status = "Processing",
+                    RiskLevel = "Yellow",
+                    Notes = "Đang xử lý OCR...",
+                    VisualFileId = null,
+                    RawData = new InvoiceRawData { ObjectKey = s3Key, OcrJobId = s3Key },
+                    Workflow = new InvoiceWorkflow { UploadedBy = userId },
+                    InvoiceDate = DateTime.UtcNow,
+                    InvoiceCurrency = "VND",
+                    ExchangeRate = 1,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                // Use InvoiceService's UnitOfWork indirectly — inject via a direct DB call
+                await _invoiceService.CreateDraftInvoiceAsync(invoice);
+
+                // ── 3. Publish OCR job to SQS ──
+                var ocrQueueUrl = _configuration["AWS_SQS_OCR_URL"];
+                if (!string.IsNullOrEmpty(ocrQueueUrl))
+                {
+                    await _sqsService.SendMessageAsync(new OcrJobMessage
+                    {
+                        InvoiceId = invoiceId,
+                        S3Key = s3Key,
+                        CompanyId = companyId,
+                        UserId = userId,
+                        FileName = file.FileName
+                    }, ocrQueueUrl);
+                }
+
+                // ── 4. Return 202 Accepted ──
+                return Accepted(new
+                {
+                    InvoiceId = invoiceId,
+                    S3Key = s3Key,
+                    Status = "Processing",
+                    Message = "Hóa đơn đã được tải lên và đang được xử lý OCR."
+                });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -116,7 +268,7 @@ namespace SmartInvoice.API.Controller
 
                 var logicResult = await _invoiceProcessor.ValidateBusinessLogicAsync(xmlDoc);
                 logicResult.SignerSubject = sigResult.SignerSubject;
-                logicResult.ExtractedData = _invoiceProcessor.ExtractData(xmlDoc);
+                logicResult.ExtractedData = _invoiceProcessor.ExtractData(xmlDoc, logicResult);
 
                 return Ok(logicResult);
             }
@@ -179,9 +331,53 @@ namespace SmartInvoice.API.Controller
             }
         }
 
+        [HttpGet("{id}/visual")]
+        [Authorize(Policy = Constants.Permissions.InvoiceView)]
+        public async Task<IActionResult> GetInvoiceVisual(Guid id)
+        {
+            try
+            {
+                var (_, companyId, _, _) = GetUserInfo();
+                var url = await _invoiceService.GetVisualFileUrlAsync(id, companyId);
+                
+                if (string.IsNullOrEmpty(url))
+                    return NotFound(new { Message = "Không tìm thấy file ảnh/PDF cho hóa đơn này." });
+
+                return Ok(new { Url = url });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Lỗi server nội bộ", Error = ex.Message });
+            }
+        }
+
         // ════════════════════════════════════════════
         //  CRUD
         // ════════════════════════════════════════════
+
+        [HttpGet("{id}/versions")]
+        [Authorize(Policy = Constants.Permissions.InvoiceView)]
+        public async Task<IActionResult> GetInvoiceVersions(Guid id)
+        {
+            try
+            {
+                var (userId, companyId, _, _) = GetUserInfo();
+                var versions = await _invoiceService.GetInvoiceVersionsAsync(id, companyId);
+                return Ok(versions);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Lỗi server nội bộ", Error = ex.Message });
+            }
+        }
 
         [HttpPut("{id}")]
         [Authorize(Policy = Constants.Permissions.InvoiceEdit)]
@@ -358,6 +554,22 @@ namespace SmartInvoice.API.Controller
             catch (KeyNotFoundException)
             {
                 return NotFound(new { Message = "Không tìm thấy hóa đơn." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        [HttpGet("stats")]
+        [Authorize(Policy = Constants.Permissions.InvoiceView)]
+        public async Task<IActionResult> GetInvoiceStats([FromQuery] DateTime startDate, [FromQuery] DateTime endDate, [FromQuery] string? status)
+        {
+            try
+            {
+                var (_, companyId, _, _) = GetUserInfo();
+                var stats = await _invoiceService.GetInvoiceStatsAsync(startDate, endDate, status, companyId);
+                return Ok(stats);
             }
             catch (Exception ex)
             {
