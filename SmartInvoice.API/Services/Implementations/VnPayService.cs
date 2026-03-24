@@ -201,8 +201,8 @@ public class VnPayService : IVnPayService
     {
         // Validate checksum
         var vnpSecureHash = vnpayData.GetValueOrDefault("vnp_SecureHash") ?? "";
-        var hashSecret =
-            _configuration["VnPay:HashSecret"]
+        var hashSecret = Environment.GetEnvironmentVariable("VNPAY_HASH_SECRET")
+            ?? _configuration["VnPay:HashSecret"]
             ?? throw new InvalidOperationException("VnPay HashSecret not configured.");
 
         // Remove hash fields for validation
@@ -436,16 +436,16 @@ public class VnPayService : IVnPayService
         string ipAddress
     )
     {
-        var vnpUrl =
-            _configuration["VnPay:Url"] ?? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
-        var tmnCode =
-            _configuration["VnPay:TmnCode"]
+        var vnpUrl = Environment.GetEnvironmentVariable("VNPAY_URL")
+            ?? _configuration["VnPay:Url"] ?? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+        var tmnCode = Environment.GetEnvironmentVariable("VNPAY_TMN_CODE")
+            ?? _configuration["VnPay:TmnCode"]
             ?? throw new InvalidOperationException("VnPay TmnCode not configured.");
-        var hashSecret =
-            _configuration["VnPay:HashSecret"]
+        var hashSecret = Environment.GetEnvironmentVariable("VNPAY_HASH_SECRET")
+            ?? _configuration["VnPay:HashSecret"]
             ?? throw new InvalidOperationException("VnPay HashSecret not configured.");
-        var returnUrl =
-            _configuration["VnPay:ReturnUrl"] ?? "http://localhost:3000/app/payment/result";
+        var returnUrl = Environment.GetEnvironmentVariable("VNPAY_RETURN_URL")
+            ?? _configuration["VnPay:ReturnUrl"] ?? "http://localhost:3000/app/payment/result";
 
         // VNPay expects amount in VND * 100
         var amountInVnpFormat = ((long)(transaction.Amount * 100)).ToString();

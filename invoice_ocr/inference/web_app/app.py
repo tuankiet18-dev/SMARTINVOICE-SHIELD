@@ -97,9 +97,39 @@ from inference.bio_repair_inference import (
 from inference.image_preprocessor import normalize_invoice_image
 
 # ── Gemini Flash extractor (primary engine) ───────────────────
+def _get_gemini_api_key() -> str:
+    # 1. Try local environment variable first (.env or export)
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if key and len(key) > 10:
+        return key
+    
+    # 2. Try AWS SSM Parameter Store if running on cloud
+    try:
+        import boto3
+        region = os.environ.get("AWS_REGION", "ap-southeast-1")
+        ssm = boto3.client('ssm', region_name=region)
+        
+        # Try both prod and dev paths
+        for path in ["/SmartInvoice/prod/GEMINI_API_KEY", "/SmartInvoice/dev/GEMINI_API_KEY"]:
+            try:
+                response = ssm.get_parameter(Name=path, WithDecryption=True)
+                val = response['Parameter']['Value'].strip()
+                if val and len(val) > 10:
+                    print(f"[Gemini] Loaded API Key from SSM: {path}")
+                    return val
+            except Exception:
+                pass
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"[Gemini] Warning: Could not read from SSM - {e}")
+        
+    return ""
+
 try:
     from gemini_extractor import build_extractor as _build_gemini
-    _GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+    _GEMINI_API_KEY = _get_gemini_api_key()
+    
     if _GEMINI_API_KEY and len(_GEMINI_API_KEY) > 10:
         GEMINI_EXTRACTOR = _build_gemini(_GEMINI_API_KEY)
         GEMINI_ENABLED   = GEMINI_EXTRACTOR is not None
@@ -107,7 +137,7 @@ try:
     else:
         GEMINI_EXTRACTOR = None
         GEMINI_ENABLED   = False
-        print("[Gemini] WARNING: No API key found in .env")
+        print("[Gemini] WARNING: No API key found in .env or SSM Parameter Store")
 except ImportError as _e:
     GEMINI_EXTRACTOR = None
     GEMINI_ENABLED   = False

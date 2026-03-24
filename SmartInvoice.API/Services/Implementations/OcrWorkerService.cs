@@ -24,10 +24,10 @@ public class OcrWorkerService : BackgroundService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<OcrWorkerService> _logger;
-
+    private readonly SemaphoreSlim _concurrencySemaphore = new(3, 3); // Increased to 3 parallel OCR jobs
     private string? _queueUrl;
     private const int WaitTimeSeconds = 20;
-    private const int MaxNumberOfMessages = 5; // Process fewer OCR jobs per poll (heavy workload)
+    private const int MaxNumberOfMessages = 10; // Increased to 10 to better support semaphore queuing
 
     public OcrWorkerService(
         IServiceScopeFactory scopeFactory,
@@ -87,10 +87,14 @@ public class OcrWorkerService : BackgroundService
 
     private async Task PollAndProcessAsync(CancellationToken ct)
     {
+        // 300s timeout (increased from 180s for batch processing stability)
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(300));
+
         using var scope = _scopeFactory.CreateScope();
         var sqsService = scope.ServiceProvider.GetRequiredService<ISqsService>();
 
-        var messages = await sqsService.ReceiveMessagesAsync(_queueUrl!, MaxNumberOfMessages, WaitTimeSeconds, ct);
+        var messages = await sqsService.ReceiveMessagesAsync(_queueUrl!, MaxNumberOfMessages, WaitTimeSeconds, cts.Token);
 
         if (messages.Count == 0)
         {
@@ -98,12 +102,14 @@ public class OcrWorkerService : BackgroundService
             return;
         }
 
-        _logger.LogInformation("Received {Count} OCR job(s) from SQS.", messages.Count);
+        _logger.LogInformation("Received {Count} OCR job(s) from SQS. Processing in parallel...", messages.Count);
 
-        foreach (var message in messages)
+        var tasks = messages.Select(async message =>
         {
+            await _concurrencySemaphore.WaitAsync(ct);
             try
             {
+                // Process each message in its own parallel task (limited by semaphore)
                 await ProcessSingleJobAsync(message.Body, ct);
 
                 // Delete message after successful processing
@@ -121,7 +127,13 @@ public class OcrWorkerService : BackgroundService
                 _logger.LogError(ex, "Error processing OCR job {MessageId}. Message will be retried after visibility timeout.", message.MessageId);
                 // Don't delete — let SQS retry after visibility timeout
             }
-        }
+            finally
+            {
+                _concurrencySemaphore.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks);
     }
 
     private async Task ProcessSingleJobAsync(string messageBody, CancellationToken ct)
@@ -149,23 +161,25 @@ public class OcrWorkerService : BackgroundService
         var sqsPublisher = scope.ServiceProvider.GetRequiredService<ISqsMessagePublisher>();
         var configProvider = scope.ServiceProvider.GetRequiredService<ISystemConfigProvider>();
 
-        // ══════════════════════════════════════════════════
-        // STEP 1/7: Download image from S3
-        // ══════════════════════════════════════════════════
-        _logger.LogInformation("[OCR_WORKER STEP 1/7] 📥 Downloading image from S3...");
-        byte[] imageBytes;
         try
         {
-            imageBytes = await s3Service.DownloadFileAsync(job.S3Key);
-            _logger.LogInformation("[OCR_WORKER STEP 1/7] ✅ Downloaded {Size} bytes.", imageBytes.Length);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[OCR_WORKER STEP 1/7] ❌ Failed to download S3 file {S3Key}.", job.S3Key);
-            await UpdateInvoiceStatus(unitOfWork, job.InvoiceId, "Failed", "Red",
-                $"Không thể tải file từ S3: {ex.Message}");
-            throw; // Re-throw so SQS retries
-        }
+            // ══════════════════════════════════════════════════
+            // STEP 1/7: Download image from S3
+            // ══════════════════════════════════════════════════
+            _logger.LogInformation("[OCR_WORKER STEP 1/7] 📥 Downloading image from S3...");
+            byte[] imageBytes;
+            try
+            {
+                imageBytes = await s3Service.DownloadFileAsync(job.S3Key);
+                _logger.LogInformation("[OCR_WORKER STEP 1/7] ✅ Downloaded {Size} bytes.", imageBytes.Length);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[OCR_WORKER STEP 1/7] ❌ Failed to download S3 file {S3Key}.", job.S3Key);
+                await UpdateInvoiceStatus(unitOfWork, job.InvoiceId, "Failed", "Red",
+                    $"Không thể tải file từ S3: {ex.Message}");
+                throw; // Re-throw so SQS retries
+            }
 
         // ══════════════════════════════════════════════════
         // STEP 2/7: Call Python OCR API
@@ -495,6 +509,14 @@ public class OcrWorkerService : BackgroundService
             job.InvoiceId, overallStopwatch.ElapsedMilliseconds);
         _logger.LogInformation(
             "═══════════════════════════════════════════════════════════════\n");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[OCR_WORKER] ❌ UNEXPECTED FATAL ERROR during processing InvoiceId={InvoiceId}", job.InvoiceId);
+            // Re-resolve UoW if needed (it's in scope, so safe)
+            await UpdateInvoiceStatus(unitOfWork, job.InvoiceId, "Failed", "Red", $"Lỗi hệ thống (Worker): {ex.Message}");
+            throw; // Let SQS retry
+        }
     }
 
     /// <summary>

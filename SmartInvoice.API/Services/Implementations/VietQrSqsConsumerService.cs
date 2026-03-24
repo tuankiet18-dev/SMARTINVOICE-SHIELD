@@ -68,8 +68,12 @@ namespace SmartInvoice.API.Services.Implementations
 
             try
             {
-                _queueUrl = _configuration["AWS_SQS_URL"]
-                            ?? throw new InvalidOperationException("AWS_SQS_URL parameter not configured in AWS Systems Manager Parameter Store");
+                _queueUrl = _configuration["AWS_SQS_URL"];
+                if (string.IsNullOrEmpty(_queueUrl))
+                {
+                    _logger.LogWarning("⚠️ AWS_SQS_URL not configured in SSM Parameter Store — VietQrSqsConsumerService is DISABLED.");
+                    return;
+                }
 
                 _logger.LogInformation("VietQR SQS Consumer configured. Queue URL: {QueueUrl}", _queueUrl);
 

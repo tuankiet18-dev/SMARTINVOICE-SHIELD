@@ -287,7 +287,7 @@ export const invoiceService = {
         invoiceId: string,
         onStatusChange?: (status: string) => void,
         maxAttempts: number = 60,
-        intervalMs: number = 3000
+        intervalMs: number = 5000
     ): Promise<InvoiceDetailDto> {
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             await new Promise(resolve => setTimeout(resolve, intervalMs));

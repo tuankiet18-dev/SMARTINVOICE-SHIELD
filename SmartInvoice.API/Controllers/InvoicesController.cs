@@ -151,6 +151,27 @@ namespace SmartInvoice.API.Controller
         //  UPLOAD IMAGE → S3 → SQS (Async OCR Pipeline)
         // ════════════════════════════════════════════
 
+        [HttpGet("debug-config")]
+        [AllowAnonymous]
+        public IActionResult DebugConfig()
+        {
+            var sqsUrl = _configuration["AWS_SQS_OCR_URL"];
+            var ocrEndpoint = _configuration["OCR_API_ENDPOINT"];
+            var allowedOrigins = _configuration["ALLOWED_ORIGINS"];
+            var region = _configuration["AWS_REGION"] ?? _configuration["AWS_DEFAULT_REGION"];
+
+            return Ok(new
+            {
+                HasSqsUrl = !string.IsNullOrEmpty(sqsUrl),
+                SqsUrlMasked = string.IsNullOrEmpty(sqsUrl) ? "NULL" : sqsUrl[..Math.Min(20, sqsUrl.Length)] + "...",
+                HasOcrEndpoint = !string.IsNullOrEmpty(ocrEndpoint),
+                OcrEndpoint = ocrEndpoint,
+                HasAllowedOrigins = !string.IsNullOrEmpty(allowedOrigins),
+                Region = region ?? "NOT_SET",
+                Environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            });
+        }
+
         [HttpPost("upload-image")]
         [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public async Task<IActionResult> UploadImage(IFormFile file)

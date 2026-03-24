@@ -515,7 +515,7 @@ namespace SmartInvoice.API.Services.Implementations
                         double similarity = CalculateSimilarity(buyerName.ToLower(), company.CompanyName.ToLower());
                         if (similarity < 0.6)
                         {
-                            result.AddWarning($"Tên người mua trên hóa đơn (\"{buyerName}\") không khớp hoàn toàn with tên công ty của bạn (\"{company.CompanyName}\").");
+                            result.AddWarning($"Tên người mua trên hóa đơn (\"{buyerName}\") không khớp hoàn toàn với tên công ty của bạn (\"{company.CompanyName}\").");
                         }
                     }
                 }

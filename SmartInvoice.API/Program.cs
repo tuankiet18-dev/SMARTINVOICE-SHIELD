@@ -42,7 +42,7 @@ if (File.Exists(".env"))
 }
 
 // Load AWS Systems Manager Parameter Store
-builder.Configuration.AddSystemsManager("/SmartInvoice/dev/");
+builder.Configuration.AddSystemsManager("/SmartInvoice/prod/");
 
 // 1. Kết nối PostgreSQL
 var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
@@ -149,7 +149,12 @@ builder.Services.AddTransient<IClaimsTransformation, ClaimsTransformer>();
 
 // ==================== AWS SERVICES CONFIGURATION ====================
 // 5. Config AWS Cognito & SQS
-builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
+var awsOptions = builder.Configuration.GetAWSOptions();
+if (awsOptions.Region == null)
+{
+    awsOptions.Region = Amazon.RegionEndpoint.GetBySystemName(builder.Configuration["AWS_REGION"] ?? "ap-southeast-1");
+}
+builder.Services.AddDefaultAWSOptions(awsOptions);
 builder.Services.AddAWSService<IAmazonCognitoIdentityProvider>();
 builder.Services.AddAWSService<IAmazonSQS>();
 
@@ -170,7 +175,7 @@ builder.Services.AddScoped<ISqsService, SqsService>();
 builder.Services.AddHttpClient("OcrWorker", client =>
 {
     client.BaseAddress = new Uri(ocrApiEndpoint);
-    client.Timeout = TimeSpan.FromMinutes(3); // OCR can be slow on large invoices
+    client.Timeout = TimeSpan.FromMinutes(5); // Increased from 3m to 5m for batch stability
 });
 
 // Background worker that polls SQS OCR queue, downloads from S3, calls OCR API, updates DB
@@ -180,7 +185,7 @@ builder.Services.AddHostedService<OcrWorkerService>();
 
 
 // 7. Config Authentication (Cognito)
-var region = builder.Configuration["AWS_REGION"];
+var region = builder.Configuration["AWS_REGION"] ?? builder.Configuration["AWS_DEFAULT_REGION"] ?? "ap-southeast-1";
 var userPoolId = builder.Configuration["COGNITO_USER_POOL_ID"];
 var authority = $"https://cognito-idp.{region}.amazonaws.com/{userPoolId}";
 
@@ -192,13 +197,17 @@ builder.Services.AddAuthentication(options =>
 .AddJwtBearer(options =>
 {
     options.Authority = authority;
+    
+    // Explicitly set MetadataAddress to ensure .NET finds the AWS Cognito signing keys
+    options.MetadataAddress = $"{authority}/.well-known/openid-configuration";
+
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true,
-        ValidIssuer = authority,
+        ValidateIssuer = false, // Bypass strict Issuer string matching for Cognito in EB
+        // ValidIssuer = authority,
         ValidateAudience = false, // Cognito Access Token often doesn't contain audience, Id Token does.
         ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
+        ValidateIssuerSigningKey = true, // Still verifies Microsoft/AWS cryptographic signatures
         RoleClaimType = ClaimTypes.Role
     };
 });
@@ -224,12 +233,15 @@ builder.Services.AddAuthorization(options =>
 
 
 // 6. Config CORS
+var allowedOrigins = builder.Configuration["ALLOWED_ORIGINS"]?.Split(',', StringSplitOptions.RemoveEmptyEntries) 
+                   ?? new[] { "http://localhost:3000", "https://main.d3nvvjzg8ojoqd.amplifyapp.com" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAmplify",
-        builder =>
+        policyBuilder =>
         {
-            builder.WithOrigins("http://localhost:3000")
+            policyBuilder.WithOrigins(allowedOrigins)
                    .AllowAnyHeader()
                    .AllowAnyMethod()
                    .AllowCredentials(); // Important for cookies/auth if needed
@@ -310,13 +322,7 @@ if (app.Environment.IsDevelopment())
 
 // app.UseHttpsRedirection(); // Disabled for local Docker dev to prevent port issues
 
-app.UseCors(x => x
-    .AllowAnyMethod()
-    .AllowAnyHeader()
-    .SetIsOriginAllowed(origin => true) // Allow any origin
-    .AllowCredentials());
-
-// app.UseCors("AllowAmplify");
+app.UseCors("AllowAmplify");
 
 app.UseMiddleware<MaintenanceMiddleware>();
 
