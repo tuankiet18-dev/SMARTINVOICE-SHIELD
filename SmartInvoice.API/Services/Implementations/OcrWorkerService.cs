@@ -24,10 +24,10 @@ public class OcrWorkerService : BackgroundService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<OcrWorkerService> _logger;
-    private readonly SemaphoreSlim _concurrencySemaphore = new(3, 3); // Increased to 3 parallel OCR jobs
+    private readonly SemaphoreSlim _concurrencySemaphore = new(2, 2); 
     private string? _queueUrl;
     private const int WaitTimeSeconds = 20;
-    private const int MaxNumberOfMessages = 10; // Increased to 10 to better support semaphore queuing
+    private const int MaxNumberOfMessages = 2; // Reduced to 2 to match concurrency and allow SQS scaling to detect backlog
 
     public OcrWorkerService(
         IServiceScopeFactory scopeFactory,
