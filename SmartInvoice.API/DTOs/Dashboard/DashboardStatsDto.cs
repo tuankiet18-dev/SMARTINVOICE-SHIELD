@@ -59,6 +59,8 @@ public class MonthlyTrendItem
     public int Approved { get; set; }
     public int Rejected { get; set; }
     public int Pending { get; set; }
+    public decimal TotalAmount { get; set; }
+    public decimal TotalTaxAmount { get; set; }
 }
 
 public class RiskTrendItem
@@ -66,7 +68,6 @@ public class RiskTrendItem
     public string Month { get; set; } = string.Empty;
     public decimal Green { get; set; }
     public decimal Yellow { get; set; }
-    public decimal Orange { get; set; }
     public decimal Red { get; set; }
 }
 

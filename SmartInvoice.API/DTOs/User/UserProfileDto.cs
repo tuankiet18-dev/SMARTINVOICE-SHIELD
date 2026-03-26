@@ -15,6 +15,7 @@ namespace SmartInvoice.API.DTOs.User
         public string Role { get; set; } = null!;
         public List<string>? Permissions { get; set; }
         public bool IsActive { get; set; }
+        public bool IsDeleted { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? LastLoginAt { get; set; }
     }

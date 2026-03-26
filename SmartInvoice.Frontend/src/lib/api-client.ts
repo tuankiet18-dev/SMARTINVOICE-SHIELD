@@ -12,7 +12,7 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('idToken') || localStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
@@ -39,7 +39,7 @@ apiClient.interceptors.response.use(
                     localStorage.setItem('idToken', data.idToken);
                     localStorage.setItem('user', JSON.stringify(data.user));
 
-                    originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+                    originalRequest.headers.Authorization = `Bearer ${data.idToken || data.accessToken}`;
                     return apiClient(originalRequest);
                 }
             } catch (err) {

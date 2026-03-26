@@ -5,6 +5,8 @@ using SmartInvoice.API.Services.Interfaces;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using SmartInvoice.API.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace SmartInvoice.API.Controllers
 {
@@ -14,12 +16,14 @@ namespace SmartInvoice.API.Controllers
     public class SettingsController : ControllerBase
     {
         private readonly ICompanyService _companyService;
+        private readonly AppDbContext _context;
         private readonly IUserService _userService;
 
-        public SettingsController(ICompanyService companyService, IUserService userService)
+        public SettingsController(ICompanyService companyService, IUserService userService, AppDbContext context)
         {
             _companyService = companyService;
             _userService = userService;
+            _context = context;
         }
 
         // ==========================================
@@ -34,7 +38,7 @@ namespace SmartInvoice.API.Controllers
             if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId))
                 return BadRequest(new { Message = "Company ID not found in token." });
 
-            var company = await _companyService.GetByIdAsync(companyId);
+            var company = await _context.Companies.Include(c => c.SubscriptionPackage).FirstOrDefaultAsync(c => c.CompanyId == companyId);
             if (company == null) return NotFound(new { Message = "Company not found." });
 
             var dto = new CompanySettingsDto
@@ -43,7 +47,12 @@ namespace SmartInvoice.API.Controllers
                 CompanyName = company.CompanyName,
                 TaxCode = company.TaxCode,
                 Address = company.Address,
-                PhoneNumber = company.PhoneNumber
+                PhoneNumber = company.PhoneNumber,
+                IsAutoApproveEnabled = company.IsAutoApproveEnabled,
+                AutoApproveThreshold = company.AutoApproveThreshold,
+                RequireTwoStepApproval = company.RequireTwoStepApproval,
+                TwoStepApprovalThreshold = company.TwoStepApprovalThreshold ?? 20000000,
+                HasAdvancedWorkflow = company.SubscriptionPackage?.HasAdvancedWorkflow ?? false
             };
 
             return Ok(dto);
@@ -57,9 +66,17 @@ namespace SmartInvoice.API.Controllers
             if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId))
                 return BadRequest(new { Message = "Company ID not found in token." });
 
-            var company = await _companyService.GetByIdAsync(companyId);
+            var company = await _context.Companies.Include(c => c.SubscriptionPackage).FirstOrDefaultAsync(c => c.CompanyId == companyId);
             if (company == null) return NotFound(new { Message = "Company not found." });
 
+            company.IsAutoApproveEnabled = request.IsAutoApproveEnabled;
+            // threshold should not be negative
+            company.AutoApproveThreshold = request.AutoApproveThreshold >= 0 ? request.AutoApproveThreshold : 0;
+            if (company.SubscriptionPackage?.HasAdvancedWorkflow == true)
+            {
+                company.RequireTwoStepApproval = request.RequireTwoStepApproval;
+                company.TwoStepApprovalThreshold = request.TwoStepApprovalThreshold >= 0 ? request.TwoStepApprovalThreshold : 0;
+            }
             company.UpdatedAt = DateTime.UtcNow;
 
             await _companyService.UpdateAsync(company);
@@ -116,3 +133,7 @@ namespace SmartInvoice.API.Controllers
         }
     }
 }
+
+
+
+

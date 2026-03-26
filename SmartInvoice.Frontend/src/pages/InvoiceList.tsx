@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import dayjs from 'dayjs';
 import {
   Card, Table, Tag, Input, Select, DatePicker, Button, Space, Typography, Row, Col, Dropdown, Badge, message, Modal,
@@ -10,6 +10,7 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoiceService } from '../services/invoice';
+import { exportService } from '../services/export';
 import StatusBadge from '../components/ui/StatusBadge';
 
 const { Title, Text, Paragraph } = Typography;
@@ -139,12 +140,46 @@ const InvoiceList: React.FC = () => {
     });
   };
 
+  const exportMisaMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      // Pass null dates if we are just selecting by ids
+      return await exportService.generateExport({
+        invoiceIds: ids,
+
+
+        invoiceStatus: null,
+        exportType: "MISA" // or something else
+      });
+    },
+    onSuccess: (result) => {
+      if (result.downloadUrl) {
+          window.open(result.downloadUrl, '_blank');
+          message.success('Đang tải xuống file Excel!');
+      } else {
+          message.success('Đã gửi yêu cầu xuất file Excel. Vui lòng kiểm tra màn hình Lịch sử xuất.');
+      }
+      queryClient.invalidateQueries({ queryKey: ['exports'] });
+    },
+    onError: () => message.error('Có lỗi khi tạo yêu cầu xuất Excel'),
+  });
+
+  const handleExportMisa = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('Vui lòng chọn ít nhất 1 hóa đơn để xuất Excel.');
+      return;
+    }
+    const ids = selectedRowKeys.map(k => k.toString());
+    exportMisaMutation.mutate(ids);
+  };
+
   const invoices = invoiceData?.items || [];
   const totalInvoices = invoiceData?.totalCount || 0;
 
   // ── Bulk Operations ──
   const selectedInvoices = invoices.filter((inv: any) => selectedRowKeys.includes(inv.invoiceId));
   const allSelectedAreDraft = selectedInvoices.length > 0 && selectedInvoices.every((inv: any) => inv.status === 'Draft');
+  const allSelectedAreDraftOrRejected = selectedInvoices.length > 0 && selectedInvoices.every((inv: any) => inv.status === 'Draft' || inv.status === 'Rejected');
+  const hasNonApprovedInSelected = selectedInvoices.length > 0 && selectedInvoices.some((inv: any) => inv.status !== 'Approved');
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
@@ -310,7 +345,11 @@ const InvoiceList: React.FC = () => {
         const isPending = st === 'Draft' && !(hasValidationLayers || hasLegacyValidation || hasRiskLevel);
         return (
           <div style={{ whiteSpace: 'nowrap' }}>
-            <StatusBadge type="status" value={st} isPending={isPending} />
+            {isPending ? (
+              <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap bg-blue-50 text-blue-600">Đang xử lý</span>
+            ) : (
+              <StatusBadge type="status" value={st} />
+            )}
           </div>
         );
       },
@@ -328,21 +367,24 @@ const InvoiceList: React.FC = () => {
       width: 48,
       render: (_: any, record: any) => {
         const isDraft = record.status === 'Draft';
+        const isRejected = record.status === 'Rejected';
+        const canDelete = isDraft || isRejected;
+
         const menuItems: any[] = [
           { key: 'view', icon: <EyeOutlined />, label: 'Xem chi tiết' },
         ];
 
         if (isDraft) {
           menuItems.push(
-            { key: 'edit', icon: <EditOutlined />, label: 'Chỉnh sửa' },
-            { key: 'submit', icon: <SendOutlined />, label: 'Gửi duyệt' },
-            { type: 'divider' },
-            { key: 'delete', icon: <DeleteOutlined />, label: 'Xóa hóa đơn', danger: true },
+            { key: 'submit', icon: <SendOutlined />, label: 'Gửi duyệt' }
           );
-        } else {
-          menuItems.push(
-            { key: 'download', icon: <DownloadOutlined />, label: 'Tải xuống' },
-          );
+        }
+
+        if (canDelete) {
+          if (menuItems.length > 1) {
+            menuItems.push({ type: 'divider' });
+          }
+          menuItems.push({ key: 'delete', icon: <DeleteOutlined />, label: 'Xóa hóa đơn', danger: true });
         }
 
         return (
@@ -351,7 +393,6 @@ const InvoiceList: React.FC = () => {
             onClick: ({ key, domEvent }: any) => {
               domEvent.stopPropagation();
               if (key === 'view') navigate(`/app/invoices/${record.invoiceId}`);
-              else if (key === 'edit') navigate(`/app/invoices/${record.invoiceId}`);
               else if (key === 'submit') handleSubmit(record);
               else if (key === 'delete') handleDelete(record);
             }
@@ -371,8 +412,21 @@ const InvoiceList: React.FC = () => {
           <Text className="text-dash-textMuted text-sm font-medium block mt-1">Tổng cộng {totalInvoices} hóa đơn trong hệ thống</Text>
         </div>
         <Space size={12}>
-          <Button icon={<DownloadOutlined />} style={{ borderRadius: 10, fontWeight: 600, height: 42, color: '#4880FF', borderColor: '#4880FF' }}>
-            Xuất Excel
+          <Button 
+            icon={<DownloadOutlined />}
+            onClick={handleExportMisa}
+            loading={exportMisaMutation.isPending}
+            disabled={hasNonApprovedInSelected}
+            title={hasNonApprovedInSelected ? "Chỉ hỗ trợ xuất file Excel cho các hóa đơn đã duyệt" : "Xuất Excel"}
+            style={{ 
+              borderRadius: 10, 
+              fontWeight: 600, 
+              height: 42, 
+              color: hasNonApprovedInSelected ? undefined : '#4880FF', 
+              borderColor: hasNonApprovedInSelected ? undefined : '#4880FF' 
+            }}
+          >
+            Xuất Excel {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/app/upload')} style={{ borderRadius: 10, fontWeight: 600, height: 42, background: '#4880FF', border: 'none' }}>
             Tải lên hóa đơn
@@ -400,7 +454,7 @@ const InvoiceList: React.FC = () => {
               size="small"
               icon={<DeleteOutlined />}
               danger
-              disabled={!allSelectedAreDraft}
+              disabled={!allSelectedAreDraftOrRejected}
               loading={bulkDeleteMutation.isPending}
               onClick={() => {
                 Modal.confirm({
@@ -416,8 +470,8 @@ const InvoiceList: React.FC = () => {
             >
               Xóa
             </Button>
-            {!allSelectedAreDraft && (
-              <Text type="secondary" style={{ fontSize: 12 }}>Chỉ hóa đơn Nháp mới có thể gửi duyệt hoặc xóa hàng loạt</Text>
+            {(!allSelectedAreDraft && !allSelectedAreDraftOrRejected) && (
+              <Text type="secondary" style={{ fontSize: 12 }}>Chỉ hóa đơn Nháp/Từ chối mới có thể xóa, Nháp mới có thể gửi duyệt</Text>
             )}
             <Button type="text" size="small" icon={<CloseOutlined />} style={{ marginLeft: 'auto' }} onClick={() => setSelectedRowKeys([])}>
               Bỏ chọn
@@ -482,7 +536,11 @@ const InvoiceList: React.FC = () => {
                   value={dateFrom && dateTo ? [dayjs(dateFrom), dayjs(dateTo)] : undefined}
                   onChange={dates => {
                     if (dates && dates[0] && dates[1]) {
-                      updateParams({ dateFrom: dates[0].toISOString(), dateTo: dates[1].toISOString(), page: '1' });
+                      updateParams({ 
+                        dateFrom: dates[0].startOf('day').toISOString(), 
+                        dateTo: dates[1].endOf('day').toISOString(), 
+                        page: '1' 
+                      });
                     } else {
                       updateParams({ dateFrom: undefined, dateTo: undefined, page: '1' });
                     }
@@ -537,3 +595,6 @@ const InvoiceList: React.FC = () => {
 };
 
 export default InvoiceList;
+
+
+

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -176,6 +176,26 @@ const InvoiceDetail: React.FC = () => {
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
   const [submitComment, setSubmitComment] = useState("");
 
+  const [visualUrl, setVisualUrl] = useState<string | null>(null);
+  const [loadingVisual, setLoadingVisual] = useState<boolean>(false);
+
+  useEffect(() => {
+    const fetchVisual = async () => {
+      if (!id) return;
+      try {
+        setLoadingVisual(true);
+        const response = await invoiceService.getVisualFileUrl(id); 
+        setVisualUrl(response.url);
+      } catch (error) {
+        console.error("Lỗi khi tải ảnh hóa đơn:", error);
+      } finally {
+        setLoadingVisual(false);
+      }
+    };
+
+    fetchVisual();
+  }, [id]);
+
   // ─── Data Fetching ───
   const {
     data: invoice,
@@ -340,7 +360,7 @@ const InvoiceDetail: React.FC = () => {
             boxShadow: "0 2px 8px rgba(72,128,255,0.35)",
           }}
         >
-          {isYellow ? "⚠️ Gửi duyệt + Giải trình" : "Gửi duyệt"}
+          {isYellow ? "Gửi duyệt + Giải trình" : "Gửi duyệt"}
         </Button>,
       );
     }
@@ -354,7 +374,7 @@ const InvoiceDetail: React.FC = () => {
           onClick={() => {
             Modal.confirm({
               title: "Phê duyệt hóa đơn?",
-              content: 'Hóa đơn sẽ được chuyển sang trạng thái "Đã duyệt".',
+              content: 'Hóa đơn sẽ tiếp tục quy trình duyệt hoặc chuyển sang trạng thái "Đã duyệt".',
               okText: "Phê duyệt",
               cancelText: "Hủy",
               onOk: () => approveMutation.mutate(),
@@ -536,9 +556,10 @@ const InvoiceDetail: React.FC = () => {
 
   const mappedValidationResult = {
     extractedData: {
-      total_pre_tax: invoice.totalAmountBeforeTax,
-      total_tax_amount: invoice.totalTaxAmount,
+      total_pre_tax: computedTotalBeforeTax,
+      total_tax_amount: computedTotalTax,
       total_amount: invoice.totalAmount,
+      line_items: invoice.lineItems,
     },
     errorDetails: allErrors,
     warningDetails: allWarnings,
@@ -1086,13 +1107,48 @@ const InvoiceDetail: React.FC = () => {
       </div>
 
       {/* Content Tabs */}
-      <Card
-        variant="borderless"
-        className="bg-dash-card rounded-[14px] shadow-dash"
-        styles={{ body: { padding: "16px 24px" } }}
-      >
-        <Tabs defaultActiveKey="info" items={tabItems} />
-      </Card>
+      <Row gutter={[24, 24]} className="mt-6">
+        
+        {/* === CỘT TRÁI: HIỂN THỊ HÌNH ẢNH (Chỉ hiện khi có visualUrl) === */}
+        {visualUrl && (
+          <Col xs={24} xl={10} xxl={12}>
+            <Card 
+              variant="borderless"
+              className="bg-dash-card rounded-[14px] shadow-dash h-full"
+              title={<><FileTextOutlined className="mr-2" /> Bản gốc hóa đơn</>} 
+              style={{ position: 'sticky', top: 20, height: 'calc(100vh - 120px)' }} 
+              styles={{ body: { padding: 0, height: 'calc(100% - 56px)' } }}
+            >
+              {loadingVisual ? (
+                <div className="flex justify-center items-center h-full">
+                  <Spin tip="Đang tải tệp đính kèm..." />
+                </div>
+              ) : (
+                <iframe 
+                  src={`${visualUrl}#toolbar=0`} 
+                  width="100%" 
+                  height="100%" 
+                  className="border-none min-h-[600px] bg-slate-50 rounded-b-[14px]"
+                  title="Invoice Document"
+                />
+              )}
+            </Card>
+          </Col>
+        )}
+
+        {/* === CỘT PHẢI: CHỨA CÁC TAB THÔNG TIN CỦA BẠN === */}
+        <Col xs={24} xl={visualUrl ? 14 : 24} xxl={visualUrl ? 12 : 24}>
+          {/* Cục code gốc của bạn nằm ở đây, an toàn 100% */}
+          <Card
+            variant="borderless"
+            className="bg-dash-card rounded-[14px] shadow-dash h-full"
+            styles={{ body: { padding: "16px 24px" } }}
+          >
+            <Tabs defaultActiveKey="info" items={tabItems} />
+          </Card>
+        </Col>
+
+      </Row>
 
       {/* Submit with giải trình Modal - for Yellow invoices */}
       <Modal

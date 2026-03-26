@@ -1,4 +1,4 @@
-import { apiClient } from '../lib/api-client';
+﻿import { apiClient } from '../lib/api-client';
 
 // ════════════════════════════════════════════
 //  Types
@@ -206,6 +206,7 @@ export interface InvoiceStatsDto {
   validCount: number;
   needReviewCount: number;
   totalCount: number;
+  approvedCount: number;
 }
 
 export interface UpdateInvoiceDto {
@@ -371,9 +372,39 @@ export const invoiceService = {
         await apiClient.post(`/invoices/${id}/reject`, { reason, comment });
     },
 
-    // --- Delete ---
+    // --- Delete / Trash ---
     async deleteInvoice(id: string): Promise<void> {
         await apiClient.delete(`/invoices/${id}`);
+    },
+
+    async getTrashInvoices(
+        page: number = 1,
+        size: number = 10,
+        keyword?: string,
+        status?: string,
+        riskLevel?: string,
+        fromDate?: string,
+        toDate?: string
+    ): Promise<PagedResult<InvoiceDto>> {
+        const params = new URLSearchParams();
+        params.set('page', String(page));
+        params.set('size', String(size));
+        if (keyword) params.set('keyword', keyword);
+        if (status) params.set('status', status);
+        if (riskLevel) params.set('riskLevel', riskLevel);
+        if (fromDate) params.set('fromDate', fromDate);
+        if (toDate) params.set('toDate', toDate);
+
+        const response = await apiClient.get<PagedResult<InvoiceDto>>(`/invoices/trash?${params.toString()}`);
+        return response.data;
+    },
+
+    async restoreInvoice(id: string): Promise<void> {
+        await apiClient.post(`/invoices/${id}/restore`);
+    },
+
+    async hardDeleteInvoice(id: string): Promise<void> {
+        await apiClient.delete(`/invoices/${id}/hard`);
     },
 
     // --- Audit Logs ---

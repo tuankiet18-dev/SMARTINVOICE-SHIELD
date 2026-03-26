@@ -69,6 +69,25 @@ namespace SmartInvoice.API.Services
             return tempFilePath;
         }
 
+        public async Task<long> GetFileSizeAsync(string s3Key)
+        {
+            try
+            {
+                var bucketName = _config["AWS:BucketName"] ?? "smartinvoice-default-bucket";
+                var request = new GetObjectMetadataRequest
+                {
+                    BucketName = bucketName,
+                    Key = s3Key
+                };
+                var response = await _s3Client.GetObjectMetadataAsync(request);
+                return response.ContentLength;
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
+        }
+
         public async Task DeleteFileAsync(string s3Key)
         {
             try

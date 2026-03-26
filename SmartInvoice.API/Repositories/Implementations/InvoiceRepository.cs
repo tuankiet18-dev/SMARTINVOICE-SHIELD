@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SmartInvoice.API.Data;
@@ -125,6 +125,47 @@ namespace SmartInvoice.API.Repositories.Implementations
             var items = await query
                 .Include(i => i.Workflow.Uploader)
                 .OrderByDescending(i => i.InvoiceDate)
+                .Skip((request.Page - 1) * request.Size)
+                .Take(request.Size)
+                .ToListAsync();
+
+            return (items, totalCount);
+        }
+
+        public async Task<Invoice?> GetTrashInvoiceWithDetailsAsync(Guid id)
+        {
+            return await _context.Invoices
+                .IgnoreQueryFilters()
+                .Include(i => i.Workflow)
+                .Include(i => i.OriginalFile)
+                .Include(i => i.VisualFile)
+                .FirstOrDefaultAsync(i => i.InvoiceId == id && i.IsDeleted);
+        }
+
+        public async Task<(IEnumerable<Invoice> Items, int TotalCount)> GetPagedTrashInvoicesAsync(DTOs.Invoice.GetInvoicesQueryDto request, Guid companyId, Guid userId, string userRole)
+        {
+            var query = _context.Invoices.IgnoreQueryFilters().AsQueryable();
+
+            query = query.Where(i => i.CompanyId == companyId && i.IsDeleted);
+
+            if (userRole == "Member")
+            {
+                query = query.Where(i => i.Workflow.UploadedBy == userId);
+            }
+
+            if (!string.IsNullOrEmpty(request.Keyword))
+            {
+                var keyword = request.Keyword.ToLower();
+                query = query.Where(i =>
+                    (i.InvoiceNumber != null && i.InvoiceNumber.ToLower().Contains(keyword)) ||
+                    (i.Seller.Name != null && i.Seller.Name.ToLower().Contains(keyword)));
+            }
+
+            var totalCount = await query.CountAsync();
+
+            query = query.OrderByDescending(i => i.CreatedAt);
+
+            var items = await query
                 .Skip((request.Page - 1) * request.Size)
                 .Take(request.Size)
                 .ToListAsync();

@@ -9,6 +9,7 @@ export interface CompanyMemberDto {
     role: string;
     permissions: string[] | null;
     isActive: boolean;
+    isDeleted: boolean;
     createdAt: string;
     lastLoginAt: string | null;
 }

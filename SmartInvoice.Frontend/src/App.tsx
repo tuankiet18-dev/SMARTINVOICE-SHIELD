@@ -10,6 +10,8 @@ import SuperAdminLayout from './layouts/SuperAdminLayout';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import TermsOfUse from './pages/TermsOfUse';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import Dashboard from './pages/Dashboard';
 import InvoiceList from './pages/InvoiceList';
 import InvoiceDetail from './pages/InvoiceDetail';
@@ -27,6 +29,7 @@ import Profile from './pages/Profile';
 import SubscriptionPage from './pages/SubscriptionPage';
 import PaymentResult from './pages/PaymentResult';
 import Settings from './pages/Settings';
+import TrashInvoiceList from './pages/TrashInvoiceList';
 
 const queryClient = new QueryClient();
 
@@ -37,10 +40,11 @@ const App = () => (
         <AuthProvider>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
-              {/* ... existing routes ... */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/terms-of-use" element={<TermsOfUse />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               {/* Company Routes (Member & CompanyAdmin only) */}
               <Route path="/app" element={<ProtectedRoute allowedRoles={['Member', 'CompanyAdmin']} />}>
                 <Route element={<AppLayout />}>
@@ -55,6 +59,7 @@ const App = () => (
                   <Route path="subscription" element={<SubscriptionPage />} />
                   <Route path="payment/result" element={<PaymentResult />} />
                   <Route path="settings" element={<Settings />} />
+                  <Route path="trash" element={<TrashInvoiceList />} />
 
                   {/* CompanyAdmin Only Routes */}
                   <Route element={<ProtectedRoute allowedRoles={['CompanyAdmin']} />}>

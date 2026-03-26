@@ -10,10 +10,12 @@ namespace SmartInvoice.API.Services.Implementations
     public class FileStorageService : IFileStorageService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IQuotaService _quotaService;
 
-        public FileStorageService(IUnitOfWork unitOfWork)
+        public FileStorageService(IUnitOfWork unitOfWork, IQuotaService quotaService)
         {
             _unitOfWork = unitOfWork;
+            _quotaService = quotaService;
         }
 
         public async Task<FileStorage> GetByIdAsync(Guid id)
@@ -28,8 +30,15 @@ namespace SmartInvoice.API.Services.Implementations
 
         public async Task<FileStorage> CreateAsync(FileStorage entity)
         {
+            // Kiểm tra dung lượng còn trống không trước khi lưu
+            await _quotaService.ValidateStorageQuotaAsync(entity.CompanyId, entity.FileSize);
+
             await _unitOfWork.FileStorages.AddAsync(entity);
             await _unitOfWork.CompleteAsync();
+
+            // Cập nhật mức sử dụng dung lượng
+            await _quotaService.ConsumeStorageQuotaAsync(entity.CompanyId, entity.FileSize);
+
             return entity;
         }
 
@@ -46,7 +55,8 @@ namespace SmartInvoice.API.Services.Implementations
             {
                 _unitOfWork.FileStorages.Remove(entity);
                 await _unitOfWork.CompleteAsync();
-            }
+                // Giải phóng dung lượng khi file bị xóa
+                await _quotaService.ReleaseStorageQuotaAsync(entity.CompanyId, entity.FileSize);            }
         }
     }
 }

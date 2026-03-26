@@ -490,7 +490,7 @@ const SystemConfig: React.FC = () => {
             />
           </Form.Item>
 
-          <Divider orientation={"left" as any} style={{ margin: "12px 0" }}>
+          <Divider titlePlacement="left" style={{ margin: "12px 0" }}>
             Giá cước (VND)
           </Divider>
           <div
@@ -526,7 +526,7 @@ const SystemConfig: React.FC = () => {
             </Form.Item>
           </div>
 
-          <Divider orientation={"left" as any} style={{ margin: "12px 0" }}>
+          <Divider titlePlacement="left" style={{ margin: "12px 0" }}>
             Hạn mức (Quotas)
           </Divider>
           <div
@@ -550,7 +550,7 @@ const SystemConfig: React.FC = () => {
             </Form.Item>
           </div>
 
-          <Divider orientation={"left" as any} style={{ margin: "12px 0" }}>
+          <Divider titlePlacement="left" style={{ margin: "12px 0" }}>
             Tính năng (Features)
           </Divider>
           <div

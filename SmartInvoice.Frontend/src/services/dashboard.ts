@@ -19,6 +19,8 @@ export interface MonthlyTrendItem {
   approved: number;
   rejected: number;
   pending: number;
+  totalAmount: number;
+  totalTaxAmount: number;
 }
 
 export interface RiskTrendItem {

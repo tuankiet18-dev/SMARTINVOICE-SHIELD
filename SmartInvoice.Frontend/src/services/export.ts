@@ -1,8 +1,8 @@
-import { apiClient } from '@/lib/api-client';
+﻿import { apiClient } from '@/lib/api-client';
 
-// ════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  Types
-// ════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export interface ExportConfigDto {
     configId: string;
@@ -21,8 +21,9 @@ export interface UpdateExportConfigDto {
 }
 
 export interface GenerateExportRequest {
-    startDate: string; // ISO date
-    endDate: string;
+    startDate?: string; // ISO date
+    endDate?: string;
+    invoiceIds?: string[];
     invoiceStatus: string | null;
     exportType: string; // MISA | STANDARD
 }
@@ -45,9 +46,9 @@ export interface ExportHistoryDto {
     downloadUrl: string | null;
 }
 
-// ════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  Service
-// ════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export const exportService = {
     // --- Export Config ---
@@ -71,4 +72,22 @@ export const exportService = {
         const response = await apiClient.get<ExportHistoryDto[]>('/exports/history');
         return response.data;
     },
+    async getTrashExports(): Promise<ExportHistoryDto[]> {
+        const response = await apiClient.get<ExportHistoryDto[]>('/exports/trash');
+        return response.data;
+    },
+
+    async softDeleteExport(id: string): Promise<void> {
+        await apiClient.delete('/exports/' + id);
+    },
+
+    async restoreExport(id: string): Promise<void> {
+        await apiClient.post('/exports/' + id + '/restore');
+    },
+
+    async hardDeleteExport(id: string): Promise<void> {
+        await apiClient.delete('/exports/' + id + '/hard');
+    },
 };
+
+

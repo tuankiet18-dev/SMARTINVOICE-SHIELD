@@ -143,13 +143,13 @@ namespace SmartInvoice.API.Controllers
 
         [HttpGet("company-member")]
         [Authorize(Policy = Constants.Permissions.UserView)]
-        public async Task<IActionResult> GetCompanyMembers()
+        public async Task<IActionResult> GetCompanyMembers([FromQuery] bool includeDeleted = true)
         {
             var companyIdClaim = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;
             if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId))
                 return BadRequest(new { Message = "Company ID not found in token." });
 
-            var users = await _userService.GetUsersByCompanyIdAsync(companyId);
+            var users = await _userService.GetUsersByCompanyIdAsync(companyId, includeDeleted);
 
             var userList = users.Select(user => new UserProfileDto
             {
@@ -161,6 +161,7 @@ namespace SmartInvoice.API.Controllers
                 Role = user.Role,
                 Permissions = user.Permissions,
                 IsActive = user.IsActive,
+                IsDeleted = user.IsDeleted,
                 CreatedAt = user.CreatedAt,
                 LastLoginAt = user.LastLoginAt
             });

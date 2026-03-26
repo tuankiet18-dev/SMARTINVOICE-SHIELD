@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -58,9 +58,9 @@ namespace SmartInvoice.API.Controller
             _logger = logger;
         }
 
-        // ════════════════════════════════════════════
+        // ================================================
         //  HELPER: Extract user claims
-        // ════════════════════════════════════════════
+        // ================================================
 
         private (Guid UserId, Guid CompanyId, string UserRole, string UserEmail) GetUserInfo()
         {
@@ -78,9 +78,9 @@ namespace SmartInvoice.API.Controller
         private string? GetClientIp() =>
             HttpContext.Connection.RemoteIpAddress?.ToString();
 
-        // ════════════════════════════════════════════
+        // ================================================
         //  UPLOAD & PROCESS
-        // ════════════════════════════════════════════
+        // ================================================
 
         [HttpPost("generate-upload-url")]
         [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
@@ -316,9 +316,9 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        // ════════════════════════════════════════════
+        // ================================================
         //  LIST & DETAIL
-        // ════════════════════════════════════════════
+        // ================================================
 
         [HttpGet]
         [Authorize(Policy = Constants.Permissions.InvoiceView)]
@@ -340,7 +340,58 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        [HttpGet("{id}")]
+        [HttpGet("trash")]
+        [Authorize(Policy = Constants.Permissions.InvoiceView)]
+        public async Task<IActionResult> GetTrashInvoices([FromQuery] GetInvoicesQueryDto query)
+        {
+            try
+            {
+                var (userId, companyId, userRole, _) = GetUserInfo();
+                var result = await _invoiceService.GetTrashInvoicesAsync(query, companyId, userId, userRole);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        [HttpPost("{id:guid}/restore")]
+        [Authorize(Policy = Constants.Permissions.InvoiceEdit)]
+        public async Task<IActionResult> RestoreInvoice(Guid id)
+        {
+            try
+            {
+                var (userId, companyId, userRole, _) = GetUserInfo();
+                var success = await _invoiceService.RestoreInvoiceAsync(id, companyId, userId, userRole);
+                if (!success) return NotFound(new { Message = "Không tìm thấy hóa đơn trong thùng rác hoặc không có quyền." });
+                return Ok(new { Message = "Phục hồi thành công." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        [HttpDelete("{id:guid}/hard")]
+        [Authorize(Policy = Constants.Permissions.InvoiceEdit)]
+        public async Task<IActionResult> HardDeleteInvoice(Guid id)
+        {
+            try
+            {
+                var (userId, companyId, userRole, _) = GetUserInfo();
+                var success = await _invoiceService.HardDeleteInvoiceAsync(id, companyId, userId, userRole);
+                if (!success) return NotFound(new { Message = "Không tìm thấy hóa đơn trong thùng rác hoặc không có quyền." });
+                return Ok(new { Message = "Xóa vĩnh viễn thành công. Đã hoàn trả dung lượng." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+
+        [HttpGet("{id:guid}")]
         [Authorize(Policy = Constants.Permissions.InvoiceView)]
         public async Task<IActionResult> GetInvoiceById(Guid id)
         {
@@ -390,7 +441,7 @@ namespace SmartInvoice.API.Controller
 
         // ════════════════════════════════════════════
         //  CRUD
-        // ════════════════════════════════════════════
+        // ================================================
 
         [HttpGet("{id}/versions")]
         [Authorize(Policy = Constants.Permissions.InvoiceView)]
@@ -412,7 +463,7 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        [HttpPut("{id}")]
+        [HttpPut("{id:guid}")]
         [Authorize(Policy = Constants.Permissions.InvoiceEdit)]
         public async Task<IActionResult> UpdateInvoice(Guid id, [FromBody] UpdateInvoiceDto request)
         {
@@ -436,7 +487,7 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        [HttpDelete("{id}")]
+        [HttpDelete("{id:guid}")]
         [Authorize(Policy = Constants.Permissions.InvoiceEdit)]
         public async Task<IActionResult> DeleteInvoice(Guid id)
         {
@@ -460,11 +511,11 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        // ════════════════════════════════════════════
+        // ================================================
         //  WORKFLOW
-        // ════════════════════════════════════════════
+        // ================================================
 
-        [HttpPost("{id}/submit")]
+        [HttpPost("{id:guid}/submit")]
         [Authorize(Policy = Constants.Permissions.InvoiceUpload)]
         public async Task<IActionResult> SubmitInvoice(Guid id, [FromBody] SubmitInvoiceDto? request)
         {
@@ -515,7 +566,7 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        [HttpPost("{id}/approve")]
+        [HttpPost("{id:guid}/approve")]
         [Authorize(Policy = Constants.Permissions.InvoiceApprove)]
         public async Task<IActionResult> ApproveInvoice(Guid id, [FromBody] ApproveInvoiceDto? request)
         {
@@ -543,7 +594,7 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        [HttpPost("{id}/reject")]
+        [HttpPost("{id:guid}/reject")]
         [Authorize(Policy = Constants.Permissions.InvoiceReject)]
         public async Task<IActionResult> RejectInvoice(Guid id, [FromBody] RejectInvoiceDto request)
         {
@@ -571,11 +622,11 @@ namespace SmartInvoice.API.Controller
             }
         }
 
-        // ════════════════════════════════════════════
+        // ================================================
         //  AUDIT LOG
-        // ════════════════════════════════════════════
+        // ================================================
 
-        [HttpGet("{id}/audit-logs")]
+        [HttpGet("{id:guid}/audit-logs")]
         [Authorize(Policy = Constants.Permissions.InvoiceView)]
         public async Task<IActionResult> GetAuditLogs(Guid id)
         {

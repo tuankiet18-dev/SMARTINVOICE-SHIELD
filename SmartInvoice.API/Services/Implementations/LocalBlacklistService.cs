@@ -49,7 +49,8 @@ namespace SmartInvoice.API.Services.Implementations
             var entity = await _unitOfWork.LocalBlacklists.GetByIdAsync(id);
             if (entity != null)
             {
-                _unitOfWork.LocalBlacklists.Remove(entity);
+                _unitOfWork.LocalBlacklists.Remove(entity); 
+                
                 await _unitOfWork.CompleteAsync();
             }
         }

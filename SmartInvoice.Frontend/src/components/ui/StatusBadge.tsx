@@ -1,15 +1,10 @@
 import React from 'react';
-import './StatusBadge.css';
 
 type BadgeType = 'status' | 'risk';
 
 interface StatusBadgeProps {
     type: BadgeType;
     value: string;
-    /**
-     * Indicates if validation is pending (for Draft status invoices)
-     * Shows pulsing animation when true
-     */
     isPending?: boolean;
 }
 
@@ -26,7 +21,7 @@ const riskMap: Record<string, { label: string; bgClass: string; textClass: strin
     Red: { label: 'Không đạt (Red)', bgClass: 'bg-[#FC2A46]/10', textClass: 'text-dash-danger' },
 };
 
-const StatusBadge: React.FC<StatusBadgeProps> = ({ type, value, isPending = false }) => {
+const StatusBadge: React.FC<StatusBadgeProps> = ({ type, value }) => {
     let mapping;
 
     if (type === 'status') {
@@ -35,12 +30,9 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ type, value, isPending = fals
         mapping = riskMap[value] || { label: value, bgClass: 'bg-gray-100', textClass: 'text-dash-textMuted' };
     }
 
-    const shouldPulse = isPending && type === 'status' && value === 'Draft';
-
     return (
-        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${mapping.bgClass} ${mapping.textClass} ${shouldPulse ? 'pulse-badge' : ''}`}>
+        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap ${mapping.bgClass} ${mapping.textClass}`}>
             {type === 'risk' ? value : mapping.label}
-            {shouldPulse && ' 🔄'}
         </span>
     );
 };

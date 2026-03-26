@@ -42,11 +42,17 @@ public class Company : ISoftDelete
 
     // --- Subscription Info ---
     public Guid SubscriptionPackageId { get; set; }
+
     [ForeignKey(nameof(SubscriptionPackageId))]
     public SubscriptionPackage? SubscriptionPackage { get; set; }
 
     [MaxLength(50)]
     public string SubscriptionTier { get; set; } = "Free"; // Free, Starter, Professional, Enterprise
+
+    public bool RequireTwoStepApproval { get; set; } = false;
+
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal? TwoStepApprovalThreshold { get; set; } = 20000000;
 
     [MaxLength(20)]
     public string BillingCycle { get; set; } = "Monthly"; // Monthly, SemiAnnual, Annual
@@ -61,7 +67,15 @@ public class Company : ISoftDelete
     // --- Quota Tracking (Lazy Evaluation) ---
     public int UsedInvoicesThisMonth { get; set; } = 0;
     public int ExtraInvoicesBalance { get; set; } = 0;
+    public long UsedStorageBytes { get; set; } = 0; // Thêm biến lưu trữ dung lượng đã dùng
+    public int CurrentActiveUsers { get; set; } = 0; // Thêm biến theo dõi số nhân viên
     public DateTime CurrentCycleStart { get; set; } = DateTime.UtcNow;
+
+    // --- Configurations ---
+    public bool IsAutoApproveEnabled { get; set; } = false;
+
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal AutoApproveThreshold { get; set; } = 0;
 
     // --- Status ---
     public bool IsActive { get; set; } = true;

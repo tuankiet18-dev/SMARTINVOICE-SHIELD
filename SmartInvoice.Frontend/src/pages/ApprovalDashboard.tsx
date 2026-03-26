@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Card,
   Table,
@@ -23,7 +24,6 @@ import {
 import type { TabsProps } from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoiceService } from "../services/invoice";
-import ApprovalDrawer from "../components/dashboard/ApprovalDrawer";
 
 const { Title, Text } = Typography;
 
@@ -34,11 +34,13 @@ const riskColors: Record<string, string> = {
 };
 
 const ApprovalDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState("Pending");
-  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+
+  const [searchText, setSearchText] = useState(""); 
+  const [keyword, setKeyword] = useState("");
 
   const queryClient = useQueryClient();
 
@@ -47,12 +49,12 @@ const ApprovalDashboard: React.FC = () => {
     isLoading,
     isFetching,
   } = useQuery({
-    queryKey: ["invoices", selectedTab],
+    queryKey: ["invoices", selectedTab, keyword],
     queryFn: () =>
       invoiceService.getInvoices(
         1,
         50,
-        undefined,
+        keyword || undefined,
         selectedTab === "All" ? undefined : selectedTab,
       ),
     refetchInterval: 10_000, // auto-refresh every 10s for admin approvals
@@ -93,8 +95,22 @@ const ApprovalDashboard: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
     },
     onError: (err: any) => {
-      message.error(`Lỗi duyệt hàng loạt: ${err.message}`);
-    },
+        // 1. Cố gắng lấy câu thông báo lỗi tiếng Việt từ Backend gửi về (nếu có)
+        const backendMessage = err?.response?.data?.message;
+
+        // 2. Dịch lỗi sang ngôn ngữ thân thiện cho user
+        if (err?.response?.status === 400) {
+            // Hiển thị lỗi do BE trả về, nếu BE không trả về thì dùng câu mặc định này
+            message.error(
+                backendMessage || "Không thể duyệt: Quy định hệ thống không cho phép một người duyệt cả 2 cấp trên cùng một hóa đơn."
+            );
+        } else if (err?.response?.status === 403) {
+            message.error("Bạn không có quyền thực hiện thao tác duyệt này.");
+        } else {
+            // Các lỗi khác (500 Server, rớt mạng...)
+            message.error(`Lỗi hệ thống: ${backendMessage || "Vui lòng thử lại sau."}`);
+        }
+      },
   });
 
   // Map API data directly
@@ -105,18 +121,16 @@ const ApprovalDashboard: React.FC = () => {
       id: i.invoiceId,
     })) || [];
 
-  const openDrawer = (record: any) => {
-    setSelectedInvoice(record);
-    setDrawerOpen(true);
-  };
-
   const columns = [
     {
       title: "Số hóa đơn",
       dataIndex: "invoiceNumber",
       key: "invoiceNumber",
       render: (text: string, record: any) => (
-        <a onClick={() => openDrawer(record)}>
+        <a onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/app/invoices/${record.invoiceId}`);
+        }}>
           <Text strong style={{ color: "#1a4b8c" }}>
             {text || record.invoiceNo}
           </Text>
@@ -134,8 +148,11 @@ const ApprovalDashboard: React.FC = () => {
       dataIndex: "totalAmount",
       key: "totalAmount",
       align: "right" as const,
+      width: 150, // Thêm độ rộng cố định cho cột
       render: (text: number, record: any) => (
-        <Text strong>{(text || record.amount)?.toLocaleString()} ₫</Text>
+        <Text strong style={{ whiteSpace: "nowrap" }}>
+          {(text || record.amount)?.toLocaleString()} ₫
+        </Text>
       ),
     },
     {
@@ -165,14 +182,36 @@ const ApprovalDashboard: React.FC = () => {
       title: "Trạng thái",
       dataIndex: "status",
       key: "status",
-      render: (status: string) => {
-        if (status === "Pending")
-          return <Badge status="processing" text="Chờ duyệt" />;
-        if (status === "Approved")
-          return <Badge status="success" text="Đã duyệt" />;
-        if (status === "Rejected")
-          return <Badge status="error" text="Từ chối" />;
-        return <Badge status="default" text={status} />;
+      render: (status: string, record: any) => {
+        // MẸO DEBUG: Bật dòng này lên, mở F12 (Console) trên trình duyệt để soi xem Backend gửi chữ gì về
+        // console.log("Data hóa đơn: ", record);
+
+        let color = "processing";
+        let text = "Chờ duyệt";
+
+        // Lấy step từ ngoài hoặc từ trong object workflow
+        const step = record.currentApprovalStep || record.workflow?.currentApprovalStep;
+
+        if (status === "Approved") { 
+            color = "success"; 
+            text = "Đã duyệt"; 
+        } else if (status === "Rejected") { 
+            color = "error"; 
+            text = "Từ chối"; 
+        } else if (status === "Draft") { 
+            color = "default"; 
+            text = "Nháp"; 
+        } else if (status === "Pending") {
+            if (step === 2) {
+                color = "orange"; 
+                text = "Chờ duyệt (Cấp 2)";
+            } else {
+                color = "warning";
+                text = "Chờ duyệt"; 
+            }
+        }
+
+        return <Tag color={color} style={{ fontWeight: 500 }}>{text}</Tag>;
       },
     },
     {
@@ -184,7 +223,10 @@ const ApprovalDashboard: React.FC = () => {
           size="small"
           type="primary"
           ghost
-          onClick={() => openDrawer(record)}
+          onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/app/invoices/${record.invoiceId}`);
+          }}
         >
           Chi tiết
         </Button>
@@ -330,12 +372,16 @@ const ApprovalDashboard: React.FC = () => {
             style={{ marginBottom: 0 }}
           />
           <Space>
-            <Input
-              prefix={<SearchOutlined />}
-              placeholder="Tìm kiếm hóa đơn..."
-              style={{ width: 250 }}
+            <Input.Search
+              placeholder="Tìm số HĐ, tên người bán..."
+              allowClear
+              enterButton
+              style={{ width: 300 }}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onSearch={(value) => setKeyword(value)} // Chỉ gọi API khi bấm Enter hoặc click icon Kính lúp
             />
-            <Button icon={<FilterOutlined />}>Bộ lọc</Button>
+            {/* <Button icon={<FilterOutlined />}>Bộ lọc</Button> */}
           </Space>
         </div>
 
@@ -373,12 +419,6 @@ const ApprovalDashboard: React.FC = () => {
           pagination={{ pageSize: 15 }}
         />
       </Card>
-
-      <ApprovalDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        invoice={selectedInvoice}
-      />
     </div>
   );
 };

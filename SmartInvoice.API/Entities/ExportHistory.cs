@@ -1,10 +1,10 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SmartInvoice.API.Entities;
 
 [Table("ExportHistories")]
-public class ExportHistory
+public class ExportHistory : ISoftDelete
 {
     [Key]
     public Guid ExportId { get; set; }
@@ -47,4 +47,9 @@ public class ExportHistory
 
     public DateTime ExportedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ExpiresAt { get; set; }
+
+    // ISoftDelete implementation
+    public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
 }
+

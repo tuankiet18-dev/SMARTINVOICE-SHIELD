@@ -17,7 +17,7 @@ const NotificationBell: React.FC = () => {
     refetchInterval: 30000, // Poll every 30 seconds
   });
 
-  const { data: notificationsData, isLoading } = useQuery({
+  const { data: notificationsData, isLoading, refetch } = useQuery({
     queryKey: ['notifications-list'],
     queryFn: () => notificationService.getNotifications(false, 1, 10),
   });
@@ -29,6 +29,13 @@ const NotificationBell: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['notifications-list'] });
     },
   });
+
+  const handleOpenChange = (open: boolean) => {
+    if (open) {
+      // Khi chuông thả xuống (open = true), ép React Query tải lại data mới nhất
+      refetch();
+    }
+  };
 
   const markAllAsReadMutation = useMutation({
     mutationFn: notificationService.markAllAsRead,
@@ -120,7 +127,7 @@ const NotificationBell: React.FC = () => {
   );
 
   return (
-    <Dropdown popupRender={dropdownRender} trigger={['click']} placement="bottomRight">
+    <Dropdown popupRender={dropdownRender} trigger={['click']} placement="bottomRight" onOpenChange={handleOpenChange}>
       <Badge count={unreadCount} size="small" offset={[-2, 2]}>
         <Button
           type="text"

@@ -10,19 +10,24 @@ import { userService, CompanyMemberDto, CreateCompanyMemberDto } from '@/service
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-const ALL_PERMISSIONS = {
-    view: 'invoice:view',
-    upload: 'invoice:upload',
-    edit: 'invoice:edit',
-    approve: 'invoice:approve',
-    reject: 'invoice:reject',
-    override_risk: 'invoice:override_risk',
-    export: 'report:export'
-};
+const AVAILABLE_PERMISSIONS = [
+    { key: 'invoice:view', label: 'Xem hóa đơn', desc: 'Được phép xem danh sách và chi tiết hóa đơn trên hệ thống.' },
+    { key: 'invoice:upload', label: 'Tải lên hóa đơn', desc: 'Được phép tải file XML/PDF hoặc tạo mới hóa đơn.' },
+    { key: 'invoice:edit', label: 'Chỉnh sửa hóa đơn', desc: 'Được phép cập nhật, sửa đổi thông tin của hóa đơn.' },
+    { key: 'invoice:approve', label: 'Duyệt hóa đơn', desc: 'Được phép phê duyệt hóa đơn hợp lệ (Cấp 1 hoặc Cấp 2).' },
+    { key: 'invoice:reject', label: 'Từ chối hóa đơn', desc: 'Được phép từ chối và yêu cầu làm lại hóa đơn sai sót.' },
+    { key: 'invoice:override_risk', label: 'Bỏ qua rủi ro', desc: 'Được phép ép duyệt các hóa đơn bị hệ thống cảnh báo rủi ro.' },
+    { key: 'report:export', label: 'Xuất báo cáo', desc: 'Được phép trích xuất dữ liệu ra file Excel MISA/Tổng hợp.' }
+];
 
 const TeamManagement: React.FC = () => {
     const [data, setData] = useState<CompanyMemberDto[]>([]);
     const [loading, setLoading] = useState(false);
+    
+    // Search and Filter State
+    const [searchText, setSearchText] = useState('');
+    const [inputSearch, setInputSearch] = useState(''); // Thêm state trung gian để giữ giá trị ô input
+    const [statusFilter, setStatusFilter] = useState('all'); // all, active, inactive, deleted
 
     // Manage Permissions Drawer
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -105,6 +110,22 @@ const TeamManagement: React.FC = () => {
         }
     };
 
+    const handleToggleActive = async (record: CompanyMemberDto, checked: boolean) => {
+        try {
+            await userService.updateCompanyMember(record.id, {
+                fullName: record.fullName,
+                employeeId: record.employeeId || undefined,
+                role: record.role,
+                permissions: record.permissions || undefined,
+                isActive: checked // Gửi trạng thái mới (true/false) lên Backend
+            });
+            message.success(`Đã ${checked ? 'mở khóa' : 'ngừng hoạt động'} tài khoản ${record.fullName}`);
+            fetchMembers(); // Tải lại danh sách để UI tự động cập nhật màu sắc
+        } catch (error: any) {
+            message.error(error.response?.data?.message || 'Thao tác thất bại');
+        }
+    };
+
     const handleDeleteUser = async (id: string) => {
         try {
             await userService.deleteCompanyMember(id);
@@ -151,9 +172,31 @@ const TeamManagement: React.FC = () => {
             title: 'Trạng thái',
             dataIndex: 'isActive',
             key: 'isActive',
-            render: (isActive: boolean) => (
-                <Tag color={isActive ? 'green' : 'red'}>{isActive ? 'Hoạt động' : 'Đã khóa'}</Tag>
-            ),
+            render: (isActive: boolean, record: CompanyMemberDto) => {
+                if (record.isDeleted) {
+                    return <Tag color="error">Đã bị xóa</Tag>;
+                }
+                return (
+                <Popconfirm
+                    title={isActive ? "Ngừng hoạt động nhân viên này?" : "Mở khóa nhân viên này?"}
+                    description={isActive 
+                        ? "Nhân viên này sẽ không thể đăng nhập" 
+                        : "Đảm bảo quyền đăng nhập của nhân viên khi mở khóa"}
+                    onConfirm={() => handleToggleActive(record, !isActive)}
+                    okText="Đồng ý"
+                    cancelText="Hủy"
+                    // Chặn không cho Admin tự khóa chính mình
+                    disabled={record.role === 'CompanyAdmin'} 
+                >
+                    <Switch 
+                        checked={isActive} 
+                        checkedChildren="Hoạt động" 
+                        unCheckedChildren="Đã khóa"
+                        disabled={record.role === 'CompanyAdmin'}
+                        style={!isActive ? { backgroundColor: '#ff4d4f' } : {}}
+                    />
+                </Popconfirm>
+            )},
         },
         {
             title: 'Hành động',
@@ -165,24 +208,40 @@ const TeamManagement: React.FC = () => {
                         icon={<KeyOutlined />}
                         size="small"
                         onClick={() => handleManagePerms(record)}
-                        disabled={record.role === 'CompanyAdmin'}
+                        disabled={record.role === 'CompanyAdmin' || record.isDeleted}
                     >
                         Phân quyền
                     </Button>
                     <Popconfirm
-                        title="Xóa nhân viên này?"
-                        description="Họ sẽ bị mất quyền truy cập vào công ty lập tức."
+                        title="Xóa vĩnh viễn nhân viên này?"
+                        description="Dữ liệu sẽ bị ẩn khỏi hệ thống. Chỉ nên dùng khi nhập sai email!"
                         onConfirm={() => handleDeleteUser(record.id)}
-                        okText="Xóa"
+                        okText="Xóa vĩnh viễn"
                         cancelText="Hủy"
                         okButtonProps={{ danger: true }}
+                        disabled={record.role === 'CompanyAdmin' || record.isDeleted}
                     >
-                        <Button type="text" danger icon={<DeleteOutlined />} size="small" />
+                        {/* Nút Xóa giờ chỉ mang tính chất dọn dẹp data rác */}
+                        <Button type="text" danger icon={<DeleteOutlined />} size="small" disabled={record.role === 'CompanyAdmin' || record.isDeleted} />
                     </Popconfirm>
                 </Space>
             ),
         },
     ];
+
+    const filteredData = data.filter(user => {
+        const matchText = user.fullName.toLowerCase().includes(searchText.toLowerCase()) || 
+                          user.email.toLowerCase().includes(searchText.toLowerCase()) || 
+                          (user.employeeId && user.employeeId.toLowerCase().includes(searchText.toLowerCase()));
+        
+        let matchStatus = true;
+        if (statusFilter === 'active') matchStatus = user.isActive && !user.isDeleted;
+        else if (statusFilter === 'inactive') matchStatus = !user.isActive && !user.isDeleted;
+        else if (statusFilter === 'deleted') matchStatus = user.isDeleted;
+        else if (statusFilter === 'all') matchStatus = !user.isDeleted; // Mặc định ẩn bị xóa
+
+        return matchText && matchStatus;
+    });
 
     return (
         <div className="animate-fade-in-up">
@@ -199,10 +258,34 @@ const TeamManagement: React.FC = () => {
             <Card variant="borderless" style={{ borderRadius: 12 }}>
                 <Row style={{ marginBottom: 16 }}>
                     <Col span={8}>
-                        <Input prefix={<SearchOutlined />} placeholder="Tìm kiếm theo Tên hoặc Email..." />
+                        <Input.Search 
+                            placeholder="Tìm kiếm theo Tên hoặc Email..." 
+                            value={inputSearch}
+                            onChange={(e) => setInputSearch(e.target.value)}
+                            onSearch={(value) => setSearchText(value)}
+                            enterButton={<SearchOutlined />}
+                            allowClear
+                            onClear={() => {
+                                setInputSearch('');
+                                setSearchText('');
+                            }}
+                        />
+                    </Col>
+                    <Col span={6}>
+                        <Select 
+                            value={statusFilter} 
+                            onChange={setStatusFilter} 
+                            style={{ width: '100%' }}
+                            options={[
+                                { value: 'all', label: 'Tất cả nhân sự (Trừ bị xóa)' },
+                                { value: 'active', label: 'Đang hoạt động' },
+                                { value: 'inactive', label: 'Đã khóa' },
+                                { value: 'deleted', label: 'Đã bị xóa' },
+                            ]}
+                        />
                     </Col>
                 </Row>
-                <Table columns={columns} dataSource={data} rowKey="id" loading={loading} />
+                <Table columns={columns} dataSource={filteredData} rowKey="id" loading={loading} />
             </Card>
 
             {/* Create User Modal */}
@@ -217,7 +300,7 @@ const TeamManagement: React.FC = () => {
                     form={createForm}
                     layout="vertical"
                     onFinish={handleCreateUser}
-                    initialValues={{ role: 'Member' }}
+                    initialValues={{ role: 'Accountant' }}
                 >
                     <Form.Item name="fullName" label="Họ và Tên" rules={[{ required: true, message: 'Vui lòng nhập họ tên' }]}>
                         <Input placeholder="Vd: Nguyễn Văn A" />
@@ -232,10 +315,39 @@ const TeamManagement: React.FC = () => {
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item name="role" label="Vai trò hệ thống" rules={[{ required: true }]}>
-                                <Select>
-                                    <Option value="Member">Nhân sự (Member)</Option>
-                                    <Option value="CompanyAdmin">Quản trị viên (Admin)</Option>
+                            <Form.Item 
+                                name="role" 
+                                label="Chức danh (Vai trò)" 
+                                rules={[{ required: true, message: 'Vui lòng chọn chức danh' }]}
+                            >
+                                <Select 
+                                    popupMatchSelectWidth={false} // Cho phép bảng xổ xuống to hơn cái ô input
+                                    optionLabelProp="label"       // Khi chọn xong, chỉ hiển thị cái nhãn ngắn gọn
+                                >
+                                    <Option value="CompanyAdmin" label="Giám đốc">
+                                        <div style={{ whiteSpace: 'normal', lineHeight: '1.4', padding: '4px 0', maxWidth: 300 }}>
+                                            <Text strong>Giám đốc / Quản trị công ty</Text><br/>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Toàn quyền hệ thống, nhân sự và duyệt hóa đơn.</Text>
+                                        </div>
+                                    </Option>
+                                    <Option value="ChiefAccountant" label="Kế toán trưởng">
+                                        <div style={{ whiteSpace: 'normal', lineHeight: '1.4', padding: '4px 0', maxWidth: 300 }}>
+                                            <Text strong>Kế toán trưởng</Text><br/>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Quản lý phòng kế toán, xét duyệt hóa đơn cấp cao.</Text>
+                                        </div>
+                                    </Option>
+                                    <Option value="Accountant" label="Kế toán viên">
+                                        <div style={{ whiteSpace: 'normal', lineHeight: '1.4', padding: '4px 0', maxWidth: 300 }}>
+                                            <Text strong>Kế toán viên</Text><br/>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Tải lên, xử lý dữ liệu và gửi yêu cầu duyệt.</Text>
+                                        </div>
+                                    </Option>
+                                    <Option value="Viewer" label="Nhân viên (Chỉ xem)">
+                                        <div style={{ whiteSpace: 'normal', lineHeight: '1.4', padding: '4px 0', maxWidth: 300 }}>
+                                            <Text strong>Nhân viên (Chỉ xem)</Text><br/>
+                                            <Text type="secondary" style={{ fontSize: 12 }}>Tra cứu và xuất báo cáo, không được chỉnh sửa.</Text>
+                                        </div>
+                                    </Option>
                                 </Select>
                             </Form.Item>
                         </Col>
@@ -272,55 +384,20 @@ const TeamManagement: React.FC = () => {
                         <div>
                             <Text strong style={{ fontSize: 13, color: '#1a4b8c' }}>CHI TIẾT QUYỀN HẠN (RBAC)</Text>
                             <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div>
-                                        <Text strong>invoice:view</Text><br />
-                                        <Text type="secondary" style={{ fontSize: 12 }}>Được phép xem danh sách và chi tiết hóa đơn</Text>
+                                {AVAILABLE_PERMISSIONS.map(perm => (
+                                    <div key={perm.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ paddingRight: 16 }}>
+                                            <Text strong>{perm.label}</Text> <Text type="secondary" style={{ fontSize: 12 }}>({perm.key})</Text><br />
+                                            <Text type="secondary" style={{ fontSize: 13 }}>{perm.desc}</Text>
+                                        </div>
+                                        <Switch
+                                            checkedChildren={<CheckOutlined />} 
+                                            unCheckedChildren={<CloseOutlined />}
+                                            checked={hasPermission(selectedUser, perm.key)}
+                                            onChange={(checked) => handleTogglePerm(perm.key, perm.key, checked)}
+                                        />
                                     </div>
-                                    <Switch
-                                        checkedChildren={<CheckOutlined />} unCheckedChildren={<CloseOutlined />}
-                                        checked={hasPermission(selectedUser, ALL_PERMISSIONS.view)}
-                                        onChange={(checked) => handleTogglePerm('view', ALL_PERMISSIONS.view, checked)}
-                                    />
-                                </div>
-
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div>
-                                        <Text strong>invoice:upload</Text><br />
-                                        <Text type="secondary" style={{ fontSize: 12 }}>Được phép tải lên hóa đơn mới (XML/PDF/Ảnh)</Text>
-                                    </div>
-                                    <Switch
-                                        checkedChildren={<CheckOutlined />} unCheckedChildren={<CloseOutlined />}
-                                        checked={hasPermission(selectedUser, ALL_PERMISSIONS.upload)}
-                                        onChange={(checked) => handleTogglePerm('upload', ALL_PERMISSIONS.upload, checked)}
-                                    />
-                                </div>
-
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div>
-                                        <Text strong>invoice:edit</Text><br />
-                                        <Text type="secondary" style={{ fontSize: 12 }}>Được chỉnh sửa thông tin rác từ OCR (Inline Edit)</Text>
-                                    </div>
-                                    <Switch
-                                        checkedChildren={<CheckOutlined />} unCheckedChildren={<CloseOutlined />}
-                                        checked={hasPermission(selectedUser, ALL_PERMISSIONS.edit)}
-                                        onChange={(checked) => handleTogglePerm('edit', ALL_PERMISSIONS.edit, checked)}
-                                    />
-                                </div>
-
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div>
-                                        <Text strong>report:export</Text><br />
-                                        <Text type="secondary" style={{ fontSize: 12 }}>Được trích xuất báo cáo thống kê Excel</Text>
-                                    </div>
-                                    <Switch
-                                        checkedChildren={<CheckOutlined />} unCheckedChildren={<CloseOutlined />}
-                                        checked={hasPermission(selectedUser, ALL_PERMISSIONS.export)}
-                                        onChange={(checked) => handleTogglePerm('export', ALL_PERMISSIONS.export, checked)}
-                                    />
-                                </div>
-
+                                ))}
                             </div>
                         </div>
                     </Space>

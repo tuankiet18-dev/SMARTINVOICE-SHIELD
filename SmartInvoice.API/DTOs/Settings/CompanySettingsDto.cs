@@ -10,5 +10,11 @@ namespace SmartInvoice.API.DTOs.Settings
         public string? Address { get; set; }
         public string? PhoneNumber { get; set; }
 
+        public bool IsAutoApproveEnabled { get; set; }
+        public decimal AutoApproveThreshold { get; set; }
+        public bool RequireTwoStepApproval { get; set; }
+        public decimal TwoStepApprovalThreshold { get; set; }
+        public bool HasAdvancedWorkflow { get; set; }
     }
 }
+

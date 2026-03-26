@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
+﻿import React, { useState, useCallback } from 'react';
 import {
   Card, Row, Col, Typography, Select, Button, Table, Tag, Space,
   DatePicker, Modal, Form, Input, Spin, message,
   Tooltip,
 } from 'antd';
 import {
-  DownloadOutlined, SettingOutlined, FileExcelOutlined,
+  DownloadOutlined, SettingOutlined, FileExcelOutlined, DeleteOutlined,
   ExclamationCircleOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -92,6 +92,8 @@ const MisaConfigModal: React.FC<{ open: boolean; onClose: () => void }> = ({ ope
 //  Reports Page
 // ════════════════════════════════════════════════════════════════
 const ReportsPage: React.FC = () => {
+  const queryClient = useQueryClient();
+  
   // --- State ---
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
     dayjs().startOf('month'),
@@ -117,20 +119,43 @@ const ReportsPage: React.FC = () => {
     queryFn: exportService.getHistory,
   });
 
+  // --- Delete Export ---
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => exportService.softDeleteExport(id),
+    onSuccess: () => {
+      message.success('Đã chuyển báo cáo vào thùng rác');
+      queryClient.invalidateQueries({ queryKey: ['export-history'] });
+      queryClient.invalidateQueries({ queryKey: ['trash-exports'] });
+    }
+  });
+
+  const handleDelete = (id: string) => {
+    Modal.confirm({
+      title: 'Xác nhận xóa',
+      icon: <ExclamationCircleOutlined style={{ color: 'red' }} />,
+      content: 'Bạn có chắc chắn muốn chuyển báo cáo này vào thùng rác?',
+      okText: 'Xóa',
+      okType: 'danger',
+      cancelText: 'Hủy',
+      onOk: () => deleteMutation.mutate(id),
+    });
+  };
+
   const totalValue = statsData?.totalAmount || 0;
   const totalTax = statsData?.totalTaxAmount || 0;
   const validRatio = statsData?.totalCount ? Math.round((statsData.validCount / statsData.totalCount) * 100) : 0;
   const needReviewCount = statsData?.needReviewCount || 0;
 
-  // Hàm format tiền chuẩn Việt Nam, không làm tròn láo
+  // Hàm format tiền chuẩn Việt Nam
   const formatCurrency = (val: number) => {
     if (val === 0) return '0 ₫';
     if (val >= 1e9) return `${(val / 1e9).toFixed(2).replace('.', ',')} tỷ ₫`;
-    if (val >= 1e6) return `${(val / 1e6).toFixed(2).replace('.', ',')} triệu ₫`; // Đổi từ 1 thành 2
+    if (val >= 1e6) return `${(val / 1e6).toFixed(2).replace('.', ',')} triệu ₫`;
     return val.toLocaleString('vi-VN') + ' ₫';
   };
+  
   const ExactNumberTooltip = ({ value }: { value: number }) => (
-    <Tooltip title={`${value.toLocaleString('vi-VN')} ₫`} placement="top">
+    <Tooltip title={`${(value).toLocaleString('vi-VN')} ₫`} placement="top">
       <span style={{ cursor: 'pointer' }}>{formatCurrency(value)}</span>
     </Tooltip>
   );
@@ -159,46 +184,53 @@ const ReportsPage: React.FC = () => {
         <div>
           <p>Bạn đang yêu cầu xuất báo cáo <strong>{exportType}</strong></p>
           <p>Từ <strong>{startLabel}</strong> đến <strong>{endLabel}</strong></p>
-          {statusFilter && <p>Lọc trạng thái: <Tag>{statusFilter}</Tag></p>}
-          {/* Thêm dòng này để hiện số lượng hóa đơn */}
-          <p>Số lượng dự kiến: <strong style={{ color: '#1a4b8c', fontSize: '16px' }}>{statsData?.totalCount || 0}</strong> hóa đơn</p>
-          <p style={{ color: '#8c8c8c', marginTop: 8 }}>Quá trình này có thể tốn vài phút. Xác nhận xuất?</p>
-        </div>
-      ),
-      okText: 'Xác nhận xuất',
-      cancelText: 'Hủy',
-      onOk: async () => {
-        setIsExporting(true);
-        try {
-          const result = await exportService.generateExport({
-            startDate: dateRange[0].startOf('day').toISOString(),
-            endDate: dateRange[1].endOf('day').toISOString(),
-            invoiceStatus: statusFilter || null,
-            exportType,
-          });
-
-          if (result.downloadUrl) {
-            triggerDownload(result.downloadUrl, result.fileName);
-            message.success({
-              content: `Xuất thành công ${result.totalRecords} hóa đơn — ${result.fileName}`,
-              icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
-              duration: 5,
+            {exportType === 'MISA' ? (
+              <p style={{ color: '#d97706', marginBottom: 8 }}>
+                *Lưu ý: Báo cáo MISA chỉ áp dụng cho các hóa đơn có trạng thái <b>Đã Duyệt (Approved)</b>.
+              </p>
+            ) : (
+              statusFilter && <p>Lọc trạng thái: <Tag>{statusFilter}</Tag></p>
+            )}
+            <p>Số lượng tổng dự kiến khoảng: <strong style={{ color: '#1a4b8c', fontSize: '16px' }}>{exportType === 'MISA' ? (statsData?.approvedCount || 0) : (statsData?.totalCount || 0)}</strong> hóa đơn</p>
+            <p style={{ color: '#8c8c8c', marginTop: 8 }}>Quá trình này có thể tốn vài phút. Xác nhận xuất?</p>
+          </div>
+        ),
+        okText: 'Xác nhận xuất',
+        cancelText: 'Hủy',
+        onOk: async () => {
+          setIsExporting(true);
+          try {
+            const result = await exportService.generateExport({
+              startDate: dateRange[0].startOf('day').toISOString(),
+              endDate: dateRange[1].endOf('day').toISOString(),
+              invoiceStatus: exportType === 'MISA' ? 'Approved' : (statusFilter || null),
+              exportType,
             });
-          } else {
-            message.warning('Xuất hoàn tất nhưng không có link tải.');
+
+            if (result.downloadUrl) {
+              triggerDownload(result.downloadUrl, result.fileName);
+              message.success({
+                content: `Xuất thành công ${result.totalRecords} hóa đơn — ${result.fileName}`,
+                icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
+                duration: 5,
+              });
+              queryClient.invalidateQueries({ queryKey: ['export-history'] });
+            } else {
+              message.warning('Xuất hoàn tất nhưng không có link tải.');
+              queryClient.invalidateQueries({ queryKey: ['export-history'] });
+            }
+          } catch {
+            message.error('Xuất báo cáo thất bại. Vui lòng thử lại.');
+          } finally {
+            setIsExporting(false);
           }
-        } catch {
-          message.error('Xuất báo cáo thất bại. Vui lòng thử lại.');
-        } finally {
-          setIsExporting(false);
-        }
-      },
+        },
     });
-  }, [dateRange, statusFilter, statsData, triggerDownload]);
+  }, [dateRange, statusFilter, statsData, triggerDownload, queryClient]);
 
   return (
     <div className="animate-fade-in-up">
-      {/* ── Header & Filters ── */}
+      {/* ─── Header & Filters ─── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <Title level={4} style={{ margin: 0 }}>Báo cáo & Xuất file</Title>
@@ -232,7 +264,7 @@ const ReportsPage: React.FC = () => {
         </Space>
       </div>
 
-      {/* ── Statistics Cards ── */}
+      {/* ─── Statistics Cards ─── */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
         {[
           { title: 'Tổng giá trị hóa đơn', value: <ExactNumberTooltip value={totalValue} />, color: '#1a4b8c' },
@@ -251,7 +283,7 @@ const ReportsPage: React.FC = () => {
         ))}
       </Row>
 
-      {/* ── Export Actions ── */}
+      {/* ─── Export Actions ─── */}
       <Row gutter={16}>
         <Col xs={24} lg={12}>
           <Card variant="borderless" style={{ borderRadius: 12 }} title="Xuất báo cáo nhanh">
@@ -271,7 +303,7 @@ const ReportsPage: React.FC = () => {
                     icon={<FileExcelOutlined />}
                     type="primary"
                     size="small"
-                    disabled={isExporting || isLoading} // Thêm || isLoading vào đây
+                    disabled={isExporting || isLoading}
                     onClick={() => handleExport('MISA')}
                     style={{ background: '#2d9a5c', borderColor: '#2d9a5c' }}
                   >
@@ -305,20 +337,20 @@ const ReportsPage: React.FC = () => {
           </Card>
         </Col>
 
-        {/* ── Export History (placeholder — có thể kết nối API sau) ── */}
+        {/* ─── Export History ─── */}
         <Col xs={24} lg={12}>
           <Card variant="borderless" style={{ borderRadius: 12 }} title="Lịch sử xuất file">
             <Table
               size="small"
               pagination={{ 
-                defaultPageSize: 5, // Mỗi trang hiện 5 dòng cho gọn
-                showSizeChanger: true, // Cho phép người dùng chọn xem 10, 20 dòng
+                defaultPageSize: 5,
+                showSizeChanger: true,
                 pageSizeOptions: ['5', '10', '20'],
-                position: ['bottomCenter'] // Nút chuyển trang nằm ở giữa cho đẹp
+                position: ['bottomCenter']
               }}
               rowKey="exportId"
               locale={{ emptyText: 'Chưa có lịch sử xuất file' }}
-              dataSource={historyData || []} // Thay mảng rỗng [] bằng data gọi từ API
+              dataSource={historyData || []}
               columns={[
                 { title: 'Tên file', dataIndex: 'fileName', key: 'fileName', render: (t: string) => <Text style={{ fontSize: 13 }}>{t}</Text> },
                 { title: 'Loại', dataIndex: 'fileType', key: 'fileType', render: (t: string) => <Tag>{t}</Tag> },
@@ -331,13 +363,15 @@ const ReportsPage: React.FC = () => {
                     </Tag>
                   ),
                 },
-                // Thêm nút Download có click event
                 { 
                   title: '', 
                   key: 'dl', 
-                  render: (_, record: any) => record.downloadUrl 
-                    ? <Button type="link" icon={<DownloadOutlined />} size="small" onClick={() => triggerDownload(record.downloadUrl, record.fileName)} /> 
-                    : null 
+                  render: (_, record: any) => (
+                    <Space>
+                      {record.downloadUrl && <Button type="link" icon={<DownloadOutlined />} size="small" onClick={() => triggerDownload(record.downloadUrl, record.fileName)} />}
+                      <Button danger type="link" icon={<DeleteOutlined />} size="small" onClick={() => handleDelete(record.exportId)} />
+                    </Space>
+                  ) 
                 },
               ]}
             />
@@ -345,10 +379,11 @@ const ReportsPage: React.FC = () => {
         </Col>
       </Row>
 
-      {/* ── MISA Config Modal ── */}
+      {/* ─── MISA Config Modal ─── */}
       <MisaConfigModal open={configModalOpen} onClose={() => setConfigModalOpen(false)} />
     </div>
   );
 };
 
 export default ReportsPage;
+

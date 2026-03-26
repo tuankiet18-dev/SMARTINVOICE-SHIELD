@@ -55,7 +55,12 @@ public class BlacklistController : ControllerBase
     {
         var entity = await _blacklistService.GetByTaxCodeAsync(taxCode);
         if (entity == null)
-            return NotFound(new { Message = $"Không tìm thấy công ty với mã số thuế '{taxCode}' trong blacklist" });
+            return NotFound(
+                new
+                {
+                    Message = $"Không tìm thấy công ty với mã số thuế '{taxCode}' trong blacklist",
+                }
+            );
 
         return Ok(MapToDto(entity));
     }
@@ -72,7 +77,9 @@ public class BlacklistController : ControllerBase
         if (existing != null)
         {
             if (existing.IsActive)
-                return Conflict(new { Message = $"Mã số thuế '{dto.TaxCode}' đã tồn tại trong blacklist" });
+                return Conflict(
+                    new { Message = $"Mã số thuế '{dto.TaxCode}' đã tồn tại trong blacklist" }
+                );
 
             // Nếu đã bị xóa (IsActive = false), kích hoạt lại
             existing.IsActive = true;
@@ -94,11 +101,15 @@ public class BlacklistController : ControllerBase
             Reason = dto.Reason,
             IsActive = true,
             AddedBy = GetCurrentUserId(),
-            AddedDate = DateTime.UtcNow
+            AddedDate = DateTime.UtcNow,
         };
 
         var created = await _blacklistService.CreateAsync(entity);
-        return CreatedAtAction(nameof(GetById), new { id = created.BlacklistId }, MapToDto(created));
+        return CreatedAtAction(
+            nameof(GetById),
+            new { id = created.BlacklistId },
+            MapToDto(created)
+        );
     }
 
     /// <summary>
@@ -169,7 +180,7 @@ public class BlacklistController : ControllerBase
             IsActive = entity.IsActive,
             AddedBy = entity.AddedBy,
             AddedDate = entity.AddedDate,
-            RemovedDate = entity.RemovedDate
+            RemovedDate = entity.RemovedDate,
         };
     }
 }

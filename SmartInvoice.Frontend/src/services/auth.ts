@@ -67,6 +67,21 @@ export const authService = {
         return response.data;
     },
 
+    async resendVerificationCode(email: string) {
+        const response = await apiClient.post('/auth/resend-verification', { email });
+        return response.data;
+    },
+
+    async forgotPassword(email: string) {
+        const response = await apiClient.post('/auth/forgot-password', { email });
+        return response.data;
+    },
+
+    async confirmForgotPassword(data: { email: string, confirmationCode: string, newPassword: string }) {
+        const response = await apiClient.post('/auth/confirm-forgot-password', data);
+        return response.data;
+    },
+
     async refreshToken(refreshToken: string, email: string) {
         const response = await apiClient.post<LoginResponse>('/auth/refresh-token', { refreshToken, email });
         return response.data;

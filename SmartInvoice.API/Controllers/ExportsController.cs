@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartInvoice.API.DTOs.Export;
 using SmartInvoice.API.Services.Interfaces;
@@ -31,8 +31,15 @@ public class ExportsController : ControllerBase
         if (companyId == null || userId == null)
             return Unauthorized(new { Message = "Không xác định được người dùng hoặc công ty" });
 
-        var result = await _exportService.GenerateExportAsync(companyId.Value, userId.Value, request);
-        return Ok(result);
+        try
+        {
+            var result = await _exportService.GenerateExportAsync(companyId.Value, userId.Value, request);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
     }
 
     [HttpGet("history")]
@@ -44,7 +51,7 @@ public class ExportsController : ControllerBase
         if (companyId == null) return Unauthorized(new { Message = "Không xác định được công ty" });
 
         var histories = await dbContext.ExportHistories
-            .Where(h => h.CompanyId == companyId)
+            .Where(h => h.CompanyId == companyId && !h.IsDeleted)
             .OrderByDescending(h => h.ExportedAt)
             .Take(50) // Lấy 10 lần xuất gần nhất
             .ToListAsync();
@@ -62,6 +69,50 @@ public class ExportsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpDelete("{id:guid}")]
+    [Authorize(Policy = Constants.Permissions.ReportExport)]
+    public async Task<IActionResult> SoftDeleteExport(Guid id)
+    {
+        var companyId = GetCurrentCompanyId();
+        if (companyId == null) return Unauthorized(new { Message = "Không xác định được công ty" });
+        
+        var success = await _exportService.SoftDeleteExportAsync(id, companyId.Value);
+        if (!success) return NotFound(new { Message = "Không tìm thấy file export" });
+        return Ok(new { Message = "Đã chuyển file vào thùng rác." });
+    }
+
+    [HttpGet("trash")]
+    [Authorize(Policy = Constants.Permissions.ReportExport)]
+    public async Task<IActionResult> GetTrashExports()
+    {
+        var companyId = GetCurrentCompanyId();
+        if (companyId == null) return Unauthorized(new { Message = "Không xác định được công ty" });
+        var result = await _exportService.GetTrashExportsAsync(companyId.Value);
+        return Ok(result);
+    }
+
+    [HttpPost("{id:guid}/restore")]
+    [Authorize(Policy = Constants.Permissions.ReportExport)]
+    public async Task<IActionResult> RestoreExport(Guid id)
+    {
+        var companyId = GetCurrentCompanyId();
+        if (companyId == null) return Unauthorized(new { Message = "Không xác định được công ty" });
+        var success = await _exportService.RestoreExportAsync(id, companyId.Value);
+        if (!success) return NotFound(new { Message = "Không tìm thấy file trong thùng rác" });
+        return Ok(new { Message = "Phục hồi thành công." });
+    }
+
+    [HttpDelete("{id:guid}/hard")]
+    [Authorize(Policy = Constants.Permissions.ReportExport)]
+    public async Task<IActionResult> HardDeleteExport(Guid id)
+    {
+        var companyId = GetCurrentCompanyId();
+        if (companyId == null) return Unauthorized(new { Message = "Không xác định được công ty" });
+        var success = await _exportService.HardDeleteExportAsync(id, companyId.Value);
+        if (!success) return NotFound(new { Message = "Không tìm thấy file" });
+        return Ok(new { Message = "Xóa vĩnh viễn thành công. Đã hoàn trả dung lượng." });
+    }
+
     private Guid? GetCurrentCompanyId()
     {
         var companyIdClaim = User.Claims.FirstOrDefault(c => c.Type == "CompanyId")?.Value;
@@ -74,3 +125,5 @@ public class ExportsController : ControllerBase
         return Guid.TryParse(userIdClaim, out var userId) ? userId : null;
     }
 }
+
+

@@ -162,8 +162,9 @@ public class DashboardService : IDashboardService
                 Pending = g.Count(x => x.Status == nameof(InvoiceStatus.Pending)),
                 Green = g.Count(x => x.RiskLevel == "Green"),
                 Yellow = g.Count(x => x.RiskLevel == "Yellow"),
-                Orange = g.Count(x => x.RiskLevel == "Orange"),
                 Red = g.Count(x => x.RiskLevel == "Red"),
+                TotalAmount = g.Sum(x => x.TotalAmount),
+                TotalTaxAmount = g.Sum(x => x.TotalTaxAmount ?? 0m)
             })
             .OrderBy(x => x.Year).ThenBy(x => x.Month)
             .ToListAsync();
@@ -183,6 +184,8 @@ public class DashboardService : IDashboardService
                 Approved = match?.Approved ?? 0,
                 Rejected = match?.Rejected ?? 0,
                 Pending = match?.Pending ?? 0,
+                TotalAmount = match?.TotalAmount ?? 0m,
+                TotalTaxAmount = match?.TotalTaxAmount ?? 0m
             });
 
             if (match != null && match.Total > 0)
@@ -192,7 +195,6 @@ public class DashboardService : IDashboardService
                     Month = $"T{d.Month}",
                     Green = Math.Round((decimal)match.Green / match.Total * 100, 1),
                     Yellow = Math.Round((decimal)match.Yellow / match.Total * 100, 1),
-                    Orange = Math.Round((decimal)match.Orange / match.Total * 100, 1),
                     Red = Math.Round((decimal)match.Red / match.Total * 100, 1),
                 });
             }

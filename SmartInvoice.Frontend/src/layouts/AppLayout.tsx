@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Layout, Menu, Avatar, Dropdown, Badge, Button, Typography } from 'antd';
 import {
   DashboardOutlined,
@@ -17,6 +17,7 @@ import {
   AppstoreOutlined,
   BankOutlined,
   GiftOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -54,6 +55,7 @@ const AppLayout: React.FC = () => {
     ] : []),
     { key: 'divider-settings', type: 'divider' as const },
     { key: '/app/settings', icon: <SettingOutlined />, label: 'Cài đặt' },
+    { key: '/app/trash', icon: <DeleteOutlined />, label: 'Thùng rác' },
   ];
 
   const userMenuItems = [
@@ -204,3 +206,6 @@ const AppLayout: React.FC = () => {
 };
 
 export default AppLayout;
+
+
+

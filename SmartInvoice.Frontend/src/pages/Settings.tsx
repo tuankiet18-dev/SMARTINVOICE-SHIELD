@@ -92,6 +92,10 @@ const Settings: React.FC = () => {
   useEffect(() => {
     if (company) {
       companyForm.setFieldsValue({
+        isAutoApproveEnabled: company.isAutoApproveEnabled,
+        autoApproveThreshold: company.autoApproveThreshold,
+        requireTwoStepApproval: company.requireTwoStepApproval,
+        twoStepApprovalThreshold: company.twoStepApprovalThreshold,
       });
     }
   }, [company, companyForm]);
@@ -113,6 +117,10 @@ const Settings: React.FC = () => {
 
   const onCompanyFinish = (values: any) => {
     updateCompanyMutation.mutate({
+      isAutoApproveEnabled: values.isAutoApproveEnabled,
+      autoApproveThreshold: values.autoApproveThreshold || 0,
+      requireTwoStepApproval: values.requireTwoStepApproval ?? company?.requireTwoStepApproval ?? false,
+      twoStepApprovalThreshold: values.twoStepApprovalThreshold ?? company?.twoStepApprovalThreshold ?? 20000000,
     });
   };
 
@@ -199,7 +207,7 @@ const Settings: React.FC = () => {
                   }}
                   onClick={() => setActiveTab("company")}
                 >
-                  Cấu hình Công ty
+                  Cấu hình Luồng duyệt
                 </div>
               </>
             )}
@@ -381,7 +389,91 @@ const Settings: React.FC = () => {
                 onFinish={onCompanyFinish}
               >
 
-                <div style={{ marginTop: 24 }}>
+                
+                {company?.hasAdvancedWorkflow && (
+                  <>
+                    <Divider style={{ margin: "24px 0" }} />
+                    <div style={{ marginBottom: 24 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: 16,
+                        }}
+                      >
+                        <div>
+                          <Text strong style={{ fontSize: 16 }}>
+                            Quy trình duyệt 2 lớp
+                          </Text>
+                          <br />
+                          <Text type="secondary">
+                            Yêu cầu duyệt qua 2 bước bảo mật cho các hóa đơn có giá trị lớn.
+                          </Text>
+                        </div>
+                        <Form.Item
+                          name="requireTwoStepApproval"
+                          valuePropName="checked"
+                          style={{ margin: 0 }}
+                        >
+                          <Switch />
+                        </Form.Item>
+                      </div>
+
+                      <Form.Item
+                        noStyle
+                        shouldUpdate={(prevValues, currentValues) =>
+                          prevValues.requireTwoStepApproval !== currentValues.requireTwoStepApproval
+                        }
+                      >
+                        {({ getFieldValue }) => {
+                          const isEnabled = getFieldValue("requireTwoStepApproval");
+                          return (
+                            <div
+                              style={{
+                                opacity: isEnabled ? 1 : 0.5,
+                                pointerEvents: isEnabled ? "auto" : "none",
+                                padding: "16px",
+                                background: "#F8FAFC",
+                                borderRadius: 8,
+                              }}
+                            >
+                              <Form.Item
+                                label="Ngưỡng duyệt 2 lớp (VND)"
+                                name="twoStepApprovalThreshold"
+                                rules={[
+                                  {
+                                    required: isEnabled,
+                                    message: "Vui lòng nhập định mức",
+                                  },
+                                ]}
+                                tooltip="Hóa đơn lớn hơn hoặc bằng mức này sẽ cần 2 người phê duyệt."
+                              >
+                                <InputNumber
+                                  style={{ width: "100%", maxWidth: 300 }}
+                                  formatter={(value) =>
+                                    `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                                  }
+                                  parser={(value: any) =>
+                                    value!.replace(/\$\s?|(,*)/g, "")
+                                  }
+                                  addonAfter="VND"
+                                  min={0}
+                                  step={100000}
+                                />
+                              </Form.Item>
+                              <Text type="secondary" style={{ fontSize: 13 }}>
+                                * Chức năng này yêu cầu người dùng duyệt Cấp 1 để chuyển trạng thái, sau đó người duyệt Cấp 2 mới có quyền định đoạt hóa đơn.
+                              </Text>
+                            </div>
+                          );
+                        }}
+                      </Form.Item>
+                    </div>
+                  </>
+                )}
+
+<div style={{ marginTop: 24 }}>
                   <Button
                     type="primary"
                     htmlType="submit"

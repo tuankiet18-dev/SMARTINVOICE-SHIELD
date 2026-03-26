@@ -28,6 +28,7 @@ namespace SmartInvoice.API.Services.Implementations
         private readonly string _clientId;
         private readonly string _userPoolId;
         private readonly string _clientSecret;
+        private readonly IQuotaService _quotaService;
 
         public AuthService(
             IUnitOfWork unitOfWork,
@@ -35,7 +36,8 @@ namespace SmartInvoice.API.Services.Implementations
             IAmazonCognitoIdentityProvider cognitoClient,
             IConfiguration configuration,
             IHttpClientFactory httpClientFactory,
-            IMemoryCache cache)
+            IMemoryCache cache,
+            IQuotaService quotaService)
         {
             _unitOfWork = unitOfWork;
             _context = context;
@@ -45,6 +47,7 @@ namespace SmartInvoice.API.Services.Implementations
             _clientId = configuration["COGNITO_CLIENT_ID"] ?? "";
             _userPoolId = configuration["COGNITO_USER_POOL_ID"] ?? "";
             _clientSecret = configuration["COGNITO_CLIENT_SECRET"] ?? "";
+            _quotaService = quotaService;
         }
 
         private string CalculateSecretHash(string username)
@@ -62,6 +65,19 @@ namespace SmartInvoice.API.Services.Implementations
 
         public async Task<CheckTaxCodeResponse> CheckTaxCodeAsync(CheckTaxCodeRequest request)
         {
+            var blacklisted = await _unitOfWork.LocalBlacklists.GetByTaxCodeAsync(request.TaxCode);
+            // Chỉ chặn nếu record blacklist này đang có hiệu lực (IsActive = true)
+            if (blacklisted != null && blacklisted.IsActive) 
+            {
+                return new CheckTaxCodeResponse
+                {
+                    IsValid = false,
+                    IsRegistered = false,
+                    // Trả lời rõ ràng lý do bị chặn
+                    ErrorMessage = $"Mã số thuế này đã bị từ chối phục vụ. Lý do: {blacklisted.Reason ?? "Vi phạm chính sách hệ thống"}."
+                };
+            }
+            
             // 1. Check in local DB
             var existingCompany = await _unitOfWork.Companies.GetByTaxCodeAsync(request.TaxCode);
             if (existingCompany != null)
@@ -498,11 +514,12 @@ namespace SmartInvoice.API.Services.Implementations
 
                 // Update local status
                 var user = await _unitOfWork.Users.GetByEmailAsync(normalizedEmail);
-                if (user != null)
+                if (user != null && !user.IsActive)
                 {
                     user.IsActive = true;
-                    // await _unitOfWork.Users.UpdateAsync(user); // If needed, but tracking might handle it
                     await _unitOfWork.CompleteAsync();
+
+                    await _quotaService.IncreaseUserCountAsync(user.CompanyId);
                 }
             }
             catch (CodeMismatchException)
@@ -516,6 +533,70 @@ namespace SmartInvoice.API.Services.Implementations
             catch (Exception ex)
             {
                 throw new Exception($"Verification failed: {ex.Message}");
+            }
+        }
+
+        public async Task ResendVerificationEmailAsync(ResendVerificationRequest request)
+        {
+            try
+            {
+                var normalizedEmail = request.Email.ToLower().Trim();
+                var secretHash = CalculateSecretHash(normalizedEmail);
+                
+                var resendRequest = new ResendConfirmationCodeRequest
+                {
+                    ClientId = _clientId,
+                    SecretHash = secretHash,
+                    Username = normalizedEmail
+                };
+
+                await _cognitoClient.ResendConfirmationCodeAsync(resendRequest);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Resend verification failed: " + ex.Message);
+            }
+        }
+
+        public async Task ForgotPasswordAsync(SmartInvoice.API.DTOs.Auth.ForgotPasswordRequest request)
+        {
+            try
+            {
+                var normalizedEmail = request.Email.ToLower().Trim();
+                var secretHash = CalculateSecretHash(normalizedEmail);
+                var fpRequest = new Amazon.CognitoIdentityProvider.Model.ForgotPasswordRequest
+                {
+                    ClientId = _clientId,
+                    Username = normalizedEmail,
+                    SecretHash = secretHash
+                };
+                await _cognitoClient.ForgotPasswordAsync(fpRequest);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Forgot password failed: " + ex.Message);
+            }
+        }
+
+        public async Task ConfirmForgotPasswordAsync(SmartInvoice.API.DTOs.Auth.ConfirmForgotPasswordRequest request)
+        {
+            try
+            {
+                var normalizedEmail = request.Email.ToLower().Trim();
+                var secretHash = CalculateSecretHash(normalizedEmail);
+                var cfpRequest = new Amazon.CognitoIdentityProvider.Model.ConfirmForgotPasswordRequest
+                {
+                    ClientId = _clientId,
+                    Username = normalizedEmail,
+                    ConfirmationCode = request.ConfirmationCode,
+                    Password = request.NewPassword,
+                    SecretHash = secretHash
+                };
+                await _cognitoClient.ConfirmForgotPasswordAsync(cfpRequest);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Confirm forgot password failed: " + ex.Message);
             }
         }
 

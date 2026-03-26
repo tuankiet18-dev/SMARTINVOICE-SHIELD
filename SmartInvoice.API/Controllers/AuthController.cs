@@ -137,6 +137,51 @@ namespace SmartInvoice.API.Controllers
             }
         }
 
+        [HttpPost("resend-verification")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResendVerificationEmail([FromBody] ResendVerificationRequest request)
+        {
+            try
+            {
+                await _authService.ResendVerificationEmailAsync(request);
+                return Ok(new { Message = "Verification code resent successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        [HttpPost("forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([FromBody] SmartInvoice.API.DTOs.Auth.ForgotPasswordRequest request)
+        {
+            try
+            {
+                await _authService.ForgotPasswordAsync(request);
+                return Ok(new { Message = "Password reset code sent to email." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        [HttpPost("confirm-forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ConfirmForgotPassword([FromBody] SmartInvoice.API.DTOs.Auth.ConfirmForgotPasswordRequest request)
+        {
+            try
+            {
+                await _authService.ConfirmForgotPasswordAsync(request);
+                return Ok(new { Message = "Password changed successfully." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
         [HttpPost("seed-superadmin")]
         [AllowAnonymous] // TEMPORARY: Remove or secure this after use
         public async Task<IActionResult> SeedSuperAdmin([FromBody] SeedSuperAdminRequest request)

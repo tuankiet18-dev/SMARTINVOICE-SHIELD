@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace SmartInvoice.API.Entities;
 
 [Table("LocalBlacklist")]
-public class LocalBlacklistedCompany
+public class LocalBlacklistedCompany : ISoftDelete
 {
     [Key]
     public Guid BlacklistId { get; set; }
@@ -24,4 +24,7 @@ public class LocalBlacklistedCompany
     public Guid? AddedBy { get; set; } // User ID
     public DateTime AddedDate { get; set; } = DateTime.UtcNow;
     public DateTime? RemovedDate { get; set; }
+
+    public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
 }

@@ -10,7 +10,7 @@ namespace SmartInvoice.API.Services.Interfaces
         Task<User?> GetUserByIdAsync(Guid id);
         Task<User?> GetUserByEmailAsync(string email);
         Task<IEnumerable<User>> GetAllUsersAsync();
-        Task<IEnumerable<User>> GetUsersByCompanyIdAsync(Guid companyId);
+        Task<IEnumerable<User>> GetUsersByCompanyIdAsync(Guid companyId, bool includeDeleted = false);
         Task<User> CreateUserAsync(User user);
         Task UpdateUserAsync(User user);
         Task DeleteUserAsync(Guid id);

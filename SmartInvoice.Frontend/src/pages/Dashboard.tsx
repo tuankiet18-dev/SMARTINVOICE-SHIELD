@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Row, Col, Spin, Select } from 'antd';
+﻿import React, { useEffect, useState } from 'react';
+import { Row, Col, Spin, Select, Card } from 'antd';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import AnalyticsCharts from '@/components/dashboard/AnalyticsCharts';
 import { useQuery } from '@tanstack/react-query';
@@ -45,17 +45,18 @@ const Dashboard: React.FC = () => {
   const { data: stats, isLoading, isFetching } = useQuery({
     queryKey: ['dashboard-stats', period],
     queryFn: () => dashboardService.getStats(period),
-    refetchInterval: 30_000, // auto-refresh every 30s for better responsiveness
+    refetchInterval: 30_000, 
     meta: {
       onSuccess: () => setLastRefreshTime(new Date()),
     },
   });
 
+  // Sửa lại hàm này, đưa các biến đếm số vào trong chuỗi (dùng dấu backtick `)
   const getTimeAgoText = (): string => {
     const diffSeconds = Math.floor((new Date().getTime() - lastRefreshTime.getTime()) / 1000);
-    if (diffSeconds < 2) return 'just now';
-    if (diffSeconds < 60) return `${diffSeconds}s ago`;
-    return `${Math.floor(diffSeconds / 60)}m ago`;
+    if (diffSeconds < 5) return 'vừa xong';
+    if (diffSeconds < 60) return `${diffSeconds} giây trước`;
+    return `${Math.floor(diffSeconds / 60)} phút trước`;
   };
 
   const changeText = periodChangeText[period];
@@ -114,8 +115,9 @@ const Dashboard: React.FC = () => {
           <h1 className="text-3xl text-dash-textMain font-bold mb-1 tracking-tight">
             {user?.role === 'Member' ? 'Tổng quan cá nhân' : 'Tổng quan hệ thống'}
           </h1>
+          {/* Gọi hàm ra đây */}
           <p className="text-dash-textMuted font-medium text-sm">
-            {isFetching ? '⏳ Cập nhật...' : `✓ Cập nhật cách đây ${getTimeAgoText()}`}
+            {isFetching ? '⏳ Đang cập nhật...' : `✓ Cập nhật ${getTimeAgoText()}`}
           </p>
         </div>
         <Select
@@ -126,6 +128,47 @@ const Dashboard: React.FC = () => {
           size="middle"
         />
       </div>
+
+      <Row gutter={[24, 24]} className="mb-6">
+        <Col xs={24} md={8}>
+          <Card
+            className="rounded-[14px] shadow-dash border-none overflow-hidden relative"
+            styles={{ body: { padding: '24px', background: 'linear-gradient(135deg, #1a4b8c 0%, #2a6bbd 100%)', color: 'white' } }}
+          >
+            <div className="text-white/80 font-medium mb-2 text-sm uppercase tracking-wider">Tổng giá trị hóa đơn (Kỳ này)</div>
+            <div className="text-3xl font-bold text-white mb-1">
+              {stats?.totalAmount?.toLocaleString('vi-VN')} ₫
+            </div>
+            <FileTextOutlined className="absolute right-[-20px] bottom-[-20px] text-[100px] text-white/10" />
+          </Card>
+        </Col>
+        
+        <Col xs={24} md={8}>
+          <Card 
+            className="rounded-[14px] shadow-dash border-none overflow-hidden relative"
+            styles={{ body: { padding: '24px', background: 'linear-gradient(135deg, #2d9a5c 0%, #3bc175 100%)', color: 'white' } }}
+          >
+            <div className="text-white/80 font-medium mb-2 text-sm uppercase tracking-wider">Đã phê duyệt (Ghi nhận chi phí)</div>
+            <div className="text-3xl font-bold text-white mb-1">
+              {stats?.approvedAmount?.toLocaleString('vi-VN')} ₫
+            </div>
+            <CheckCircleOutlined className="absolute right-[-20px] bottom-[-20px] text-[100px] text-white/10" />
+          </Card>
+        </Col>
+
+        <Col xs={24} md={8}>
+          <Card 
+            className="rounded-[14px] shadow-dash border-none overflow-hidden relative"
+            styles={{ body: { padding: '24px', background: 'linear-gradient(135deg, #e6a817 0%, #facc32 100%)', color: 'white' } }}
+          >
+            <div className="text-white/80 font-medium mb-2 text-sm uppercase tracking-wider">Đang chờ duyệt</div>
+            <div className="text-3xl font-bold text-white mb-1">
+              {stats?.pendingAmount?.toLocaleString('vi-VN')} ₫
+            </div>
+            <WarningOutlined className="absolute right-[-20px] bottom-[-20px] text-[100px] text-white/10" />
+          </Card>
+        </Col>
+      </Row>
 
       {/* KPI Cards */}
       <Row gutter={[24, 24]} className="mb-8">
@@ -141,7 +184,7 @@ const Dashboard: React.FC = () => {
         <PanelGroup direction="horizontal" className="rounded-xl">
           <Panel defaultSize={33} minSize={20}>
             <div className="h-full pr-2">
-              <RiskDistributionCard data={stats?.riskDistribution ?? []} />
+              <RiskDistributionCard data={stats?.riskDistribution?.filter(r => !r.label.includes('Orange')) ?? []} />
             </div>
           </Panel>
           <PanelResizeHandle className="w-2 flex items-center justify-center group cursor-col-resize">

@@ -72,6 +72,8 @@
 											</xs:complexType>
 										</xs:element>
 
+										<xs:any minOccurs="0" maxOccurs="unbounded" processContents="skip"/>
+
 									</xs:sequence>
 								</xs:complexType>
 							</xs:element>

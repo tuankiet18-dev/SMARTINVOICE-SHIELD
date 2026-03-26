@@ -24,9 +24,14 @@ namespace SmartInvoice.API.Repositories.Implementations
             return await _context.Users.IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == email.ToLower());
         }
 
-        public async Task<System.Collections.Generic.IEnumerable<User>> GetByCompanyIdAsync(System.Guid companyId)
+        public async Task<System.Collections.Generic.IEnumerable<User>> GetByCompanyIdAsync(System.Guid companyId, bool includeDeleted = false)
         {
-            return await _context.Users.Where(u => u.CompanyId == companyId).ToListAsync();
+            var query = _context.Users.AsQueryable();
+            if (includeDeleted)
+            {
+                query = query.IgnoreQueryFilters();
+            }
+            return await query.Where(u => u.CompanyId == companyId).ToListAsync();
         }
     }
 }

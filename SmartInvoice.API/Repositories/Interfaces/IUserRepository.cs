@@ -7,6 +7,6 @@ namespace SmartInvoice.API.Repositories.Interfaces
     {
         Task<User?> GetByEmailAsync(string email);
         Task<bool> ExistsByEmailAsync(string email);
-        Task<IEnumerable<User>> GetByCompanyIdAsync(System.Guid companyId);
+        Task<IEnumerable<User>> GetByCompanyIdAsync(System.Guid companyId, bool includeDeleted = false);
     }
 }

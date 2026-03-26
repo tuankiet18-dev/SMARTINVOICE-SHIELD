@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using SmartInvoice.API.Entities;
 
@@ -11,5 +11,7 @@ namespace SmartInvoice.API.Repositories.Interfaces
         Task<bool> ExistsByDetailsAsync(string sellerTaxCode, string serialNumber, string invoiceNumber, Guid companyId);
         Task<Invoice?> GetExistingInvoiceAsync(string sellerTaxCode, string serialNumber, string invoiceNumber, Guid companyId);
         Task<(IEnumerable<Invoice> Items, int TotalCount)> GetPagedInvoicesAsync(DTOs.Invoice.GetInvoicesQueryDto query, Guid companyId, Guid userId, string userRole);
+        Task<(IEnumerable<Invoice> Items, int TotalCount)> GetPagedTrashInvoicesAsync(DTOs.Invoice.GetInvoicesQueryDto query, Guid companyId, Guid userId, string userRole);
+        Task<Invoice?> GetTrashInvoiceWithDetailsAsync(Guid id);
     }
 }

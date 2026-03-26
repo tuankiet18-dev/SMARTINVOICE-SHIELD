@@ -25,7 +25,7 @@ const { Title, Text, Paragraph } = Typography;
 type BillingCycle = 'Monthly' | 'SemiAnnual' | 'Annual';
 
 const billingLabels: Record<BillingCycle, string> = {
-  Monthly: 'Hàng tháng',
+  Monthly: '1 tháng',
   SemiAnnual: '6 tháng',
   Annual: '1 năm',
 };
@@ -295,7 +295,7 @@ const SubscriptionPage: React.FC = () => {
           value={billingCycle}
           onChange={(val) => setBillingCycle(val as BillingCycle)}
           options={[
-            { label: 'Hàng tháng', value: 'Monthly' },
+            { label: '1 tháng', value: 'Monthly' },
             { label: '6 tháng (Tiết kiệm ~17%)', value: 'SemiAnnual' },
             { label: '1 năm (Tiết kiệm ~17%)', value: 'Annual' },
           ]}
@@ -364,7 +364,7 @@ const SubscriptionPage: React.FC = () => {
                   <Divider className="!my-3" />
 
                   {/* Description */}
-                  <Paragraph type="secondary" className="text-center text-sm !mb-4" ellipsis={{ rows: 2 }}>
+                  <Paragraph type="secondary" className="text-center text-sm !mb-4 flex-none min-h-[60px]">
                     {pkg.description}
                   </Paragraph>
 
@@ -376,7 +376,7 @@ const SubscriptionPage: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <FileTextOutlined style={{ color }} />
-                      <Text>{pkg.maxInvoicesPerMonth >= 99999 ? 'Không giới hạn' : pkg.maxInvoicesPerMonth.toLocaleString()} hóa đơn/tháng</Text>
+                      <Text>Xử lý {pkg.maxInvoicesPerMonth >= 99999 ? 'không giới hạn' : pkg.maxInvoicesPerMonth.toLocaleString()} hóa đơn / tháng</Text>
                     </div>
                     <div className="flex items-center gap-2">
                       <CloudOutlined style={{ color }} />
@@ -430,7 +430,7 @@ const SubscriptionPage: React.FC = () => {
             <span>
               Đã dùng: <strong>{currentSub.usedInvoicesThisMonth}/{currentSub.maxInvoicesPerMonth}</strong> hóa đơn tháng này
               {currentSub.extraInvoicesBalance > 0 && (
-                <span> — Hóa đơn mua thêm: <strong>{currentSub.extraInvoicesBalance}</strong></span>
+                <span> — Hóa đơn mua thêm (Còn lại): <strong>{currentSub.extraInvoicesBalance}</strong></span>
               )}
             </span>
           }

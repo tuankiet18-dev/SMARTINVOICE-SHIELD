@@ -7,4 +7,5 @@ public class InvoiceStatsDto
     public int ValidCount { get; set; }
     public int NeedReviewCount { get; set; }
     public int TotalCount { get; set; }
+    public int ApprovedCount { get; set; }
 }

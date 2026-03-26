@@ -1,8 +1,8 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Collections.Generic;
-using SmartInvoice.API.Entities.JsonModels;
 using Microsoft.EntityFrameworkCore;
+using SmartInvoice.API.Entities.JsonModels;
 
 namespace SmartInvoice.API.Entities;
 
@@ -20,18 +20,22 @@ public class Invoice
 
     // --- Relations ---
     public Guid CompanyId { get; set; }
+
     [ForeignKey(nameof(CompanyId))]
     public Company? Company { get; set; }
 
     public int DocumentTypeId { get; set; }
+
     [ForeignKey(nameof(DocumentTypeId))]
     public DocumentType? DocumentType { get; set; }
 
     public Guid? OriginalFileId { get; set; }
+
     [ForeignKey(nameof(OriginalFileId))]
     public FileStorage? OriginalFile { get; set; }
 
     public Guid? VisualFileId { get; set; }
+
     [ForeignKey(nameof(VisualFileId))]
     public FileStorage? VisualFile { get; set; }
 
@@ -105,6 +109,7 @@ public class Invoice
     // --- VERSION CONTROL ---
     public bool IsReplaced { get; set; } = false;
     public Guid? ReplacedBy { get; set; }
+
     [ForeignKey(nameof(ReplacedBy))]
     public Invoice? ReplacementInvoice { get; set; }
     public int Version { get; set; } = 1;
@@ -127,42 +132,81 @@ public class Invoice
 [Owned]
 public class SellerInfo
 {
-    [MaxLength(200)] public string? Name { get; set; }
-    [MaxLength(14)] public string? TaxCode { get; set; }
+    [MaxLength(200)]
+    public string? Name { get; set; }
+
+    [MaxLength(14)]
+    public string? TaxCode { get; set; }
     public string? Address { get; set; }
-    [MaxLength(20)] public string? Phone { get; set; }
-    [MaxLength(100)] public string? Email { get; set; }
-    [MaxLength(50)] public string? BankAccount { get; set; }
-    [MaxLength(200)] public string? BankName { get; set; }
+
+    [MaxLength(20)]
+    public string? Phone { get; set; }
+
+    [MaxLength(100)]
+    public string? Email { get; set; }
+
+    [MaxLength(50)]
+    public string? BankAccount { get; set; }
+
+    [MaxLength(200)]
+    public string? BankName { get; set; }
 }
 
 [Owned]
 public class BuyerInfo
 {
-    [MaxLength(200)] public string? Name { get; set; }
-    [MaxLength(14)] public string? TaxCode { get; set; }
+    [MaxLength(200)]
+    public string? Name { get; set; }
+
+    [MaxLength(14)]
+    public string? TaxCode { get; set; }
     public string? Address { get; set; }
-    [MaxLength(20)] public string? Phone { get; set; }
-    [MaxLength(100)] public string? Email { get; set; }
-    [MaxLength(100)] public string? ContactPerson { get; set; }
+
+    [MaxLength(20)]
+    public string? Phone { get; set; }
+
+    [MaxLength(100)]
+    public string? Email { get; set; }
+
+    [MaxLength(100)]
+    public string? ContactPerson { get; set; }
 }
 
 [Owned]
 public class InvoiceWorkflow
 {
     public Guid UploadedBy { get; set; }
-    [ForeignKey(nameof(UploadedBy))] public User? Uploader { get; set; }
+
+    [ForeignKey(nameof(UploadedBy))]
+    public User? Uploader { get; set; }
 
     public Guid? SubmittedBy { get; set; }
-    [ForeignKey(nameof(SubmittedBy))] public User? Submitter { get; set; }
+
+    [ForeignKey(nameof(SubmittedBy))]
+    public User? Submitter { get; set; }
     public DateTime? SubmittedAt { get; set; }
 
+    public Guid? Level1ApprovedBy { get; set; }
+
+    [ForeignKey(nameof(Level1ApprovedBy))]
+    public User? Level1Approver { get; set; }
+    public DateTime? Level1ApprovedAt { get; set; }
+    public Guid? Level2ApprovedBy { get; set; }
+
+    [ForeignKey(nameof(Level2ApprovedBy))]
+    public User? Level2Approver { get; set; }
+    public DateTime? Level2ApprovedAt { get; set; }
+    public int CurrentApprovalStep { get; set; } = 1;
     public Guid? ApprovedBy { get; set; }
-    [ForeignKey(nameof(ApprovedBy))] public User? Approver { get; set; }
+
+    [ForeignKey(nameof(ApprovedBy))]
+    public User? Approver { get; set; }
     public DateTime? ApprovedAt { get; set; }
 
     public Guid? RejectedBy { get; set; }
-    [ForeignKey(nameof(RejectedBy))] public User? Rejector { get; set; }
+
+    [ForeignKey(nameof(RejectedBy))]
+    public User? Rejector { get; set; }
     public DateTime? RejectedAt { get; set; }
     public string? RejectionReason { get; set; }
 }

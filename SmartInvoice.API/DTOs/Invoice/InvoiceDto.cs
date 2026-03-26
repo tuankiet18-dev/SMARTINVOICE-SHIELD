@@ -18,6 +18,7 @@ namespace SmartInvoice.API.DTOs.Invoice
 
         // Trạng thái & Rủi ro (Để tô màu trên FE)
         public string Status { get; set; } = null!; // Draft, Pending...
+        public int CurrentApprovalStep { get; set; }
         public string RiskLevel { get; set; } = null!; // Green, Red...
 
         // Ai làm?

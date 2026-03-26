@@ -1,6 +1,6 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Collections.Generic;
 using SmartInvoice.API.Enums;
 
 namespace SmartInvoice.API.Entities;
@@ -21,6 +21,7 @@ public class User : ISoftDelete
 
     // --- Multi-tenant ---
     public Guid CompanyId { get; set; }
+
     [ForeignKey(nameof(CompanyId))]
     public Company? Company { get; set; }
 
@@ -34,7 +35,7 @@ public class User : ISoftDelete
 
     // --- Authorization ---
     [MaxLength(50)]
-    public string Role { get; set; } = UserRole.Member.ToString(); // Re-adding Role as string since we removed AspNetRoles
+    public string Role { get; set; } = UserRole.Accountant.ToString(); // Re-adding Role as string since we removed AspNetRoles
 
     [Column(TypeName = "jsonb")]
     public List<string>? Permissions { get; set; } = new();
