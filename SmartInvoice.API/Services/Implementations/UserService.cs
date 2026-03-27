@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Amazon.CognitoIdentityProvider;
@@ -108,9 +108,9 @@ namespace SmartInvoice.API.Services.Implementations
             if (existingUser != null)
             {
                 if (!existingUser.IsDeleted)
-                    throw new Exception("Email already exists and is active.");
+                    throw new Exception("Email này đã tồn tại và đang hoạt động trên hệ thống.");
                 if (existingUser.CompanyId != companyId)
-                    throw new Exception("Email already registered with another company.");
+                    throw new Exception("Email này đã được đăng ký tại một công ty khác.");
             }
 
             await _unitOfWork.BeginTransactionAsync();
@@ -141,7 +141,7 @@ namespace SmartInvoice.API.Services.Implementations
                 );
                 var cognitoSub =
                     cognitoResponse.User.Attributes.Find(a => a.Name == "sub")?.Value
-                    ?? throw new Exception("Failed to get Cognito User Sub");
+                    ?? throw new Exception("Không thể lấy định danh người dùng từ hệ thống xác thực.");
                 cognitoCreated = true;
 
                 User userToReturn;
@@ -212,7 +212,7 @@ namespace SmartInvoice.API.Services.Implementations
                     }
                 }
 
-                throw new Exception($"Failed to create member: {ex.Message}");
+                throw new Exception($"Lỗi khi tạo thành viên: {ex.Message}");
             }
         }
 

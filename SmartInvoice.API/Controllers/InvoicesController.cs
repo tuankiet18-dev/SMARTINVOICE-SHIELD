@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -115,7 +115,7 @@ namespace SmartInvoice.API.Controller
             }
             catch (UnauthorizedAccessException)
             {
-                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+                return Unauthorized(new { Message = "Thông tin định danh người dùng hoặc công ty không hợp lệ." });
             }
             catch (InvalidOperationException ex)
             {
@@ -123,7 +123,7 @@ namespace SmartInvoice.API.Controller
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { Message = $"Internal server error: {ex.Message}" });
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ." });
             }
         }
 
@@ -142,11 +142,11 @@ namespace SmartInvoice.API.Controller
             }
             catch (UnauthorizedAccessException)
             {
-                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+                return Unauthorized(new { Message = "Thông tin định danh người dùng hoặc công ty không hợp lệ." });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Message = $"Internal server error: {ex.Message}" });
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ." });
             }
         }
 
@@ -259,20 +259,20 @@ namespace SmartInvoice.API.Controller
                     InvoiceId = invoiceId,
                     S3Key = s3Key,
                     Status = "Processing",
-                    Message = "Hóa đơn đã được tải lên và đang được xử lý OCR."
+                    Message = "Hóa đơn đã được tải lên thành công và đang được xử lý OCR."
                 });
             }
             catch (UnauthorizedAccessException)
             {
-                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+                return Unauthorized(new { Message = "Thông tin định danh người dùng hoặc công ty không hợp lệ." });
             }
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { Message = ex.Message });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Message = $"Internal server error: {ex.Message}" });
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ." });
             }
         }
 
@@ -305,9 +305,9 @@ namespace SmartInvoice.API.Controller
 
                 return Ok(logicResult);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Message = $"Lỗi: {ex.Message}" });
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ." });
             }
             finally
             {
@@ -332,11 +332,11 @@ namespace SmartInvoice.API.Controller
             }
             catch (UnauthorizedAccessException)
             {
-                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+                return Unauthorized(new { Message = "Thông tin định danh người dùng hoặc công ty không hợp lệ." });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Message = ex.Message });
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ khi lấy danh sách hóa đơn." });
             }
         }
 
@@ -350,9 +350,9 @@ namespace SmartInvoice.API.Controller
                 var result = await _invoiceService.GetTrashInvoicesAsync(query, companyId, userId, userRole);
                 return Ok(result);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Message = ex.Message });
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ khi lấy danh sách hóa đơn trong thùng rác." });
             }
         }
 
@@ -367,9 +367,9 @@ namespace SmartInvoice.API.Controller
                 if (!success) return NotFound(new { Message = "Không tìm thấy hóa đơn trong thùng rác hoặc không có quyền." });
                 return Ok(new { Message = "Phục hồi thành công." });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Message = ex.Message });
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ khi phục hồi hóa đơn." });
             }
         }
 
@@ -384,9 +384,9 @@ namespace SmartInvoice.API.Controller
                 if (!success) return NotFound(new { Message = "Không tìm thấy hóa đơn trong thùng rác hoặc không có quyền." });
                 return Ok(new { Message = "Xóa vĩnh viễn thành công. Đã hoàn trả dung lượng." });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Message = ex.Message });
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ khi thực hiện xóa vĩnh viễn." });
             }
         }
 
@@ -407,11 +407,11 @@ namespace SmartInvoice.API.Controller
             }
             catch (UnauthorizedAccessException)
             {
-                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+                return Unauthorized(new { Message = "Thông tin định danh người dùng hoặc công ty không hợp lệ." });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Message = "Lỗi server nội bộ", Error = ex.Message });
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ khi lấy chi tiết hóa đơn." });
             }
         }
 
@@ -431,11 +431,11 @@ namespace SmartInvoice.API.Controller
             }
             catch (UnauthorizedAccessException)
             {
-                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+                return Unauthorized(new { Message = "Thông tin định danh người dùng hoặc công ty không hợp lệ." });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Message = "Lỗi server nội bộ", Error = ex.Message });
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ khi lấy đường dẫn file." });
             }
         }
 
@@ -455,11 +455,11 @@ namespace SmartInvoice.API.Controller
             }
             catch (UnauthorizedAccessException)
             {
-                return Unauthorized(new { Message = "User identity or company information is missing in token." });
+                return Unauthorized(new { Message = "Thông tin định danh người dùng hoặc công ty không hợp lệ." });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Message = "Lỗi server nội bộ", Error = ex.Message });
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ khi lấy lịch sử phiên bản." });
             }
         }
 
@@ -471,7 +471,7 @@ namespace SmartInvoice.API.Controller
             {
                 var (userId, _, userRole, userEmail) = GetUserInfo();
                 await _invoiceService.UpdateInvoiceAsync(id, request, userId, userEmail, userRole, GetClientIp());
-                return Ok(new { Message = "Cập nhật thành công" });
+                return Ok(new { Message = "Cập nhật hóa đơn thành công." });
             }
             catch (KeyNotFoundException)
             {
@@ -529,7 +529,7 @@ namespace SmartInvoice.API.Controller
             {
                 return NotFound(new { Message = "Không tìm thấy hóa đơn." });
             }
-            catch (UnauthorizedAccessException ex)
+            catch (UnauthorizedAccessException)
             {
                 return Forbid();
             }

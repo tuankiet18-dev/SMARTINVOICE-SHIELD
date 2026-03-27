@@ -87,7 +87,7 @@ namespace SmartInvoice.API.Services.Implementations
                     IsValid = true,
                     IsRegistered = true,
                     CompanyName = existingCompany.CompanyName,
-                    ErrorMessage = "Company already registered."
+                    ErrorMessage = "Công ty đã được đăng ký trên hệ thống."
                 };
             }
 
@@ -334,7 +334,7 @@ namespace SmartInvoice.API.Services.Implementations
                 var user = await _unitOfWork.Users.GetByEmailAsync(normalizedEmail);
                 if (user == null)
                 {
-                    throw new Exception($"Local user record not found for email: {normalizedEmail}");
+                    throw new Exception($"Không tìm thấy thông tin người dùng nội bộ cho email: {normalizedEmail}");
                 }
 
                 if (!user.IsActive)
@@ -381,7 +381,7 @@ namespace SmartInvoice.API.Services.Implementations
             }
             catch (Exception ex)
             {
-                throw new Exception($"Login failed: {ex.Message}");
+                throw new Exception($"Đăng nhập thất bại: {ex.Message}");
             }
         }
 
@@ -410,7 +410,7 @@ namespace SmartInvoice.API.Services.Implementations
 
                 var user = await _unitOfWork.Users.GetByEmailAsync(normalizedEmail);
                 if (user == null)
-                    throw new Exception("Local user record not found.");
+                    throw new Exception("Không tìm thấy thông tin người dùng nội bộ.");
 
                 user.LastLoginAt = DateTime.UtcNow;
                 await _unitOfWork.CompleteAsync();
@@ -439,7 +439,7 @@ namespace SmartInvoice.API.Services.Implementations
             }
             catch (Exception ex)
             {
-                throw new Exception($"Failed to respond to new password requirement: {ex.Message}");
+                throw new Exception($"Lỗi khi thiết lập mật khẩu mới: {ex.Message}");
             }
         }
 
@@ -466,7 +466,7 @@ namespace SmartInvoice.API.Services.Implementations
 
                 var user = await _unitOfWork.Users.GetByEmailAsync(normalizedEmail);
                 if (user == null)
-                    throw new Exception("Local user record not found.");
+                    throw new Exception("Không tìm thấy thông tin người dùng nội bộ.");
 
                 var company = await _unitOfWork.Companies.GetByIdAsync(user.CompanyId);
 
@@ -492,7 +492,7 @@ namespace SmartInvoice.API.Services.Implementations
             }
             catch (Exception ex)
             {
-                throw new Exception($"Refresh token failed: {ex.Message}");
+                throw new Exception($"Làm mới mã xác thực thất bại: {ex.Message}");
             }
         }
 
@@ -532,7 +532,7 @@ namespace SmartInvoice.API.Services.Implementations
             }
             catch (Exception ex)
             {
-                throw new Exception($"Verification failed: {ex.Message}");
+                throw new Exception($"Xác thực thất bại: {ex.Message}");
             }
         }
 
@@ -554,7 +554,7 @@ namespace SmartInvoice.API.Services.Implementations
             }
             catch (Exception ex)
             {
-                throw new Exception("Resend verification failed: " + ex.Message);
+                throw new Exception("Gửi lại mã xác thực thất bại: " + ex.Message);
             }
         }
 
@@ -574,7 +574,7 @@ namespace SmartInvoice.API.Services.Implementations
             }
             catch (Exception ex)
             {
-                throw new Exception("Forgot password failed: " + ex.Message);
+                throw new Exception("Yêu cầu quên mật khẩu thất bại: " + ex.Message);
             }
         }
 
@@ -596,7 +596,7 @@ namespace SmartInvoice.API.Services.Implementations
             }
             catch (Exception ex)
             {
-                throw new Exception("Confirm forgot password failed: " + ex.Message);
+                throw new Exception("Xác nhận quên mật khẩu thất bại: " + ex.Message);
             }
         }
 

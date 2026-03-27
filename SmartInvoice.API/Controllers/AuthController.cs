@@ -31,7 +31,7 @@ namespace SmartInvoice.API.Controllers
             try
             {
                 await _authService.RegisterCompanyAsync(request);
-                return Ok(new { Message = "Registration successful. Please check your email to verify your account." });
+                return Ok(new { Message = "Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản." });
             }
             catch (Exception ex)
             {
@@ -119,7 +119,7 @@ namespace SmartInvoice.API.Controllers
                 Secure = true,
                 SameSite = SameSiteMode.None
             });
-            return Ok(new { Message = "Logged out successfully" });
+            return Ok(new { Message = "Đăng xuất thành công." });
         }
 
         [HttpPost("verify-email")]
@@ -129,7 +129,7 @@ namespace SmartInvoice.API.Controllers
             try
             {
                 await _authService.VerifyEmailAsync(request);
-                return Ok(new { Message = "Email verified successfully. You can now login." });
+                return Ok(new { Message = "Xác thực email thành công. Bây giờ bạn có thể đăng nhập." });
             }
             catch (Exception ex)
             {
@@ -144,7 +144,7 @@ namespace SmartInvoice.API.Controllers
             try
             {
                 await _authService.ResendVerificationEmailAsync(request);
-                return Ok(new { Message = "Verification code resent successfully." });
+                return Ok(new { Message = "Mã xác thực đã được gửi lại thành công." });
             }
             catch (Exception ex)
             {
@@ -159,7 +159,7 @@ namespace SmartInvoice.API.Controllers
             try
             {
                 await _authService.ForgotPasswordAsync(request);
-                return Ok(new { Message = "Password reset code sent to email." });
+                return Ok(new { Message = "Mã đặt lại mật khẩu đã được gửi đến email của bạn." });
             }
             catch (Exception ex)
             {
@@ -174,7 +174,7 @@ namespace SmartInvoice.API.Controllers
             try
             {
                 await _authService.ConfirmForgotPasswordAsync(request);
-                return Ok(new { Message = "Password changed successfully." });
+                return Ok(new { Message = "Đổi mật khẩu thành công." });
             }
             catch (Exception ex)
             {

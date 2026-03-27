@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -58,7 +58,7 @@ public class QuotaService : IQuotaService
     public async Task ValidateAndConsumeInvoiceQuotaAsync(Guid companyId)
     {
         var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId)
-            ?? throw new KeyNotFoundException("Company not found.");
+            ?? throw new KeyNotFoundException("Không tìm thấy thông tin công ty.");
 
         await HandlePlanDowngradeAndLimitsAsync(company);
 
@@ -95,7 +95,7 @@ public class QuotaService : IQuotaService
     public async Task ValidateUserQuotaAsync(Guid companyId)
     {
         var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId)
-            ?? throw new KeyNotFoundException("Company not found.");
+            ?? throw new KeyNotFoundException("Không tìm thấy thông tin công ty.");
 
         await HandlePlanDowngradeAndLimitsAsync(company);
 
@@ -108,7 +108,7 @@ public class QuotaService : IQuotaService
     public async Task IncreaseUserCountAsync(Guid companyId)
     {
         var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId)
-            ?? throw new KeyNotFoundException("Company not found.");
+            ?? throw new KeyNotFoundException("Không tìm thấy thông tin công ty.");
 
         company.CurrentActiveUsers++;
         company.UpdatedAt = DateTime.UtcNow;
@@ -118,7 +118,7 @@ public class QuotaService : IQuotaService
     public async Task DecreaseUserCountAsync(Guid companyId)
     {
         var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId)
-            ?? throw new KeyNotFoundException("Company not found.");
+            ?? throw new KeyNotFoundException("Không tìm thấy thông tin công ty.");
 
         if (company.CurrentActiveUsers > 0)
         {
@@ -131,7 +131,7 @@ public class QuotaService : IQuotaService
     public async Task ValidateStorageQuotaAsync(Guid companyId, long fileSizeInBytes)
     {
         var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId)
-            ?? throw new KeyNotFoundException("Company not found.");
+            ?? throw new KeyNotFoundException("Không tìm thấy thông tin công ty.");
 
         await HandlePlanDowngradeAndLimitsAsync(company);
 
@@ -145,7 +145,7 @@ public class QuotaService : IQuotaService
     public async Task ConsumeStorageQuotaAsync(Guid companyId, long fileSizeInBytes)
     {
         var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId)
-            ?? throw new KeyNotFoundException("Company not found.");
+            ?? throw new KeyNotFoundException("Không tìm thấy thông tin công ty.");
 
         company.UsedStorageBytes += fileSizeInBytes;
         company.UpdatedAt = DateTime.UtcNow;

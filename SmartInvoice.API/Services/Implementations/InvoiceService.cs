@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -196,14 +196,14 @@ namespace SmartInvoice.API.Services.Implementations
         {
             var existingInvoice = await _unitOfWork.Invoices.GetInvoiceWithDetailsAsync(id);
             if (existingInvoice == null)
-                throw new KeyNotFoundException($"Không tìm thấy hóa đơn với ID: {id}");
+                throw new KeyNotFoundException("Không tìm thấy hóa đơn yêu cầu.");
 
             // Chỉ cho phép edit khi status = Draft hoặc Rejected hoặc Processing (nếu cần review ngay)
             if (existingInvoice.Status != "Draft" && existingInvoice.Status != "Rejected" && existingInvoice.Status != "Processing" && existingInvoice.Status != "Success")
             {
                 // Cho phép sửa Success nếu chưa Submit
                 if (existingInvoice.Status != "Success")
-                    throw new InvalidOperationException($"Không thể chỉnh sửa hóa đơn ở trạng thái {existingInvoice.Status}");
+                    throw new InvalidOperationException($"Không thể chỉnh sửa hóa đơn khi đang ở trạng thái {existingInvoice.Status}.");
             }
 
             // Track changes for audit
@@ -486,7 +486,7 @@ namespace SmartInvoice.API.Services.Implementations
         {
             var invoiceExists = await _unitOfWork.Invoices.GetByIdAsync(invoiceId);
             if (invoiceExists == null)
-                throw new KeyNotFoundException($"Không tìm thấy hóa đơn ID: {invoiceId}");
+                throw new KeyNotFoundException("Không tìm thấy hóa đơn yêu cầu.");
 
             var logs = await _unitOfWork.InvoiceAuditLogs.GetByInvoiceIdAsync(invoiceId);
 
@@ -517,7 +517,7 @@ namespace SmartInvoice.API.Services.Implementations
             if (invoice.CompanyId != companyId)
                 throw new UnauthorizedAccessException("Không có quyền truy cập hóa đơn này.");
             if (invoice.Status != "Draft")
-                throw new InvalidOperationException($"Chỉ có thể gửi duyệt hóa đơn ở trạng thái Nháp. Trạng thái hiện tại: {invoice.Status}");
+                throw new InvalidOperationException($"Chỉ có thể gửi duyệt hóa đơn ở trạng thái Nháp. Trạng thái hiện tại: {invoice.Status}.");
 
             var oldStatus = invoice.Status;
             invoice.Status = "Pending";
@@ -577,7 +577,7 @@ namespace SmartInvoice.API.Services.Implementations
                     if (invoice.CompanyId != companyId)
                         throw new UnauthorizedAccessException("Không có quyền truy cập hóa đơn này.");
                     if (invoice.Status != nameof(InvoiceStatus.Draft))
-                        throw new InvalidOperationException($"Hóa đơn không ở trạng thái Nháp (Status hiện tại: {invoice.Status}).");
+                        throw new InvalidOperationException($"Hóa đơn không ở trạng thái Nháp. Trạng thái hiện tại: {invoice.Status}.");
 
                     var oldStatus = invoice.Status;
                     invoice.Status = "Pending";
@@ -647,7 +647,7 @@ namespace SmartInvoice.API.Services.Implementations
             if (invoice.CompanyId != companyId)
                 throw new UnauthorizedAccessException("Không có quyền truy cập hóa đơn này.");
             if (invoice.Status != "Pending")
-                throw new InvalidOperationException($"Chỉ có thể duyệt hóa đơn ở trạng thái Chờ duyệt. Trạng thái hiện tại: {invoice.Status}");
+                throw new InvalidOperationException($"Chỉ có thể duyệt hóa đơn ở trạng thái Chờ duyệt. Trạng thái hiện tại: {invoice.Status}.");
 
             var company = await _context.Companies.Include(c => c.SubscriptionPackage).FirstOrDefaultAsync(c => c.CompanyId == companyId);
             bool isPremiumTier = company != null && company.SubscriptionPackage != null && company.SubscriptionPackage.HasAdvancedWorkflow;
@@ -758,7 +758,7 @@ namespace SmartInvoice.API.Services.Implementations
             if (invoice.CompanyId != companyId)
                 throw new UnauthorizedAccessException("Không có quyền truy cập hóa đơn này.");
             if (invoice.Status != "Pending")
-                throw new InvalidOperationException($"Chỉ có thể từ chối hóa đơn ở trạng thái Chờ duyệt. Trạng thái hiện tại: {invoice.Status}");
+                throw new InvalidOperationException($"Chỉ có thể từ chối hóa đơn ở trạng thái Chờ duyệt. Trạng thái hiện tại: {invoice.Status}.");
 
             var oldStatus = invoice.Status;
             invoice.Status = "Rejected";
@@ -913,7 +913,7 @@ namespace SmartInvoice.API.Services.Implementations
         {
             if (string.IsNullOrEmpty(s3Key))
             {
-                throw new ArgumentException("S3Key is required.");
+                throw new ArgumentException("Thiếu mã tệp (S3Key) để thực hiện xử lý.");
             }
 
             string? tempFilePath = null;
@@ -1119,7 +1119,7 @@ namespace SmartInvoice.API.Services.Implementations
                     // Recalculate status & risk — XML is Source of Truth so can be Green
                     existingInvoice.Status = isInvoiceValid ? "Draft" : "Rejected";
                     existingInvoice.RiskLevel = isInvoiceValid ? (finalResult.WarningDetails.Any() ? "Yellow" : "Green") : "Red";
-                    existingInvoice.Notes = isInvoiceValid ? (finalResult.WarningDetails.Any() ? "Hóa đơn có cảnh báo, cần xem xét" : null) : "Hóa đơn có lỗi, cần kiểm tra lại";
+                    existingInvoice.Notes = isInvoiceValid ? (finalResult.WarningDetails.Any() ? "Hóa đơn hợp lệ nhưng có cảnh báo, vui lòng kiểm tra lại." : "Hóa đơn hợp lệ (Dữ liệu từ XML).") : "Hóa đơn không hợp lệ, vui lòng kiểm tra các lỗi chi tiết.";
                     existingInvoice.Version += 1;
                     existingInvoice.UpdatedAt = DateTime.UtcNow;
 
@@ -1292,8 +1292,8 @@ namespace SmartInvoice.API.Services.Implementations
                     Status = initialStatus,
                     RiskLevel = initialRiskLevel,
                     Notes = isInvoiceValid
-                        ? (finalResult.WarningDetails.Any() ? "Hóa đơn có cảnh báo, cần xem xét" : null)
-                        : "Hóa đơn có lỗi, cần kiểm tra lại",
+                        ? (finalResult.WarningDetails.Any() ? "Hóa đơn hợp lệ nhưng có cảnh báo, vui lòng kiểm tra lại." : "Hóa đơn hợp lệ.")
+                        : "Hóa đơn không hợp lệ, vui lòng kiểm tra các lỗi chi tiết.",
 
                     Version = finalResult.NewVersion,
 
@@ -1420,7 +1420,7 @@ namespace SmartInvoice.API.Services.Implementations
                         new() { Field = "Status", OldValue = null, NewValue = initialStatus, ChangeType = "INSERT" },
                         new() { Field = "RiskLevel", OldValue = null, NewValue = invoice.RiskLevel, ChangeType = "INSERT" }
                     },
-                    Comment = isInvoiceValid ? "Tải lên hóa đơn hợp lệ." : "Tải lên hóa đơn không hợp lệ."
+                    Comment = isInvoiceValid ? "Đã tải lên và xác thực hóa đơn thành công." : "Tải lên hoàn tất nhưng hóa đơn không hợp lệ (Dữ liệu lỗi từ XML)."
                 });
 
                 // Lưu tất cả vào Database
@@ -1486,7 +1486,7 @@ namespace SmartInvoice.API.Services.Implementations
         public async Task<ValidationResultDto> ProcessInvoiceOcrAsync(ProcessOcrRequestDto request, string userId, string companyId)
         {
             if (request.OcrResult == null)
-                throw new ArgumentException("OCR data is required.");
+                throw new ArgumentException("Thiếu dữ liệu OCR để thực hiện xử lý.");
 
             var UserId = Guid.Parse(userId);
             var CompanyId = Guid.Parse(companyId);
@@ -1770,8 +1770,8 @@ namespace SmartInvoice.API.Services.Implementations
                 Status = hasFatalError ? nameof(InvoiceStatus.Rejected) : nameof(InvoiceStatus.Draft),
                 // OCR-only: Force Yellow risk even if math is correct (missing XML evidence)
                 RiskLevel = !isInvoiceValid ? "Red" : "Yellow",
-                Notes = !isInvoiceValid ? "Hóa đơn có lỗi, cần kiểm tra lại"
-                        : "Hóa đơn từ OCR, cần bổ sung file XML gốc để xác thực pháp lý.",
+                Notes = !isInvoiceValid ? "Hóa đơn có lỗi trích xuất, vui lòng kiểm tra lại."
+                        : "Dữ liệu được trích xuất từ OCR, bạn nên bổ sung file XML để đảm bảo tính pháp lý.",
                 Version = finalResult.NewVersion,
                 Workflow = new InvoiceWorkflow { UploadedBy = UserId },
                 CreatedAt = DateTime.UtcNow
@@ -1885,7 +1885,7 @@ namespace SmartInvoice.API.Services.Implementations
                     new() { Field = "Status", OldValue = null, NewValue = isInvoiceValid ? "Draft" : "Rejected", ChangeType = "INSERT" },
                     new() { Field = "RiskLevel", OldValue = null, NewValue = invoice.RiskLevel, ChangeType = "INSERT" }
                 },
-                Comment = isInvoiceValid ? "Tải lên OCR hợp lệ. Cần bổ sung file XML gốc." : "Tải lên OCR không hợp lệ."
+                Comment = isInvoiceValid ? "Dữ liệu OCR đã được trích xuất thành công. Vui lòng bổ sung XML nếu có." : "Trích xuất OCR hoàn tất nhưng dữ liệu không hợp lệ."
             });
 
             _logger?.LogInformation("   💾 Saving invoice to database...");
