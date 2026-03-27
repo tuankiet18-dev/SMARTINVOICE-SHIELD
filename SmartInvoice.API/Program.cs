@@ -43,7 +43,7 @@ if (File.Exists(".env"))
 }
 
 // Load AWS Systems Manager Parameter Store
-builder.Configuration.AddSystemsManager("/SmartInvoice/dev/");
+builder.Configuration.AddSystemsManager("/SmartInvoice/prod/");
 
 // 1. Kết nối PostgreSQL
 var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
@@ -214,15 +214,15 @@ builder.Services.AddAuthentication(options =>
 
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true, 
-        
-        ValidIssuers = new[] { authority, $"{authority}/" }, 
-        
-        ValidateAudience = false, 
+        ValidateIssuer = true,
+
+        ValidIssuers = new[] { authority, $"{authority}/" },
+
+        ValidateAudience = false,
         ValidateLifetime = true,
-        ValidateIssuerSigningKey = true, 
-        
-        RoleClaimType = "custom:role" 
+        ValidateIssuerSigningKey = true,
+
+        RoleClaimType = "custom:role"
     };
 });
 
