@@ -3,7 +3,7 @@ import { Row, Col, Spin, Select, Card } from 'antd';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import AnalyticsCharts from '@/components/dashboard/AnalyticsCharts';
 import { useQuery } from '@tanstack/react-query';
-import { dashboardService, type DashboardPeriod } from '../services/dashboard';
+import { dashboardService, type DashboardPeriod, type ChartPeriod} from '../services/dashboard';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import dayjs from 'dayjs';
@@ -40,11 +40,12 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [period, setPeriod] = useState<DashboardPeriod>('30d');
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('6m');
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
 
   const { data: stats, isLoading, isFetching } = useQuery({
-    queryKey: ['dashboard-stats', period],
-    queryFn: () => dashboardService.getStats(period),
+    queryKey: ['dashboard-stats', period, chartPeriod],
+    queryFn: () => dashboardService.getStats(period, chartPeriod),
     refetchInterval: 30_000, 
     meta: {
       onSuccess: () => setLastRefreshTime(new Date()),
@@ -200,6 +201,28 @@ const Dashboard: React.FC = () => {
             </div>
           </Panel>
         </PanelGroup>
+      </div>
+
+      <div className="mt-10 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl text-dash-textMain font-bold tracking-tight">
+            Phân tích xu hướng (Biểu đồ)
+          </h2>
+          <p className="text-dash-textMuted text-sm">
+            Theo dõi sự thay đổi dòng tiền và mức độ rủi ro theo tháng.
+          </p>
+        </div>
+        <Select
+          value={chartPeriod}
+          onChange={(val) => setChartPeriod(val as ChartPeriod)}
+          options={[
+            { value: '3m', label: '3 tháng qua' },
+            { value: '6m', label: '6 tháng qua' },
+            { value: '12m', label: '12 tháng qua' },
+          ]}
+          style={{ width: 140 }}
+          size="middle"
+        />
       </div>
 
       <AnalyticsCharts

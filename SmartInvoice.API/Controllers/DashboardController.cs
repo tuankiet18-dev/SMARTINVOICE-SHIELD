@@ -25,13 +25,18 @@ public class DashboardController : ControllerBase
     /// </summary>
     [HttpGet("stats")]
     [Authorize(Policy = Permissions.InvoiceView)]
-    public async Task<IActionResult> GetStats([FromQuery] string period = "30d")
+    public async Task<IActionResult> GetStats([FromQuery] string period = "30d", [FromQuery] string chartPeriod = "6m")
     {
         try
         {
             var allowedPeriods = new[] { "7d", "30d", "90d", "6m", "1y", "all" };
             if (!allowedPeriods.Contains(period))
                 period = "30d";
+                
+            // Validate chartPeriod
+            var allowedChartPeriods = new[] { "3m", "6m", "12m" };
+            if (!allowedChartPeriods.Contains(chartPeriod))
+                chartPeriod = "6m";
 
             var companyIdClaim = User.FindFirst("CompanyId")?.Value;
             var userIdClaim = User.FindFirst("UserId")?.Value;
@@ -43,7 +48,8 @@ public class DashboardController : ControllerBase
                 return Unauthorized(new { message = "User identity or company information is missing in token." });
             }
 
-            var stats = await _dashboardService.GetDashboardStatsAsync(companyId, userRole, userId, period);
+            // Đừng quên cập nhật cả Interface IDashboardService.cs của bạn thêm tham số chartPeriod nữa nhé!
+            var stats = await _dashboardService.GetDashboardStatsAsync(companyId, userRole, userId, period, chartPeriod);
             return Ok(stats);
         }
         catch (Exception ex)

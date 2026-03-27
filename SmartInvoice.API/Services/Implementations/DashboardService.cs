@@ -15,7 +15,7 @@ public class DashboardService : IDashboardService
         _db = db;
     }
 
-    public async Task<DashboardStatsDto> GetDashboardStatsAsync(Guid companyId, string userRole, Guid userId, string period = "30d")
+    public async Task<DashboardStatsDto> GetDashboardStatsAsync(Guid companyId, string userRole, Guid userId, string period = "30d", string chartPeriod = "6m")
     {
         var now = DateTime.UtcNow;
 
@@ -33,7 +33,14 @@ public class DashboardService : IDashboardService
 
         var recentCutoff = recentDays > 0 ? now.AddDays(-recentDays) : (DateTime?)null;
         var previousCutoff = recentDays > 0 ? now.AddDays(-recentDays * 2) : (DateTime?)null;
-        var sevenMonthsAgo = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-6);
+        int chartMonths = chartPeriod switch
+        {
+            "3m" => 2,   // Tháng hiện tại + 2 tháng trước = 3 điểm dữ liệu
+            "6m" => 5,   // Tháng hiện tại + 5 tháng trước = 6 điểm dữ liệu
+            "12m" => 11, // Tháng hiện tại + 11 tháng trước = 12 điểm dữ liệu
+            _ => 5
+        };
+        var chartCutoff = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-chartMonths);
 
         // Base query — tenant-scoped, not deleted
         var invoices = _db.Invoices
@@ -150,7 +157,7 @@ public class DashboardService : IDashboardService
         // → Merges 2 separate GroupBy queries into 1 DB round-trip
         // ══════════════════════════════════════════════════════════════
         var monthlyData = await invoices
-            .Where(i => i.CreatedAt >= sevenMonthsAgo)
+            .Where(i => i.CreatedAt >= chartCutoff)
             .GroupBy(i => new { i.CreatedAt.Year, i.CreatedAt.Month })
             .Select(g => new
             {
@@ -172,7 +179,7 @@ public class DashboardService : IDashboardService
         var monthlyTrends = new List<MonthlyTrendItem>();
         var riskTrends = new List<RiskTrendItem>();
 
-        for (int i = -6; i <= 0; i++)
+        for (int i = -chartMonths; i <= 0; i++)
         {
             var d = now.AddMonths(i);
             var match = monthlyData.FirstOrDefault(m => m.Year == d.Year && m.Month == d.Month);

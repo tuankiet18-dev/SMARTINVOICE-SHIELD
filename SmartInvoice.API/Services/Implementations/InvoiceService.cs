@@ -84,7 +84,8 @@ namespace SmartInvoice.API.Services.Implementations
             }
 
             // 3. Cứu cánh cuối cùng: Lấy S3Key từ RawData lúc vừa upload
-            if (!string.IsNullOrEmpty(invoice.RawData?.ObjectKey))
+            // FIX: Chỉ áp dụng cho luồng OCR (API), vì luồng XML thì ObjectKey là tệp văn bản.
+            if (invoice.ProcessingMethod == "API" && !string.IsNullOrEmpty(invoice.RawData?.ObjectKey))
             {
                 return _storageService.GenerateDownloadUrl(invoice.RawData.ObjectKey);
             }

@@ -66,10 +66,12 @@ export interface DashboardStats {
   pendingAmount: number;
 }
 
+export type ChartPeriod = '3m' | '6m' | '12m';
+
 // ── Service ──
 export const dashboardService = {
-  getStats: async (period: DashboardPeriod = '30d'): Promise<DashboardStats> => {
-    const { data } = await apiClient.get('/dashboard/stats', { params: { period } });
+  getStats: async (period: DashboardPeriod = '30d', chartPeriod: ChartPeriod = '6m'): Promise<DashboardStats> => {
+    const { data } = await apiClient.get('/dashboard/stats', { params: { period, chartPeriod } });
     return data;
   },
 };
