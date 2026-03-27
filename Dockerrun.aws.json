@@ -1,7 +1,7 @@
 {
   "AWSEBDockerrunVersion": "1",
   "Image": {
-    "Name": "212208750923.dkr.ecr.ap-southeast-1.amazonaws.com/smartinvoice-backend:v10",
+    "Name": "212208750923.dkr.ecr.ap-southeast-1.amazonaws.com/smartinvoice-backend:v11",
     "Update": "true"
   },
   "Ports": [
