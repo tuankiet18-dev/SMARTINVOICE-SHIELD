@@ -186,7 +186,7 @@ builder.Services.AddScoped<ISqsService, SqsService>();
 builder.Services.AddHttpClient("OcrWorker", client =>
 {
     client.BaseAddress = new Uri(ocrApiEndpoint);
-    client.Timeout = TimeSpan.FromMinutes(5); // Increased from 3m to 5m for batch stability
+    client.Timeout = TimeSpan.FromMinutes(3); // Worst case ~1m30s (fallback), 2x safety margin
 });
 
 // Background worker that polls SQS OCR queue, downloads from S3, calls OCR API, updates DB

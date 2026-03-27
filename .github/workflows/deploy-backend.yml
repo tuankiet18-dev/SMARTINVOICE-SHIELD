@@ -2,11 +2,11 @@ name: Deploy Backend to EBS
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     paths:
-      - 'SmartInvoice.API/**'
-      - 'Dockerrun.aws.json'
-      - '.github/workflows/deploy-backend.yml'
+      - "SmartInvoice.API/**"
+      - "Dockerrun.aws.json"
+      - ".github/workflows/deploy-backend.yml"
 
 jobs:
   deploy:
@@ -61,8 +61,8 @@ jobs:
         with:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: smartinvoice-api
-          environment_name: smartinvoice-api-prod
+          application_name: Smartinvoice-api
+          environment_name: Smartinvoice-api-env
           version_label: ${{ github.sha }}
           region: ${{ secrets.AWS_REGION }}
           deployment_package: Dockerrun.aws.json

@@ -53,6 +53,6 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: smartinvoice-ocr-service
+          service: smartinvoice-ocr-task-service
           cluster: smartinvoice-cluster
           wait-for-service-stability: true

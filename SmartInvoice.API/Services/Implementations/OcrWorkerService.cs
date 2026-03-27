@@ -89,9 +89,9 @@ public class OcrWorkerService : BackgroundService
     private async Task PollAndProcessAsync(CancellationToken ct)
     {
         _logger.LogInformation(">>> [OCR_WORKER] Checking for messages in SQS URL: {QueueUrl}", _queueUrl);
-        // 600s timeout per polling/processing cycle to ensure batch completion
+        // 300s (5 min) timeout per job — worst case ~1m40s (Gemini fallback), 3x safety margin
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(600));
+        cts.CancelAfter(TimeSpan.FromSeconds(300));
 
         using var scope = _scopeFactory.CreateScope();
         var sqsService = scope.ServiceProvider.GetRequiredService<ISqsService>();
@@ -127,7 +127,7 @@ public class OcrWorkerService : BackgroundService
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested)
             {
-                _logger.LogWarning("OCR job {MessageId} timed out after 600s. Message will be retried.", message.MessageId);
+                _logger.LogWarning("OCR job {MessageId} timed out after 300s. Message will be retried.", message.MessageId);
                 // Don't delete — let SQS retry after visibility timeout
             }
             catch (Exception ex)
