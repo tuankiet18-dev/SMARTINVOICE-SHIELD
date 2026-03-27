@@ -183,7 +183,7 @@ namespace SmartInvoice.API.Services.Implementations
 
             // 1. Validation
             var existingUser = await _unitOfWork.Users.GetByEmailAsync(normalizedEmail);
-            if (existingUser != null) throw new Exception("Email already exists.");
+            if (existingUser != null) throw new Exception("Email đã được sử dụng bởi một tài khoản khác.");
 
             var taxCodeCheck = await CheckTaxCodeAsync(new CheckTaxCodeRequest { TaxCode = request.TaxCode });
             if (!taxCodeCheck.IsValid || taxCodeCheck.IsRegistered)
@@ -293,7 +293,7 @@ namespace SmartInvoice.API.Services.Implementations
                 }
 
                 if (ex is UsernameExistsException)
-                    throw new Exception("Email already registered in Cognito.");
+                    throw new Exception("Email đã được đăng ký. Vui lòng đăng nhập hoặc khôi phục mật khẩu.");
 
                 throw;
             }
@@ -339,13 +339,13 @@ namespace SmartInvoice.API.Services.Implementations
 
                 if (!user.IsActive)
                 {
-                    throw new Exception("Account is inactive.");
+                    throw new Exception("Tài khoản chưa được kích hoạt hoặc đang bị tạm khóa.");
                 }
 
                 var company = await _unitOfWork.Companies.GetByIdAsync(user.CompanyId);
                 if (company != null && !company.IsActive)
                 {
-                    throw new Exception("Company account is locked.");
+                    throw new Exception("Tài khoản công ty đang bị tạm khóa.");
                 }
 
                 user.LastLoginAt = DateTime.UtcNow;
@@ -373,11 +373,11 @@ namespace SmartInvoice.API.Services.Implementations
             }
             catch (NotAuthorizedException)
             {
-                throw new Exception("Invalid email or password.");
+                throw new Exception("Email hoặc mật khẩu không chính xác.");
             }
             catch (UserNotConfirmedException)
             {
-                throw new Exception("Account not verified. Please check your email.");
+                throw new Exception("Tài khoản chưa được xác thực. Vui lòng kiểm tra email của bạn.");
             }
             catch (Exception ex)
             {
@@ -524,11 +524,11 @@ namespace SmartInvoice.API.Services.Implementations
             }
             catch (CodeMismatchException)
             {
-                throw new Exception("Invalid verification code.");
+                throw new Exception("Mã xác thực không hợp lệ.");
             }
             catch (ExpiredCodeException)
             {
-                throw new Exception("Verification code expired.");
+                throw new Exception("Mã xác thực đã hết hạn.");
             }
             catch (Exception ex)
             {
@@ -606,7 +606,7 @@ namespace SmartInvoice.API.Services.Implementations
 
             // 1. Check if user exists locally
             var existingUser = await _unitOfWork.Users.GetByEmailAsync(normalizedEmail);
-            if (existingUser != null) throw new Exception("Admin email already exists locally.");
+            if (existingUser != null) throw new Exception("Email quản trị viên đã tồn tại trên hệ thống.");
 
             await _unitOfWork.BeginTransactionAsync();
             bool cognitoCreated = false;
@@ -709,7 +709,7 @@ namespace SmartInvoice.API.Services.Implementations
                 }
 
                 if (ex is UsernameExistsException)
-                    throw new Exception("Email already registered in Cognito.");
+                    throw new Exception("Email đã được đăng ký trên hệ thống.");
 
                 throw;
             }
