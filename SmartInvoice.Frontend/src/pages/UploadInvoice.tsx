@@ -188,8 +188,8 @@ const UploadInvoice: React.FC = () => {
               if (!warningDetails.some((w) => w.errorCode === code)) {
                 warningDetails.push({
                   errorCode: code,
-                  errorMessage: warn.errorMessage || warn.errorMessage,
-                  suggestion: warn.suggestion || warn.suggestion,
+                  errorMessage: warn.ErrorMessage || warn.errorMessage,
+                  suggestion: warn.Suggestion || warn.suggestion,
                 });
               }
             });
@@ -447,7 +447,7 @@ const UploadInvoice: React.FC = () => {
     // ════════════════════════════════════════════════════════════════════════
     const uploadSemaphore = {
       active: 0,
-      max: 1, // Chỉ upload lần lượt từng file
+      max: 5, // Tăng concurrency lên 5 để hỗ trợ upload song song
       queue: [] as (() => void)[],
       async acquire() {
         if (this.active < this.max) {
@@ -590,16 +590,10 @@ const UploadInvoice: React.FC = () => {
         const uploadTasks = fileList.map((_, i) => processFile(i));
         await Promise.all(uploadTasks);
 
-        // Task 3: OCR Phase 2 — Polling SEQUENTIALLY (Chỉ những file thành công)
-        for (let i = 0; i < fileList.length; i++) {
-          // Đọc trạng thái mới nhất từ kết quả sau Phase 1
+        // OCR Phase 2 — Polling in PARALLEL (Xử lý đồng thời tất cả các file đã upload thành công)
+        const pollingTasks = fileList.map(async (_, i) => {
           const item = resultsRef.current[i];
-          
-          // Chỉ poll nếu trạng thái là 'queued' (nghĩa là upload thành công)
-          if (!item || item.status !== "queued" || !item.invoiceId) {
-            console.log(`Skipping polling for file index ${i} due to status: ${item?.status}`);
-            continue;
-          }
+          if (!item || item.status !== "queued" || !item.invoiceId) return;
 
           setResults((prev) =>
             prev.map((r, idx) =>
@@ -627,7 +621,9 @@ const UploadInvoice: React.FC = () => {
           } catch (error: any) {
             handleProcessError(i, error);
           }
-        }
+        });
+
+        await Promise.all(pollingTasks);
       }
       setCurrentStep(3);
     } catch (err) {
