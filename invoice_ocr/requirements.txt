@@ -37,6 +37,7 @@ torch
 torchvision
 datasets
 huggingface-hub
+safetensors
 
 # =========================
 # Utils

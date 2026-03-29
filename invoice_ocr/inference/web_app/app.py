@@ -396,7 +396,7 @@ class ModelManager:
             p = Path(Config.MODEL_PATH_HEADER)
             logger.info("⚡ Lazy-loading Header model from %s", p)
             self._header_processor = LayoutLMv3Processor.from_pretrained(str(p), apply_ocr=False)
-            self._header_model = LayoutLMv3ForTokenClassification.from_pretrained(str(p))
+            self._header_model = LayoutLMv3ForTokenClassification.from_pretrained(str(p), use_safetensors=True)
             self._header_model.to(self.device)
             self._header_model.eval()
             with open(p / "label2id.json", encoding="utf-8") as f:
@@ -421,7 +421,7 @@ class ModelManager:
             p = Path(Config.MODEL_PATH_TABLE)
             logger.info("⚡ Lazy-loading Table model from %s", p)
             self._table_processor = LayoutLMv3Processor.from_pretrained(str(p), apply_ocr=False)
-            self._table_model = LayoutLMv3ForTokenClassification.from_pretrained(str(p))
+            self._table_model = LayoutLMv3ForTokenClassification.from_pretrained(str(p), use_safetensors=True)
             self._table_model.to(self.device)
             self._table_model.eval()
             with open(p / "label2id.json", encoding="utf-8") as f:
@@ -446,7 +446,7 @@ class ModelManager:
             p = Path(Config.MODEL_PATH_FOOTER)
             logger.info("⚡ Lazy-loading Footer model from %s", p)
             self._footer_processor = LayoutLMv3Processor.from_pretrained(str(p), apply_ocr=False)
-            self._footer_model = LayoutLMv3ForTokenClassification.from_pretrained(str(p))
+            self._footer_model = LayoutLMv3ForTokenClassification.from_pretrained(str(p), use_safetensors=True)
             self._footer_model.to(self.device)
             self._footer_model.eval()
             with open(p / "label2id.json", encoding="utf-8") as f:
