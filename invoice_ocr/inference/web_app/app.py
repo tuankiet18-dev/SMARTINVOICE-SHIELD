@@ -155,7 +155,7 @@ class Config:
     """
 
     BASE_DIR:    Path = Path(__file__).resolve().parent
-    DEFAULT_MODEL_DIR: Path = BASE_DIR.parent / "models"
+    DEFAULT_MODEL_DIR: Path = BASE_DIR.parent / "OCR_MODELS" / "model_final_layoutlmv3"
 
     MODEL_PATH_HEADER: str = os.getenv(
         "MODEL_PATH_HEADER",
