@@ -238,33 +238,14 @@ public class OcrWorkerService : BackgroundService
             finalErrors.AddRange(logicResult.ErrorDetails ?? new List<ValidationErrorDetail>());
             finalWarnings.AddRange(logicResult.WarningDetails ?? new List<ValidationErrorDetail>());
 
-            // Check for fatal errors (duplicate / not owner)
-            // Dừng và xóa Draft Invoice nếu lỗi nghiêm trọng (giống luồng XML) để tránh lưu dữ liệu rác
-            var fatalErrorCodes = new HashSet<string> { ErrorCodes.LogicDuplicate, ErrorCodes.LogicDuplicateRejected, ErrorCodes.LogicOwner };
-            var hasFatalError = finalErrors.Any(e =>
-                !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode));
-
-            if (hasFatalError)
-            {
-                var fatalErr = finalErrors.First(e => !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode!));
-                _logger.LogWarning("[OCR_WORKER STEP 3/7] ⚠️ FATAL ERROR detected — deleting draft invoice and aborting to prevent junk data.");
-                _logger.LogWarning("   └─ {ErrorCode}: {ErrorMessage}", fatalErr.ErrorCode, fatalErr.ErrorMessage);
-
-                var draftInvoice = await unitOfWork.Invoices.GetByIdAsync(job.InvoiceId);
-                if (draftInvoice != null)
-                {
-                    unitOfWork.Invoices.Remove(draftInvoice);
-                    await unitOfWork.CompleteAsync();
-                    _logger.LogInformation("Deleted draft invoice {InvoiceId} due to fatal error.", job.InvoiceId);
-                }
-                return;
-            }
-
             // ══════════════════════════════════════════════════
             // STEP 3.5/7: MERGE — OCR attaches to existing XML record
+            // (Must run BEFORE fatal error check to prevent merge targets from being treated as duplicates)
             // ══════════════════════════════════════════════════
-            if (logicResult.MergeMode == DTOs.Invoice.DossierMergeMode.OcrAttachesToXml
-                && logicResult.MergeTargetInvoiceId.HasValue)
+            var isMergeMode = logicResult.MergeMode == DTOs.Invoice.DossierMergeMode.OcrAttachesToXml
+                              && logicResult.MergeTargetInvoiceId.HasValue;
+
+            if (isMergeMode)
             {
                 _logger.LogInformation("[OCR_WORKER STEP 3.5/7] 🔗 MERGE MODE: Attaching OCR visual to existing XML record");
                 _logger.LogInformation("   └─ MergeTargetInvoiceId: {TargetInvoiceId}", logicResult.MergeTargetInvoiceId);
@@ -358,6 +339,29 @@ public class OcrWorkerService : BackgroundService
                         targetInvoice.InvoiceId, overallStopwatch.ElapsedMilliseconds);
                     return;
                 }
+            }
+
+            // Check for fatal errors (duplicate / not owner)
+            // Dừng và xóa Draft Invoice nếu lỗi nghiêm trọng (giống luồng XML) để tránh lưu dữ liệu rác
+            // SKIP if merge mode was intended but target not found (fallback to normal flow)
+            var fatalErrorCodes = new HashSet<string> { ErrorCodes.LogicDuplicate, ErrorCodes.LogicDuplicateRejected, ErrorCodes.LogicOwner };
+            var hasFatalError = finalErrors.Any(e =>
+                !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode));
+
+            if (hasFatalError)
+            {
+                var fatalErr = finalErrors.First(e => !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode!));
+                _logger.LogWarning("[OCR_WORKER STEP 3/7] ⚠️ FATAL ERROR detected — deleting draft invoice and aborting to prevent junk data.");
+                _logger.LogWarning("   └─ {ErrorCode}: {ErrorMessage}", fatalErr.ErrorCode, fatalErr.ErrorMessage);
+
+                var draftInvoice = await unitOfWork.Invoices.GetByIdAsync(job.InvoiceId);
+                if (draftInvoice != null)
+                {
+                    unitOfWork.Invoices.Remove(draftInvoice);
+                    await unitOfWork.CompleteAsync();
+                    _logger.LogInformation("Deleted draft invoice {InvoiceId} due to fatal error.", job.InvoiceId);
+                }
+                return;
             }
 
             // ══════════════════════════════════════════════════
