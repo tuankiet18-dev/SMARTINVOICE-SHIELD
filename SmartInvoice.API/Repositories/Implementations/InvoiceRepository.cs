@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SmartInvoice.API.Data;
@@ -25,7 +25,7 @@ namespace SmartInvoice.API.Repositories.Implementations
                 .Include(i => i.Workflow.Submitter)
                 .Include(i => i.Workflow.Approver)
                 .Include(i => i.Workflow.Rejector)
-                .FirstOrDefaultAsync(i => i.InvoiceId == id && !i.IsDeleted);
+                .FirstOrDefaultAsync(i => i.InvoiceId == id);
         }
 
         public async Task<bool> ExistsByDetailsAsync(string sellerTaxCode, string serialNumber, string invoiceNumber, Guid companyId)
@@ -61,6 +61,13 @@ namespace SmartInvoice.API.Repositories.Implementations
                     !i.IsDeleted)
                 .OrderByDescending(i => i.Version)
                 .FirstOrDefaultAsync();
+        }
+
+        public async Task<Invoice?> GetByIdIncludeDeletedAsync(Guid id)
+        {
+            return await _context.Invoices
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(i => i.InvoiceId == id);
         }
 
         public async Task<bool> ExistsByNumberAsync(string invoiceNumber, Guid companyId)

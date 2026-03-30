@@ -323,12 +323,17 @@ public class OcrWorkerService : BackgroundService
                         Comment = "Đã đính kèm bản thể hiện PDF/Ảnh (từ OCR Worker). Dữ liệu không thay đổi (giữ nguyên bản gốc XML)."
                     });
 
-                    // Delete the draft invoice created by upload-image endpoint
+                    // SOFT DELETE the draft invoice instead of hard-delete
+                    // This allows the UI polling to still find the record (since we updated Repository) 
+                    // and see the "Success" note, while IsDeleted=true hides it from main lists.
                     var draftInvoice = await unitOfWork.Invoices.GetByIdAsync(job.InvoiceId);
                     if (draftInvoice != null && draftInvoice.InvoiceId != targetInvoice.InvoiceId)
                     {
-                        unitOfWork.Invoices.Remove(draftInvoice);
-                        _logger.LogInformation("   🗑️ Deleted draft invoice {DraftId} (merged into {TargetId})",
+                        draftInvoice.Status = "Draft";
+                        draftInvoice.Notes = $"Gộp thành công vào hóa đơn XML: {targetInvoice.InvoiceNumber}";
+                        draftInvoice.IsDeleted = true;
+                        draftInvoice.DeletedAt = DateTime.UtcNow;
+                        _logger.LogInformation("   🗑️ Soft-deleted draft invoice {DraftId} (merged into {TargetId})",
                             job.InvoiceId, targetInvoice.InvoiceId);
                     }
 
@@ -351,15 +356,18 @@ public class OcrWorkerService : BackgroundService
             if (hasFatalError)
             {
                 var fatalErr = finalErrors.First(e => !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode!));
-                _logger.LogWarning("[OCR_WORKER STEP 3/7] ⚠️ FATAL ERROR detected — deleting draft invoice and aborting to prevent junk data.");
+                _logger.LogWarning("[OCR_WORKER STEP 3/7] ⚠️ FATAL ERROR detected — soft-deleting draft invoice with error note.");
                 _logger.LogWarning("   └─ {ErrorCode}: {ErrorMessage}", fatalErr.ErrorCode, fatalErr.ErrorMessage);
 
                 var draftInvoice = await unitOfWork.Invoices.GetByIdAsync(job.InvoiceId);
                 if (draftInvoice != null)
                 {
-                    unitOfWork.Invoices.Remove(draftInvoice);
+                    draftInvoice.Status = "Rejected";
+                    draftInvoice.Notes = fatalErr.ErrorMessage;
+                    draftInvoice.IsDeleted = true;
+                    draftInvoice.DeletedAt = DateTime.UtcNow;
                     await unitOfWork.CompleteAsync();
-                    _logger.LogInformation("Deleted draft invoice {InvoiceId} due to fatal error.", job.InvoiceId);
+                    _logger.LogInformation("Soft-deleted draft invoice {InvoiceId} due to fatal error: {Msg}", job.InvoiceId, fatalErr.ErrorMessage);
                 }
                 return;
             }
