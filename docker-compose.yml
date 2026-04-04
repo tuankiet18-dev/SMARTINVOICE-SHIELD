@@ -22,6 +22,8 @@ services:
       - DB_CONNECTION_STRING=Host=postgres;Port=5432;Database=SmartInvoiceDb;Username=postgres;Password=yourdescription
       - DOTNET_WATCH_SUPPRESS_PROMPTS=1
       - OCR_API_ENDPOINT=http://smartinvoice-ocr:5000
+      - AWS_SQS_OCR_URL=https://sqs.ap-southeast-1.amazonaws.com/212208750923/smartinvoice-ocr-queue
+      - AWS_SQS_URL=https://sqs.ap-southeast-1.amazonaws.com/212208750923/smartinvoice-vietqr-queue
     depends_on:
       - postgres
     networks:
