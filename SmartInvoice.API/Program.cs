@@ -175,7 +175,7 @@ builder.Services.AddAWSService<IAmazonSQS>();
 builder.Services.AddScoped<ISqsMessagePublisher, SqsMessagePublisher>();
 
 // Register VietQR SQS Consumer as a hosted background service (Commented out to prevent OCR message theft)
-// builder.Services.AddHostedService<VietQrSqsConsumerService>();
+builder.Services.AddHostedService<VietQrSqsConsumerService>();
 // ==================== END SQS CONFIGURATION ====================
 
 // ==================== OCR WORKER CONFIGURATION ====================
