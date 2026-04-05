@@ -154,7 +154,7 @@ namespace SmartInvoice.API.Repositories.Implementations
         {
             var query = _context.Invoices.IgnoreQueryFilters().AsQueryable();
 
-            query = query.Where(i => i.CompanyId == companyId && i.IsDeleted);
+            query = query.Where(i => i.CompanyId == companyId && i.IsDeleted && i.Status != "Draft");
 
             if (userRole == "Member")
             {

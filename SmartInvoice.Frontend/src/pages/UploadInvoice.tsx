@@ -255,7 +255,12 @@ const UploadInvoice: React.FC = () => {
     });
   };
 
-  const handleProcessError = (i: number, error: any) => {
+  const handleProcessError = (i: number, error: any, invoiceId?: string) => {
+    if (invoiceId && error?.response?.status !== 404) {
+      invoiceService.deleteInvoice(invoiceId)
+        .then(() => invoiceService.hardDeleteInvoice(invoiceId))
+        .catch(e => console.error("Cleanup failed", e));
+    }
     const resData = error.response?.data;
     const errMsg =
       resData?.errors?.join(", ") ||
@@ -300,7 +305,7 @@ const UploadInvoice: React.FC = () => {
       );
       updateResultWithDetail(index, detail);
     } catch (error: any) {
-      handleProcessError(index, error);
+      handleProcessError(index, error, invoiceId);
     }
   };
 
@@ -569,7 +574,7 @@ const UploadInvoice: React.FC = () => {
             } catch (innerError: any) {
               // Bắt lỗi upload (VD: net::ERR_CONNECTION_REFUSED)
               console.error(`Upload failed for file ${i}:`, innerError);
-              handleProcessError(i, innerError);
+              handleProcessError(i, innerError, invoiceId);
               // Lưu ý: Không ném lỗi ra ngoài để tránh làm sập luồng Promise.all của các file khác
             }
           } finally {
@@ -577,7 +582,7 @@ const UploadInvoice: React.FC = () => {
           }
         }
       } catch (outerError: any) {
-        handleProcessError(i, outerError);
+        handleProcessError(i, outerError, results[i]?.invoiceId);
       }
     };
 
@@ -619,7 +624,7 @@ const UploadInvoice: React.FC = () => {
             );
             updateResultWithDetail(i, detail);
           } catch (error: any) {
-            handleProcessError(i, error);
+            handleProcessError(i, error, item?.invoiceId);
           }
         });
 

@@ -164,6 +164,7 @@ public class OcrWorkerService : BackgroundService
         var s3Service = scope.ServiceProvider.GetRequiredService<IAwsS3Service>();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         var invoiceProcessor = scope.ServiceProvider.GetRequiredService<IInvoiceProcessorService>();
+        var storageService = scope.ServiceProvider.GetRequiredService<StorageService>();
         var sqsPublisher = scope.ServiceProvider.GetRequiredService<ISqsMessagePublisher>();
         var configProvider = scope.ServiceProvider.GetRequiredService<ISystemConfigProvider>();
 
@@ -210,8 +211,26 @@ public class OcrWorkerService : BackgroundService
             {
                 var errorMsg = ocrResponse?.Error ?? "Unknown OCR error";
                 _logger.LogWarning("[OCR_WORKER STEP 2/7] ❌ OCR returned failure: {Error}", errorMsg);
-                await UpdateInvoiceStatus(unitOfWork, job.InvoiceId, "Failed", "Red",
-                    $"OCR trích xuất thất bại: {errorMsg}");
+                
+                // User requirement: Hard-delete completely so it doesn't show as N/A in InvoiceList taking up storage.
+                var draftInvoice = await unitOfWork.Invoices.GetByIdAsync(job.InvoiceId);
+                if (draftInvoice != null)
+                {
+                    _logger.LogInformation("Hard-deleting draft invoice {InvoiceId} completely due to OCR failure: {Msg}", job.InvoiceId, errorMsg);
+                    
+                    if (draftInvoice.OriginalFileId.HasValue)
+                    {
+                        var originalFile = await unitOfWork.FileStorages.GetByIdAsync(draftInvoice.OriginalFileId.Value);
+                        if (originalFile != null && !string.IsNullOrEmpty(originalFile.S3Key))
+                        {
+                            await storageService.DeleteFileAsync(originalFile.S3Key);
+                            unitOfWork.FileStorages.Remove(originalFile);
+                        }
+                    }
+                    
+                    unitOfWork.Invoices.Remove(draftInvoice);
+                    await unitOfWork.CompleteAsync();
+                }
                 return; // Permanent failure → message will be deleted
             }
 
@@ -362,12 +381,21 @@ public class OcrWorkerService : BackgroundService
                 var draftInvoice = await unitOfWork.Invoices.GetByIdAsync(job.InvoiceId);
                 if (draftInvoice != null)
                 {
-                    draftInvoice.Status = "Rejected";
-                    draftInvoice.Notes = fatalErr.ErrorMessage;
-                    draftInvoice.IsDeleted = true;
-                    draftInvoice.DeletedAt = DateTime.UtcNow;
+                    _logger.LogInformation("Hard-deleting draft invoice {InvoiceId} completely due to fatal error: {Msg}", job.InvoiceId, fatalErr.ErrorMessage);
+                    
+                    // Delete the S3 file to save storage
+                    if (draftInvoice.OriginalFileId.HasValue)
+                    {
+                        var originalFile = await unitOfWork.FileStorages.GetByIdAsync(draftInvoice.OriginalFileId.Value);
+                        if (originalFile != null && !string.IsNullOrEmpty(originalFile.S3Key))
+                        {
+                            await storageService.DeleteFileAsync(originalFile.S3Key);
+                            unitOfWork.FileStorages.Remove(originalFile);
+                        }
+                    }
+                    
+                    unitOfWork.Invoices.Remove(draftInvoice);
                     await unitOfWork.CompleteAsync();
-                    _logger.LogInformation("Soft-deleted draft invoice {InvoiceId} due to fatal error: {Msg}", job.InvoiceId, fatalErr.ErrorMessage);
                 }
                 return;
             }
