@@ -224,9 +224,13 @@ public class OcrWorkerService : BackgroundService
                         if (originalFile != null && !string.IsNullOrEmpty(originalFile.S3Key))
                         {
                             await storageService.DeleteFileAsync(originalFile.S3Key);
-                            unitOfWork.FileStorages.Remove(originalFile);
-                        }
-                    }
+                unitOfWork.FileStorages.Remove(originalFile);
+            }
+        }
+        else if (draftInvoice.RawData != null && !string.IsNullOrEmpty(draftInvoice.RawData.ObjectKey))
+        {
+            await storageService.DeleteFileAsync(draftInvoice.RawData.ObjectKey);
+        }
                     
                     unitOfWork.Invoices.Remove(draftInvoice);
                     await unitOfWork.CompleteAsync();
@@ -349,7 +353,7 @@ public class OcrWorkerService : BackgroundService
                     if (draftInvoice != null && draftInvoice.InvoiceId != targetInvoice.InvoiceId)
                     {
                         draftInvoice.Status = "Draft";
-                        draftInvoice.Notes = $"Gộp thành công vào hóa đơn XML: {targetInvoice.InvoiceNumber}";
+                        draftInvoice.Notes = $"MERGED_INTO:{targetInvoice.InvoiceId}";
                         draftInvoice.IsDeleted = true;
                         draftInvoice.DeletedAt = DateTime.UtcNow;
                         _logger.LogInformation("   🗑️ Soft-deleted draft invoice {DraftId} (merged into {TargetId})",
@@ -368,7 +372,7 @@ public class OcrWorkerService : BackgroundService
             // Check for fatal errors (duplicate / not owner)
             // Dừng và xóa Draft Invoice nếu lỗi nghiêm trọng (giống luồng XML) để tránh lưu dữ liệu rác
             // SKIP if merge mode was intended but target not found (fallback to normal flow)
-            var fatalErrorCodes = new HashSet<string> { ErrorCodes.LogicDuplicate, ErrorCodes.LogicDuplicateRejected, ErrorCodes.LogicOwner };
+            var fatalErrorCodes = new HashSet<string> { ErrorCodes.LogicDuplicate, ErrorCodes.LogicDuplicateRejected };
             var hasFatalError = finalErrors.Any(e =>
                 !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode));
 
@@ -390,9 +394,13 @@ public class OcrWorkerService : BackgroundService
                         if (originalFile != null && !string.IsNullOrEmpty(originalFile.S3Key))
                         {
                             await storageService.DeleteFileAsync(originalFile.S3Key);
-                            unitOfWork.FileStorages.Remove(originalFile);
-                        }
-                    }
+                unitOfWork.FileStorages.Remove(originalFile);
+            }
+        }
+        else if (draftInvoice.RawData != null && !string.IsNullOrEmpty(draftInvoice.RawData.ObjectKey))
+        {
+            await storageService.DeleteFileAsync(draftInvoice.RawData.ObjectKey);
+        }
                     
                     unitOfWork.Invoices.Remove(draftInvoice);
                     await unitOfWork.CompleteAsync();

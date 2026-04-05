@@ -54,7 +54,23 @@ namespace SmartInvoice.API.Services.Implementations
         public async Task<InvoiceDetailDto?> GetInvoiceDetailAsync(Guid invoiceId, Guid companyId, Guid userId, string userRole)
         {
             var invoice = await _unitOfWork.Invoices.GetInvoiceWithDetailsAsync(invoiceId);
-            if (invoice == null) return null;
+            
+            // If the invoice was soft-deleted because it was merged into another invoice
+            if (invoice != null && invoice.IsDeleted && invoice.Status == "Draft" && !string.IsNullOrEmpty(invoice.Notes) && invoice.Notes.StartsWith("MERGED_INTO:"))
+            {
+                var targetIdStr = invoice.Notes.Substring("MERGED_INTO:".Length);
+                if (Guid.TryParse(targetIdStr, out var targetId))
+                {
+                    var targetInvoice = await _unitOfWork.Invoices.GetInvoiceWithDetailsAsync(targetId);
+                    if (targetInvoice != null && !targetInvoice.IsDeleted)
+                    {
+                        invoice = targetInvoice;
+                        _logger?.LogInformation("GetInvoiceDetailAsync redirected deleted draft {DraftId} to merged target {TargetId}", invoiceId, targetId);
+                    }
+                }
+            }
+
+            if (invoice == null || invoice.IsDeleted) return null;
 
             // Multi-tenant check
             if (invoice.CompanyId != companyId) return null;
