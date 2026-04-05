@@ -287,7 +287,7 @@ export const invoiceService = {
     async pollInvoiceUntilDone(
         invoiceId: string,
         onStatusChange?: (status: string) => void,
-        maxAttempts: number = 60,
+        maxAttempts: number = 180,
         intervalMs: number = 5000
     ): Promise<InvoiceDetailDto> {
         for (let attempt = 0; attempt < maxAttempts; attempt++) {

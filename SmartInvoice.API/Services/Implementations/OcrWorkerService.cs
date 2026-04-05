@@ -217,20 +217,17 @@ public class OcrWorkerService : BackgroundService
                 if (draftInvoice != null)
                 {
                     _logger.LogInformation("Hard-deleting draft invoice {InvoiceId} completely due to OCR failure: {Msg}", job.InvoiceId, errorMsg);
-                    
+
+                    if (!string.IsNullOrEmpty(job.S3Key))
+                    {
+                        await storageService.DeleteFileAsync(job.S3Key);
+                    }
                     if (draftInvoice.OriginalFileId.HasValue)
                     {
                         var originalFile = await unitOfWork.FileStorages.GetByIdAsync(draftInvoice.OriginalFileId.Value);
-                        if (originalFile != null && !string.IsNullOrEmpty(originalFile.S3Key))
-                        {
-                            await storageService.DeleteFileAsync(originalFile.S3Key);
-                unitOfWork.FileStorages.Remove(originalFile);
-            }
-        }
-        else if (draftInvoice.RawData != null && !string.IsNullOrEmpty(draftInvoice.RawData.ObjectKey))
-        {
-            await storageService.DeleteFileAsync(draftInvoice.RawData.ObjectKey);
-        }
+                        if (originalFile != null)
+                            unitOfWork.FileStorages.Remove(originalFile);
+                    }
                     
                     unitOfWork.Invoices.Remove(draftInvoice);
                     await unitOfWork.CompleteAsync();
@@ -386,23 +383,17 @@ public class OcrWorkerService : BackgroundService
                 if (draftInvoice != null)
                 {
                     _logger.LogInformation("Hard-deleting draft invoice {InvoiceId} completely due to fatal error: {Msg}", job.InvoiceId, fatalErr.ErrorMessage);
-                    
                     // Delete the S3 file to save storage
+                    if (!string.IsNullOrEmpty(job.S3Key))
+                    {
+                        await storageService.DeleteFileAsync(job.S3Key);
+                    }
                     if (draftInvoice.OriginalFileId.HasValue)
                     {
                         var originalFile = await unitOfWork.FileStorages.GetByIdAsync(draftInvoice.OriginalFileId.Value);
-                        if (originalFile != null && !string.IsNullOrEmpty(originalFile.S3Key))
-                        {
-                            await storageService.DeleteFileAsync(originalFile.S3Key);
-                unitOfWork.FileStorages.Remove(originalFile);
-            }
-        }
-        else if (draftInvoice.RawData != null && !string.IsNullOrEmpty(draftInvoice.RawData.ObjectKey))
-        {
-            await storageService.DeleteFileAsync(draftInvoice.RawData.ObjectKey);
-        }
-                    
-                    unitOfWork.Invoices.Remove(draftInvoice);
+                        if (originalFile != null)
+                            unitOfWork.FileStorages.Remove(originalFile);
+                    }
                     await unitOfWork.CompleteAsync();
                 }
                 return;

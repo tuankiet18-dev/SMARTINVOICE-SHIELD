@@ -755,7 +755,6 @@ namespace SmartInvoice.API.Services.Implementations
                     bool isMerge = false;
                     if (
                         processingMethod == "XML"
-                        && existingInvoice.OriginalFileId == null
                         && existingInvoice.ProcessingMethod == "API"
                     )
                     {
@@ -763,7 +762,7 @@ namespace SmartInvoice.API.Services.Implementations
                         result.MergeTargetInvoiceId = existingInvoice.InvoiceId;
                         isMerge = true;
                     }
-                    else if (processingMethod == "API" && existingInvoice.OriginalFileId != null)
+                    else if (processingMethod == "API" && existingInvoice.ProcessingMethod == "XML")
                     {
                         result.MergeMode = DTOs.Invoice.DossierMergeMode.OcrAttachesToXml;
                         result.MergeTargetInvoiceId = existingInvoice.InvoiceId;
@@ -1375,12 +1374,10 @@ namespace SmartInvoice.API.Services.Implementations
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                string? sellerTax = ocrData.Seller?.TaxCode?.Value;
-                string? buyerTax = ocrData.Buyer?.TaxCode?.Value;
-                string? khhDon = ocrData.Invoice?.Symbol?.Value;
-                string? shDon = ocrData.Invoice?.Number?.Value;
-
-                // Add errors/warnings from Python validator (OCR side)
+                string? sellerTax = ocrData.Seller?.TaxCode?.Value?.Trim();
+                string? buyerTax = ocrData.Buyer?.TaxCode?.Value?.Trim();
+                string? khhDon = ocrData.Invoice?.Symbol?.Value?.Trim();
+                string? shDon = ocrData.Invoice?.Number?.Value?.Trim();
                 if (ocrData.Validation != null)
                 {
                     if (ocrData.Validation.Errors != null)

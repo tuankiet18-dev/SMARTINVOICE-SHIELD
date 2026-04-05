@@ -54,7 +54,8 @@ namespace SmartInvoice.API.Services.Implementations
         public async Task<InvoiceDetailDto?> GetInvoiceDetailAsync(Guid invoiceId, Guid companyId, Guid userId, string userRole)
         {
             var invoice = await _unitOfWork.Invoices.GetInvoiceWithDetailsAsync(invoiceId);
-            
+            bool wasMerged = false;
+
             // If the invoice was soft-deleted because it was merged into another invoice
             if (invoice != null && invoice.IsDeleted && invoice.Status == "Draft" && !string.IsNullOrEmpty(invoice.Notes) && invoice.Notes.StartsWith("MERGED_INTO:"))
             {
@@ -62,9 +63,10 @@ namespace SmartInvoice.API.Services.Implementations
                 if (Guid.TryParse(targetIdStr, out var targetId))
                 {
                     var targetInvoice = await _unitOfWork.Invoices.GetInvoiceWithDetailsAsync(targetId);
-                    if (targetInvoice != null && !targetInvoice.IsDeleted)
+                    if (targetInvoice != null && !targetInvoice.IsDeleted)  
                     {
                         invoice = targetInvoice;
+                        wasMerged = true;
                         _logger?.LogInformation("GetInvoiceDetailAsync redirected deleted draft {DraftId} to merged target {TargetId}", invoiceId, targetId);
                     }
                 }
@@ -78,7 +80,15 @@ namespace SmartInvoice.API.Services.Implementations
             // RBAC: Member chỉ xem hóa đơn do mình upload
             if (userRole == "Member" && invoice.Workflow.UploadedBy != userId) return null;
 
-            return MapToDetailDto(invoice);
+            var dto = MapToDetailDto(invoice);
+            
+            // To prevent frontend polling timeout after merge, we fake "Success" status just for this redirected request
+            if (wasMerged && dto.Status == "Draft") 
+            {
+                dto.Status = "Success";
+            }
+            
+            return dto;
         }
 
         public async Task<string?> GetVisualFileUrlAsync(Guid invoiceId, Guid companyId)
