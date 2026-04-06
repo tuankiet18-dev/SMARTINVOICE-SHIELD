@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using SmartInvoice.API.DTOs;
@@ -27,6 +27,7 @@ namespace SmartInvoice.API.Services.Interfaces
                 Task<PagedResult<InvoiceDto>> GetTrashInvoicesAsync(GetInvoicesQueryDto query, Guid companyId, Guid userId, string userRole);
                 Task<bool> RestoreInvoiceAsync(Guid id, Guid companyId, Guid userId, string userRole);
                 Task<bool> HardDeleteInvoiceAsync(Guid id, Guid companyId, Guid userId, string userRole);
+                Task<int> EmptyTrashAsync(Guid companyId, Guid userId, string userRole);
 
                 // ─── Workflow ───
                 Task SubmitInvoiceAsync(Guid invoiceId, Guid companyId, Guid userId, string userEmail, string userRole, string? comment, string? ipAddress);

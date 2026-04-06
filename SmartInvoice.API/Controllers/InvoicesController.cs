@@ -390,6 +390,21 @@ namespace SmartInvoice.API.Controller
             }
         }
 
+        [HttpDelete("trash/empty")]
+        [Authorize(Policy = Constants.Permissions.InvoiceEdit)]
+        public async Task<IActionResult> EmptyTrash()
+        {
+            try
+            {
+                var (userId, companyId, userRole, _) = GetUserInfo();
+                var deletedCount = await _invoiceService.EmptyTrashAsync(companyId, userId, userRole);
+                return Ok(new { Message = $"Đã xóa vĩnh viễn {deletedCount} hóa đơn. Dung lượng đã được hoàn trả.", DeletedCount = deletedCount });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Lỗi hệ thống nội bộ khi dọn thùng rác.", Error = ex.Message });
+            }
+        }
 
         [HttpGet("{id:guid}")]
         [Authorize(Policy = Constants.Permissions.InvoiceView)]

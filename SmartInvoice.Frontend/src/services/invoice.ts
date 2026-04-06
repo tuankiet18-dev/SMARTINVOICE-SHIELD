@@ -459,6 +459,11 @@ export const invoiceService = {
         await apiClient.delete(`/invoices/${id}/hard`);
     },
 
+    async emptyTrash(): Promise<{ message: string; deletedCount: number }> {
+        const response = await apiClient.delete<{ message: string; deletedCount: number }>('/invoices/trash/empty');
+        return response.data;
+    },
+
     // --- Audit Logs ---
     async getAuditLogs(id: string): Promise<AuditLogDto[]> {
         const response = await apiClient.get<AuditLogDto[]>(`/invoices/${id}/audit-logs`);

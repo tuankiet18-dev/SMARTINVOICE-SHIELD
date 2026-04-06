@@ -472,6 +472,71 @@ namespace SmartInvoice.API.Services.Implementations
             return true;
         }
 
+        public async Task<int> EmptyTrashAsync(Guid companyId, Guid userId, string userRole)
+        {
+            // Lấy tất cả invoice đã xóa mềm của company (kể cả Draft)
+            var allTrash = await _context.Invoices
+                .IgnoreQueryFilters()
+                .Include(i => i.OriginalFile)
+                .Include(i => i.VisualFile)
+                .Where(i => i.CompanyId == companyId && i.IsDeleted)
+                .ToListAsync();
+
+            // Member chỉ xóa hóa đơn của mình
+            if (userRole == "Member")
+                allTrash = allTrash.Where(i => i.Workflow.UploadedBy == userId).ToList();
+
+            if (allTrash.Count == 0) return 0;
+
+            long totalReleasedSize = 0;
+            var processedFileIds = new HashSet<Guid>();
+
+            foreach (var invoice in allTrash)
+            {
+                // Xóa OriginalFile (XML) trên S3
+                if (invoice.OriginalFile != null && !processedFileIds.Contains(invoice.OriginalFile.FileId))
+                {
+                    processedFileIds.Add(invoice.OriginalFile.FileId);
+                    if (!string.IsNullOrEmpty(invoice.OriginalFile.S3Key))
+                    {
+                        try { await _storageService.DeleteFileAsync(invoice.OriginalFile.S3Key); } catch { /* best-effort */ }
+                        totalReleasedSize += invoice.OriginalFile.FileSize;
+                    }
+                    _unitOfWork.FileStorages.Remove(invoice.OriginalFile);
+                }
+
+                // Xóa VisualFile (PDF/Ảnh) trên S3 — chỉ nếu khác OriginalFile
+                if (invoice.VisualFile != null
+                    && invoice.VisualFileId != invoice.OriginalFileId
+                    && !processedFileIds.Contains(invoice.VisualFile.FileId))
+                {
+                    processedFileIds.Add(invoice.VisualFile.FileId);
+                    if (!string.IsNullOrEmpty(invoice.VisualFile.S3Key))
+                    {
+                        try { await _storageService.DeleteFileAsync(invoice.VisualFile.S3Key); } catch { /* best-effort */ }
+                        totalReleasedSize += invoice.VisualFile.FileSize;
+                    }
+                    _unitOfWork.FileStorages.Remove(invoice.VisualFile);
+                }
+
+                // Xóa file từ RawData (OCR upload chưa có FileStorage record riêng)
+                if (invoice.OriginalFileId == null && invoice.VisualFileId == null
+                    && !string.IsNullOrEmpty(invoice.RawData?.ObjectKey))
+                {
+                    try { await _storageService.DeleteFileAsync(invoice.RawData.ObjectKey); } catch { /* best-effort */ }
+                }
+
+                _unitOfWork.Invoices.Remove(invoice);
+            }
+
+            if (totalReleasedSize > 0)
+                await _quotaService.ReleaseStorageQuotaAsync(companyId, totalReleasedSize);
+
+            await _unitOfWork.CompleteAsync();
+            return allTrash.Count;
+        }
+
+
         public async Task<bool> ValidateInvoiceAsync(Guid id)
         {
             return true;

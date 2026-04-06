@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, Table, Typography, Space, Button, Input, Modal, message, Tag, Tabs } from 'antd';
-import { RetweetOutlined, DeleteOutlined, ExclamationCircleOutlined, SearchOutlined } from '@ant-design/icons';
+import { Card, Table, Typography, Space, Button, Input, Modal, message, Tag, Tabs, Tooltip } from 'antd';
+import { RetweetOutlined, DeleteOutlined, ExclamationCircleOutlined, SearchOutlined, ClearOutlined, FileTextOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 
@@ -54,6 +54,17 @@ const TrashInvoiceList: React.FC = () => {
     },
   });
 
+  const emptyTrashMutation = useMutation({
+    mutationFn: () => invoiceService.emptyTrash(),
+    onSuccess: (result) => {
+      message.success(result.message || `Đã dọn sạch thùng rác (${result.deletedCount} hóa đơn)`);
+      queryClient.invalidateQueries({ queryKey: ['trash-invoices'] });
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.message || 'Dọn thùng rác thất bại');
+    },
+  });
+
   const handleRestoreInvoice = (record: any) => {
     confirm({
       title: 'Khôi phục hóa đơn?',
@@ -82,6 +93,32 @@ const TrashInvoiceList: React.FC = () => {
       cancelText: 'Hủy',
       onOk() {
         hardDeleteInvoiceMutation.mutate(record.invoiceId);
+      },
+    });
+  };
+
+  const handleEmptyTrash = () => {
+    const total = invoiceData?.totalCount ?? 0;
+    if (total === 0) {
+      message.info('Thùng rác đang trống.');
+      return;
+    }
+    confirm({
+      title: 'Dọn sạch thùng rác?',
+      icon: <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />,
+      content: (
+        <div>
+          <p>Bạn có chắc muốn xóa vĩnh viễn <strong>tất cả {total} hóa đơn</strong> trong thùng rác?</p>
+          <p style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
+            Hành động này không thể hoàn tác. Tất cả file XML và PDF liên quan sẽ bị xóa khỏi hệ thống lưu trữ và dung lượng sẽ được hoàn trả.
+          </p>
+        </div>
+      ),
+      okText: 'Dọn sạch',
+      okType: 'danger',
+      cancelText: 'Hủy',
+      onOk() {
+        emptyTrashMutation.mutate();
       },
     });
   };
@@ -186,6 +223,16 @@ const TrashInvoiceList: React.FC = () => {
         ),
     },
     {
+        title: 'Loại file',
+        dataIndex: 'processingMethod',
+        key: 'processingMethod',
+        render: (method: string) => {
+            if (method === 'XML') return <Tooltip title="Hóa đơn điện tử XML"><Tag icon={<FileTextOutlined />} color="blue">XML</Tag></Tooltip>;
+            if (method === 'API') return <Tooltip title="Hóa đơn được bóc tách qua OCR (PDF/Ảnh)"><Tag icon={<FilePdfOutlined />} color="orange">PDF/OCR</Tag></Tooltip>;
+            return <Tag>{method || 'N/A'}</Tag>;
+        },
+    },
+    {
         title: 'Rủi ro',
         dataIndex: 'riskLevel',
         key: 'riskLevel',
@@ -208,19 +255,21 @@ const TrashInvoiceList: React.FC = () => {
         align: 'center' as const,
         render: (_: any, record: any) => (
             <Space size="middle">
-                <Button
-                    type="text"
-                    icon={<RetweetOutlined style={{ color: '#1890ff' }} />}
-                    onClick={() => handleRestoreInvoice(record)}
-                    title="Khôi phục"
-                />
-                <Button
-                    type="text"
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={() => handleHardDeleteInvoice(record)}
-                    title="Xóa vĩnh viễn"
-                />
+                <Tooltip title="Khôi phục">
+                  <Button
+                      type="text"
+                      icon={<RetweetOutlined style={{ color: '#1890ff' }} />}
+                      onClick={() => handleRestoreInvoice(record)}
+                  />
+                </Tooltip>
+                <Tooltip title="Xóa vĩnh viễn">
+                  <Button
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => handleHardDeleteInvoice(record)}
+                  />
+                </Tooltip>
             </Space>
         ),
     },
@@ -289,7 +338,7 @@ const TrashInvoiceList: React.FC = () => {
   const items = [
     {
       key: '1',
-      label: 'Hóa đơn đã xóa',
+      label: `Hóa đơn đã xóa${invoiceData?.totalCount ? ` (${invoiceData.totalCount})` : ''}`,
       children: (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -301,12 +350,21 @@ const TrashInvoiceList: React.FC = () => {
               style={{ maxWidth: 400 }}
               allowClear
             />
+            <Button
+              danger
+              icon={<ClearOutlined />}
+              onClick={handleEmptyTrash}
+              loading={emptyTrashMutation.isPending}
+              disabled={!invoiceData?.totalCount}
+            >
+              Dọn sạch thùng rác
+            </Button>
           </div>
           <Table
             columns={invoiceColumns}
             dataSource={invoiceData?.items || []}
             rowKey="invoiceId"
-            loading={isLoadingInvoices}
+            loading={isLoadingInvoices || emptyTrashMutation.isPending}
             pagination={{
               current: invoicePage,
               pageSize: invoicePageSize,
