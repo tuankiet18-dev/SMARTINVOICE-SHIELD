@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 # gemini-2.0-flash  → GA, stable, best for paid accounts
 # gemini-2.5-flash  → Preview (quota unreliable even on paid tier)
 # gemini-1.5-flash  → Legacy stable fallback
-GEMINI_MODEL_PRIMARY  = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL_PRIMARY  = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_MODEL_FALLBACK = "gemini-1.5-flash"
 GEMINI_MODEL          = GEMINI_MODEL_PRIMARY
 
