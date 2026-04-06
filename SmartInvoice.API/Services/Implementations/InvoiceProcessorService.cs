@@ -885,7 +885,9 @@ namespace SmartInvoice.API.Services.Implementations
             if (totalLineItemsTax.HasValue && totalTax > 0)
             {
                 decimal lineTax = totalLineItemsTax.Value;
-                if (Math.Abs(lineTax - totalTax) > tolerance)
+                bool skipOcrLineTaxZero = source == "OCR" && lineTax == 0;
+                
+                if (Math.Abs(lineTax - totalTax) > tolerance && !skipOcrLineTaxZero)
                 {
                     result.AddWarning(
                         source == "OCR" ? "WARN_LOGIC_TAX_MISMATCH_OCR" : "WARN_LOGIC_TAX_MISMATCH",

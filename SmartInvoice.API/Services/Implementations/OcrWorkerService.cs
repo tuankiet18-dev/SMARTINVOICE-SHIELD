@@ -371,7 +371,7 @@ public class OcrWorkerService : BackgroundService
             // Check for fatal errors (duplicate / not owner)
             // Dừng và xóa Draft Invoice nếu lỗi nghiêm trọng (giống luồng XML) để tránh lưu dữ liệu rác
             // SKIP if merge mode was intended but target not found (fallback to normal flow)
-            var fatalErrorCodes = new HashSet<string> { ErrorCodes.LogicDuplicate, ErrorCodes.LogicDuplicateRejected };
+            var fatalErrorCodes = new HashSet<string> { ErrorCodes.LogicDuplicate, ErrorCodes.LogicDuplicateRejected, ErrorCodes.LogicOwner };
             var hasFatalError = finalErrors.Any(e =>
                 !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode));
 

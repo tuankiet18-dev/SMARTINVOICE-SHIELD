@@ -1705,7 +1705,10 @@ const UploadInvoice: React.FC = () => {
                   }
                   return (
                     <div style={{ background: "#fafbfc", padding: "16px" }}>
-                      <BusinessValidationSummary result={record.result} />
+                      <BusinessValidationSummary 
+                        result={record.result} 
+                        processingMethod={record.processingMethod}
+                      />
                     </div>
                   );
                 },
