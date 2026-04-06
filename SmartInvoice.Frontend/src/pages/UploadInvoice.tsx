@@ -876,7 +876,8 @@ const UploadInvoice: React.FC = () => {
     if (
       record.invoiceId &&
       record.processingMethod?.toUpperCase() === "OCR" &&
-      (record.status === "success" || record.status === "warning")
+      (record.status === "success" || record.status === "warning") &&
+      !record.errorMessage?.toLowerCase().includes("đã ghép vào")
     ) {
       menuItems.push({
         key: "ocr-review",

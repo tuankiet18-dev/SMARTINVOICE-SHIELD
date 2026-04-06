@@ -392,6 +392,7 @@ public class OcrWorkerService : BackgroundService
                         if (originalFile != null)
                             unitOfWork.FileStorages.Remove(originalFile);
                     }
+                    unitOfWork.Invoices.Remove(draftInvoice);
                     await unitOfWork.CompleteAsync();
                 }
                 return;
@@ -455,7 +456,11 @@ public class OcrWorkerService : BackgroundService
 
                     visualFileId = fileStorage.FileId;
                     await unitOfWork.FileStorages.AddAsync(fileStorage);
-                    _logger.LogInformation("   └─ ✅ FileStorage created: {FileId}", visualFileId);
+
+                    var quotaService = scope.ServiceProvider.GetRequiredService<IQuotaService>();
+                    await quotaService.ConsumeStorageQuotaAsync(job.CompanyId, imageBytes.Length);
+
+                    _logger.LogInformation("   └─ ✅ FileStorage created: {FileId}. Storage quota consumed: {Size} bytes.", visualFileId, imageBytes.Length);
                 }
             }
 

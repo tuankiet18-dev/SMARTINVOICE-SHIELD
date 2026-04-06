@@ -15,13 +15,17 @@ from typing import Optional
 from google import genai
 from google.genai import types
 
+import os
+
 log = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-# gemini-2.0-flash has limit:0 on this account's free tier
-# gemini-2.5-flash is confirmed working (tested 2026-03-16)
-GEMINI_MODEL_PRIMARY  = "gemini-2.5-flash"
-GEMINI_MODEL_FALLBACK = "gemini-2.5-flash"   # same — only one works
+# Model selection (env var overrides — set GEMINI_MODEL in .env to switch)
+# gemini-2.0-flash  → GA, stable, best for paid accounts
+# gemini-2.5-flash  → Preview (quota unreliable even on paid tier)
+# gemini-1.5-flash  → Legacy stable fallback
+GEMINI_MODEL_PRIMARY  = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL_FALLBACK = "gemini-1.5-flash"
 GEMINI_MODEL          = GEMINI_MODEL_PRIMARY
 
 TEMPERATURE  = 0.0    # 0 = deterministic, tối quan trọng cho extraction
