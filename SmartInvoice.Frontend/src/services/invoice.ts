@@ -303,17 +303,16 @@ export const invoiceService = {
             } catch (err: any) {
                 if (err?.response?.status === 404) {
                     consecutiveNotFound++;
-                    // If we get 2 consecutive 404s after the invoice was in Processing,
-                    // it means the worker hard-deleted it because it was successfully merged
-                    // into an existing XML invoice. Treat this as a successful merge.
-                    if (consecutiveNotFound >= 2 || attempt > 0) {
+                    // If we get 2 consecutive 404s, it means the worker hard-deleted it (merged or fatal error).
+                    // Treat this as a successful merge.
+                    if (consecutiveNotFound >= 2) {
                         // Return a synthetic "Merged" result so the UI can handle it gracefully
                         return {
                             invoiceId,
                             invoiceNumber: 'MERGED',
                             status: 'Merged',
                             riskLevel: 'Green',
-                            processingMethod: 'API',
+                            processingMethod: 'OCR',
                             invoiceDate: new Date().toISOString(),
                             invoiceCurrency: 'VND',
                             exchangeRate: 1,

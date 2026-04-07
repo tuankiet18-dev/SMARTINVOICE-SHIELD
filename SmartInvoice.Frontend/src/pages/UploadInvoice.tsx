@@ -153,6 +153,46 @@ const UploadInvoice: React.FC = () => {
       return;
     }
 
+    // Special case: Backend soft-rejected (e.g. LogicOwner - wrong company)
+    // Show as fatal error "Lỗi (Không lưu)" AND immediately clean up the DB record
+    if (detail.status === 'Rejected') {
+      const rejectedInvoiceId = detail.invoiceId;
+      const rejectionMsg = detail.notes || 'Hóa đơn bị từ chối do không hợp lệ.';
+      const rejectionErrorCode = 'ERR_LOGIC_OWNER';
+
+      // Immediately hard-delete the rejected invoice to ensure "không lưu"
+      if (rejectedInvoiceId) {
+        invoiceService.hardDeleteInvoice(rejectedInvoiceId)
+          .catch(e => console.warn('Cleanup of rejected invoice failed (may already be deleted):', e));
+      }
+
+      setResults((prev) => {
+        const next = prev.map((item, idx) => {
+          if (idx !== i) return item;
+          return {
+            ...item,
+            status: 'error' as const,
+            invoiceId: undefined, // cleared: "Lỗi (Không lưu)" requires no invoiceId
+            errorMessage: rejectionMsg,
+            result: {
+              isValid: false,
+              errors: [rejectionMsg],
+              warnings: [],
+              errorDetails: [{ errorCode: rejectionErrorCode, errorMessage: rejectionMsg, suggestion: 'Vui lòng kiểm tra lại MST người mua trước khi tải lên.' }],
+              warningDetails: [],
+              signerSubject: null,
+              extractedData: null,
+              invoiceId: undefined,
+            } as any,
+            submitStatus: 'idle',
+          } as ProcessResult;
+        });
+        setSelectedRowKeys(getDefaultSelected(next));
+        return next;
+      });
+      return;
+    }
+
     const isFailed = detail.status === "Failed" || detail.status === "Rejected";
     const hasWarnings =
       detail.riskLevel === "Yellow" || detail.riskLevel === "Orange";

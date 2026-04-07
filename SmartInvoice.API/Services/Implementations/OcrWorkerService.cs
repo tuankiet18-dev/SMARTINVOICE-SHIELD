@@ -378,25 +378,40 @@ public class OcrWorkerService : BackgroundService
             if (hasFatalError)
             {
                 var fatalErr = finalErrors.First(e => !string.IsNullOrEmpty(e.ErrorCode) && fatalErrorCodes.Contains(e.ErrorCode!));
-                _logger.LogWarning("[OCR_WORKER STEP 3/7] ⚠️ FATAL ERROR detected — soft-deleting draft invoice with error note.");
-                _logger.LogWarning("   └─ {ErrorCode}: {ErrorMessage}", fatalErr.ErrorCode, fatalErr.ErrorMessage);
+                _logger.LogWarning("[OCR_WORKER STEP 3/7] ⚠️ FATAL ERROR detected: {ErrorCode}: {ErrorMessage}", fatalErr.ErrorCode, fatalErr.ErrorMessage);
 
                 var draftInvoice = await unitOfWork.Invoices.GetByIdAsync(job.InvoiceId);
                 if (draftInvoice != null)
                 {
-                    _logger.LogInformation("Hard-deleting draft invoice {InvoiceId} completely due to fatal error: {Msg}", job.InvoiceId, fatalErr.ErrorMessage);
-                    // Delete the S3 file to save storage
-                    if (!string.IsNullOrEmpty(job.S3Key))
+                    if (fatalErr.ErrorCode == ErrorCodes.LogicOwner)
                     {
-                        await storageService.DeleteFileAsync(job.S3Key);
+                        // LogicOwner: Soft-delete with status 'Rejected' so frontend can poll and detect it.
+                        // Hard-delete the S3 file to save storage, but KEEP the DB row so polling works.
+                        _logger.LogInformation("Soft-rejecting invoice {InvoiceId} due to LogicOwner error.", job.InvoiceId);
+                        if (!string.IsNullOrEmpty(job.S3Key))
+                            await storageService.DeleteFileAsync(job.S3Key);
+                        if (draftInvoice.OriginalFileId.HasValue)
+                        {
+                            var originalFile = await unitOfWork.FileStorages.GetByIdAsync(draftInvoice.OriginalFileId.Value);
+                            if (originalFile != null) unitOfWork.FileStorages.Remove(originalFile);
+                        }
+                        draftInvoice.Status = "Rejected";
+                        draftInvoice.Notes = fatalErr.ErrorMessage;
+                        draftInvoice.UpdatedAt = DateTime.UtcNow;
                     }
-                    if (draftInvoice.OriginalFileId.HasValue)
+                    else
                     {
-                        var originalFile = await unitOfWork.FileStorages.GetByIdAsync(draftInvoice.OriginalFileId.Value);
-                        if (originalFile != null)
-                            unitOfWork.FileStorages.Remove(originalFile);
+                        // Duplicate / other fatal: Hard-delete completely.
+                        _logger.LogInformation("Hard-deleting draft invoice {InvoiceId} due to fatal error: {Msg}", job.InvoiceId, fatalErr.ErrorMessage);
+                        if (!string.IsNullOrEmpty(job.S3Key))
+                            await storageService.DeleteFileAsync(job.S3Key);
+                        if (draftInvoice.OriginalFileId.HasValue)
+                        {
+                            var originalFile = await unitOfWork.FileStorages.GetByIdAsync(draftInvoice.OriginalFileId.Value);
+                            if (originalFile != null) unitOfWork.FileStorages.Remove(originalFile);
+                        }
+                        unitOfWork.Invoices.Remove(draftInvoice);
                     }
-                    unitOfWork.Invoices.Remove(draftInvoice);
                     await unitOfWork.CompleteAsync();
                 }
                 return;
