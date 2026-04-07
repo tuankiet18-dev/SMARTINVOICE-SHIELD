@@ -206,9 +206,10 @@ const TrashInvoiceList: React.FC = () => {
         dataIndex: 'sellerName',
         key: 'sellerName',
         ellipsis: true,
+        width: 300,
         render: (text: string, record: any) => (
-            <Space direction="vertical" size={0}>
-                <Text ellipsis>{text || 'N/A'}</Text>
+            <Space direction="vertical" size={0} style={{ maxWidth: 280 }}>
+                <Text ellipsis={{ tooltip: text }} style={{ maxWidth: 280 }}>{text || 'N/A'}</Text>
                 <Text type="secondary" style={{ fontSize: 12 }}>MST: {record.sellerTaxCode}</Text>
             </Space>
         ),
