@@ -134,50 +134,17 @@ const UploadInvoice: React.FC = () => {
 
   // Helper to update result state from detail (OCR mapping logic extracted)
   const updateResultWithDetail = (i: number, detail: any) => {
-    // Special case: PDF was merged into an existing XML invoice.
-    // `detail` here is the TARGET XML invoice (redirected by backend).
-    // We build a full result from it so the expand panel shows proper rules.
+    // Special case: PDF was hard-deleted after being merged into an existing XML invoice
     if (detail.status === 'Merged') {
-      const mergedErrorDetails: any[] = [];
-      const mergedWarningDetails: any[] = [];
-
-      if (detail.validationLayers) {
-        for (const layer of detail.validationLayers) {
-          if (layer.validationStatus === 'Fail' || !layer.isValid) {
-            mergedErrorDetails.push({ errorCode: layer.errorCode, errorMessage: layer.errorMessage, suggestion: layer.suggestion });
-          } else if (layer.validationStatus === 'Warning' || layer.validationStatus === 'WARNING') {
-            mergedWarningDetails.push({ errorCode: layer.errorCode, errorMessage: layer.errorMessage, suggestion: layer.suggestion });
-          }
-        }
-      }
-
-      const mergedResult: ValidationResultExtended = {
-        isValid: mergedErrorDetails.length === 0,
-        errors: mergedErrorDetails.map((e) => e.errorMessage || ''),
-        warnings: mergedWarningDetails.map((w) => w.errorMessage || ''),
-        errorDetails: mergedErrorDetails,
-        warningDetails: mergedWarningDetails,
-        signerSubject: null,
-        extractedData: {
-          totalAmount: detail.totalAmount,
-          totalPreTax: detail.totalAmountBeforeTax,
-          totalTaxAmount: detail.totalTaxAmount,
-          lineItems: detail.lineItems || [],
-        } as any,
-        invoiceId: detail.invoiceId, // the TARGET XML invoice's id
-      };
-
       setResults((prev) => {
         const next = prev.map((item, idx) => {
           if (idx !== i) return item;
           return {
             ...item,
             status: 'merged' as any,
-            invoiceId: undefined,   // no standalone draft invoice
-            result: mergedResult,   // validation data from target XML invoice
+            invoiceId: undefined, // no standalone invoice exists anymore
             errorMessage: detail.notes || 'Đã ghép vào hóa đơn XML tương ứng.',
             submitStatus: 'idle',
-            processingMethod: 'XML' as const, // target is XML, so rules apply as XML (incl. XSD)
           } as ProcessResult;
         });
         setSelectedRowKeys(getDefaultSelected(next));
@@ -308,35 +275,8 @@ const UploadInvoice: React.FC = () => {
   };
 
   const handleProcessError = (i: number, error: any, invoiceId?: string) => {
-    // INVOICE_HARD_DELETED (410): backend already cleaned up DB + S3, just show error
-    if ((error as any)?.isHardDeleted) {
-      const fatalMsg = 'Hóa đơn bị từ chối và xóa khỏi hệ thống (không phải hóa đơn của công ty bạn hoặc bị trùng lặp).';
-      setResults((prev) =>
-        prev.map((item, idx) =>
-          idx === i
-            ? {
-                ...item,
-                status: 'error' as const,
-                invoiceId: undefined, // no invoiceId = "Lỗi (Không lưu)"
-                errorMessage: fatalMsg,
-                result: {
-                  isValid: false,
-                  errors: [fatalMsg],
-                  warnings: [],
-                  errorDetails: [{ errorCode: 'ERR_LOGIC_OWNER', errorMessage: fatalMsg, suggestion: 'Vui lòng kiểm tra lại MST người mua trước khi tải lên.' }],
-                  warningDetails: [],
-                  signerSubject: null,
-                  extractedData: null,
-                  invoiceId: undefined,
-                } as any,
-                submitStatus: 'idle',
-              }
-            : item,
-        ),
-      );
-      return;
-    }
-    // Other errors: attempt cleanup if we have an invoiceId (skip 404 — invoice doesn't exist)
+    // Note: 404 errors are handled gracefully in pollInvoiceUntilDone (treated as merge success)
+    // so we only attempt cleanup for other non-404 errors
     if (invoiceId && error?.response?.status !== 404) {
       invoiceService.deleteInvoice(invoiceId)
         .then(() => invoiceService.hardDeleteInvoice(invoiceId))
@@ -1757,36 +1697,7 @@ const UploadInvoice: React.FC = () => {
                 onExpandedRowsChange: (keys) => {
                   setExpandedRows(new Set(keys as string[]));
                 },
-                rowExpandable: (record) => {
-                  // Fatal errors (LogicOwner, Duplicate): hard-deleted, no data to show
-                  if (record.status === 'error' && !record.invoiceId) return false;
-                  // Pending/uploading/queued/processing have no result yet
-                  if (!record.result && record.status !== ('merged' as any) &&
-                      (record.status === 'pending' || record.status === 'uploading' || record.status === 'queued' || record.status === 'processing')) return false;
-                  return true;
-                },
                 expandedRowRender: (record) => {
-                  // Fatal error with a result from 'Rejected' case — show error only, no all-green summary  
-                  if (record.status === 'error' && record.result && !record.invoiceId) {
-                    const errorDetails = record.result?.errorDetails || [];
-                    return (
-                      <div style={{ background: '#fff2f0', padding: '16px', borderRadius: 8, border: '1px solid #ffccc7' }}>
-                        <Text strong style={{ color: '#cf1322', display: 'block', marginBottom: 8 }}>
-                          ❌ Hóa đơn bị từ chối — không được lưu vào hệ thống
-                        </Text>
-                        {errorDetails.length > 0 ? (
-                          errorDetails.map((e: any, idx: number) => (
-                            <div key={idx} style={{ marginBottom: 4 }}>
-                              <Text style={{ color: '#595959' }}>{e.errorMessage}</Text>
-                              {e.suggestion && <Text type="secondary" style={{ display: 'block', fontStyle: 'italic', fontSize: 13 }}>Gợi ý: {e.suggestion}</Text>}
-                            </div>
-                          ))
-                        ) : (
-                          <Text style={{ color: '#595959' }}>{record.errorMessage || 'Hóa đơn không hợp lệ.'}</Text>
-                        )}
-                      </div>
-                    );
-                  }
                   if (!record.result) {
                     return (
                       <Text type="secondary">Không có kết quả kiểm tra</Text>
@@ -1794,10 +1705,7 @@ const UploadInvoice: React.FC = () => {
                   }
                   return (
                     <div style={{ background: "#fafbfc", padding: "16px" }}>
-                      <BusinessValidationSummary 
-                        result={record.result} 
-                        processingMethod={record.processingMethod}
-                      />
+                      <BusinessValidationSummary result={record.result} />
                     </div>
                   );
                 },

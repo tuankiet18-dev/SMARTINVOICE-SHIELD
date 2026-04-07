@@ -56,28 +56,19 @@ namespace SmartInvoice.API.Services.Implementations
             var invoice = await _unitOfWork.Invoices.GetInvoiceWithDetailsAsync(invoiceId);
             bool wasMerged = false;
 
-            // If the draft invoice was hard-deleted because it was merged into an XML invoice,
-            // we appended a redirect tag to the target invoice's Notes.
-            if (invoice == null)
+            // If the invoice was soft-deleted because it was merged into another invoice
+            if (invoice != null && invoice.IsDeleted && invoice.Status == "Draft" && !string.IsNullOrEmpty(invoice.Notes) && invoice.Notes.StartsWith("MERGED_INTO:"))
             {
-                var mergeTag = $"MERGED_FROM:{invoiceId}";
-                var targetInvoice = await _context.Invoices
-                    .IgnoreQueryFilters()
-                    .Include(i => i.Company)
-                    .Include(i => i.DocumentType)
-                    .Include(i => i.CheckResults)
-                    .Include(i => i.AuditLogs).ThenInclude(a => a.User)
-                    .Include(i => i.OriginalFile)
-                    .Include(i => i.Workflow.Submitter)
-                    .Include(i => i.Workflow.Approver)
-                    .Include(i => i.Workflow.Rejector)
-                    .FirstOrDefaultAsync(i => i.Notes != null && i.Notes.Contains(mergeTag));
-
-                if (targetInvoice != null && !targetInvoice.IsDeleted)
+                var targetIdStr = invoice.Notes.Substring("MERGED_INTO:".Length);
+                if (Guid.TryParse(targetIdStr, out var targetId))
                 {
-                    invoice = targetInvoice;
-                    wasMerged = true;
-                    _logger?.LogInformation("GetInvoiceDetailAsync redirected deleted draft {DraftId} to merged target {TargetId}", invoiceId, targetInvoice.InvoiceId);
+                    var targetInvoice = await _unitOfWork.Invoices.GetInvoiceWithDetailsAsync(targetId);
+                    if (targetInvoice != null && !targetInvoice.IsDeleted)  
+                    {
+                        invoice = targetInvoice;
+                        wasMerged = true;
+                        _logger?.LogInformation("GetInvoiceDetailAsync redirected deleted draft {DraftId} to merged target {TargetId}", invoiceId, targetId);
+                    }
                 }
             }
 

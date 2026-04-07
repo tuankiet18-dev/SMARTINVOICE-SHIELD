@@ -297,27 +297,61 @@ export const invoiceService = {
                 const detail = await this.getInvoiceDetail(invoiceId);
                 consecutiveNotFound = 0; // reset on success
                 onStatusChange?.(detail.status);
-
-                // Detect merge: backend redirects and returns a DIFFERENT invoiceId
-                // (the target XML invoice) instead of the original draft invoiceId.
-                if (detail.invoiceId && detail.invoiceId.toLowerCase() !== invoiceId.toLowerCase()) {
-                    // Return with a synthetic 'Merged' flag for the UI to detect
-                    return { ...detail, status: 'Merged' } as InvoiceDetailDto;
-                }
-
                 if (detail.status !== 'Processing') {
                     return detail;
                 }
             } catch (err: any) {
                 if (err?.response?.status === 404) {
                     consecutiveNotFound++;
-                    if (consecutiveNotFound >= 2) {
-                        // Invoice was hard-deleted (fatal error like LogicOwner or Duplicate).
-                        // This is NOT a merge — merged invoices now use soft-delete + redirect.
-                        throw Object.assign(new Error('INVOICE_HARD_DELETED'), { 
-                            isHardDeleted: true,
-                            response: { status: 410 } // 410 Gone = permanently deleted
-                        });
+                    // If we get 2 consecutive 404s after the invoice was in Processing,
+                    // it means the worker hard-deleted it because it was successfully merged
+                    // into an existing XML invoice. Treat this as a successful merge.
+                    if (consecutiveNotFound >= 2 || attempt > 0) {
+                        // Return a synthetic "Merged" result so the UI can handle it gracefully
+                        return {
+                            invoiceId,
+                            invoiceNumber: 'MERGED',
+                            status: 'Merged',
+                            riskLevel: 'Green',
+                            processingMethod: 'API',
+                            invoiceDate: new Date().toISOString(),
+                            invoiceCurrency: 'VND',
+                            exchangeRate: 1,
+                            totalAmount: 0,
+                            hasOriginalFile: false,
+                            hasVisualFile: true,
+                            lineItems: [],
+                            validationLayers: [],
+                            riskChecks: [],
+                            auditLogs: [],
+                            extractedData: null,
+                            serialNumber: null,
+                            formNumber: null,
+                            mccqt: null,
+                            sellerName: null,
+                            sellerTaxCode: null,
+                            sellerAddress: null,
+                            sellerBankAccount: null,
+                            sellerBankName: null,
+                            buyerName: null,
+                            buyerTaxCode: null,
+                            buyerAddress: null,
+                            totalAmountBeforeTax: null,
+                            totalTaxAmount: null,
+                            totalAmountInWords: null,
+                            paymentMethod: null,
+                            notes: 'Hóa đơn PDF đã được ghép thành công vào bản XML tương ứng.',
+                            uploadedByName: null,
+                            createdAt: new Date().toISOString(),
+                            submittedByName: null,
+                            submittedAt: null,
+                            approvedByName: null,
+                            approvedAt: null,
+                            rejectedByName: null,
+                            rejectedAt: null,
+                            rejectionReason: null,
+                            riskReasons: null,
+                        } as InvoiceDetailDto;
                     }
                     // Otherwise retry — might be a race condition
                 }

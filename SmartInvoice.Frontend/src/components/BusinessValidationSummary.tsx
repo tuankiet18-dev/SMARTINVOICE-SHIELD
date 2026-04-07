@@ -10,12 +10,10 @@ const { Text, Title } = Typography;
 
 interface BusinessValidationSummaryProps {
   result: any;
-  processingMethod?: string;
 }
 
 const BusinessValidationSummary: React.FC<BusinessValidationSummaryProps> = ({
   result,
-  processingMethod,
 }) => {
   const extracted = result?.extractedData || {};
   // BE có thể trả lỗi trong errorDetails (object) hoặc errors (mảng string)
@@ -54,17 +52,8 @@ const BusinessValidationSummary: React.FC<BusinessValidationSummaryProps> = ({
     return null;
   };
 
+  // Định nghĩa các Rules (Đã bổ sung các biến thể mã lỗi có thể trả về từ BE)
   const rules = [
-    {
-      label: "Chuẩn cấu trúc file hóa đơn (XSD)",
-      errorCodes: [
-        "ERR_XML_STRUCT",
-        "ERR_XML_MISSING_FIELD",
-        "ERR_DATA_NOT_NUMBER",
-        "ERR_XML_SYS"
-      ],
-      warningCodes: [],
-    },
     {
       label: "Hóa đơn không bị trùng lặp",
       errorCodes: [
@@ -126,17 +115,8 @@ const BusinessValidationSummary: React.FC<BusinessValidationSummaryProps> = ({
     },
   ];
 
-  // Lọc ra các rules phù hợp theo luồng xử lý
-  const activeRules = rules.filter((rule) => {
-    // OCR/API processing doesn't check XSD, so we hide it from the UI so it doesn't leave an empty checkmark.
-    if ((processingMethod === "OCR" || processingMethod === "API") && rule.label.includes("XSD")) {
-      return false; 
-    }
-    return true;
-  });
-
   // Tính toán trạng thái cho từng tiêu chí
-  const criteria = activeRules.map((rule) => {
+  const criteria = rules.map((rule) => {
     const errorItem = findErrorItem(rule.errorCodes);
     const warningItem = findWarningItem(rule.warningCodes);
 
