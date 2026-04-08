@@ -67,25 +67,22 @@ public class QuotaService : IQuotaService
         {
             company.UsedInvoicesThisMonth = 0;
             company.CurrentCycleStart = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
         }
 
         // Bước 2: Tiêu thụ quota gói tháng
-        if (company.UsedInvoicesThisMonth < company.MaxInvoicesPerMonth)
-        {
-            company.UsedInvoicesThisMonth++;
-            company.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-            return;
-        }
+        int rowsAffected = await _context.Database.ExecuteSqlRawAsync(
+            "UPDATE \"Companies\" SET \"UsedInvoicesThisMonth\" = \"UsedInvoicesThisMonth\" + 1, \"UpdatedAt\" = {0} WHERE \"CompanyId\" = {1} AND \"UsedInvoicesThisMonth\" < \"MaxInvoicesPerMonth\"",
+            DateTime.UtcNow, companyId);
+
+        if (rowsAffected > 0) return;
 
         // Bước 3: Tiêu thụ gói Add-on
-        if (company.ExtraInvoicesBalance > 0)
-        {
-            company.ExtraInvoicesBalance--;
-            company.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-            return;
-        }
+        int addOnAffected = await _context.Database.ExecuteSqlRawAsync(
+            "UPDATE \"Companies\" SET \"ExtraInvoicesBalance\" = \"ExtraInvoicesBalance\" - 1, \"UpdatedAt\" = {0} WHERE \"CompanyId\" = {1} AND \"ExtraInvoicesBalance\" > 0",
+            DateTime.UtcNow, companyId);
+
+        if (addOnAffected > 0) return;
 
         // Bước 4: Hết tất cả quota
         throw new InvalidOperationException(
@@ -147,26 +144,18 @@ public class QuotaService : IQuotaService
         var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId)
             ?? throw new KeyNotFoundException("Không tìm thấy thông tin công ty.");
 
-        company.UsedStorageBytes += fileSizeInBytes;
-        company.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _context.Database.ExecuteSqlRawAsync(
+                "UPDATE \"Companies\" SET \"UsedStorageBytes\" = \"UsedStorageBytes\" + {0}, \"UpdatedAt\" = {1} WHERE \"CompanyId\" = {2}", 
+                fileSizeInBytes, DateTime.UtcNow, companyId);
     }
 
     public async Task ReleaseStorageQuotaAsync(Guid companyId, long fileSizeInBytes)
     {
         var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId)
-            ?? throw new KeyNotFoundException("Company not found.");
+            ?? throw new KeyNotFoundException("Không tìm thấy thông tin công ty.");
 
-        if (company.UsedStorageBytes >= fileSizeInBytes)
-        {
-            company.UsedStorageBytes -= fileSizeInBytes;
-        }
-        else
-        {
-            company.UsedStorageBytes = 0; // Prevent negative sizes
-        }
-
-        company.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _context.Database.ExecuteSqlRawAsync(
+                "UPDATE \"Companies\" SET \"UsedStorageBytes\" = GREATEST(\"UsedStorageBytes\" - {0}, 0), \"UpdatedAt\" = {1} WHERE \"CompanyId\" = {2}", 
+                fileSizeInBytes, DateTime.UtcNow, companyId);
     }
 }

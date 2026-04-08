@@ -752,8 +752,8 @@ namespace SmartInvoice.API.Services.Implementations
                     {
                         AuditId = Guid.NewGuid(),
                         InvoiceId = invoiceId,
+                        CompanyId = invoice.CompanyId,
                         InvoiceNumber = invoice.InvoiceNumber,
-                        CompanyId = companyId,
                         UserId = userId,
                         UserEmail = userEmail,
                         UserRole = userRole,
@@ -877,8 +877,8 @@ namespace SmartInvoice.API.Services.Implementations
             {
                 AuditId = Guid.NewGuid(),
                 InvoiceId = invoiceId,
+                CompanyId = invoice.CompanyId,
                 InvoiceNumber = invoice.InvoiceNumber,
-                CompanyId = companyId,
                 UserId = userId,
                 UserEmail = userEmail,
                 UserRole = userRole,
@@ -938,8 +938,8 @@ namespace SmartInvoice.API.Services.Implementations
             {
                 AuditId = Guid.NewGuid(),
                 InvoiceId = invoiceId,
+                CompanyId = invoice.CompanyId,
                 InvoiceNumber = invoice.InvoiceNumber,
-                CompanyId = companyId,
                 UserId = userId,
                 UserEmail = userEmail,
                 UserRole = userRole,
@@ -1213,8 +1213,6 @@ namespace SmartInvoice.API.Services.Implementations
                     IsProcessed = true,
                     ProcessedAt = DateTime.UtcNow
                 };
-                
-                await _quotaService.ConsumeStorageQuotaAsync(CompanyId, fileSize);
 
                 // Helper functions
                 string? GetErrorStr(List<ValidationErrorDetail>? errs) => errs != null && errs.Any() ? System.Text.Json.JsonSerializer.Serialize(errs) : null;
@@ -1398,6 +1396,9 @@ namespace SmartInvoice.API.Services.Implementations
                     });
 
                     await _unitOfWork.CompleteAsync();
+
+                    await _quotaService.ConsumeStorageQuotaAsync(CompanyId, fileSize);
+
                     _logger?.LogInformation("Merge complete for target invoice {InvoiceId}", existingInvoice.InvoiceId);
                     finalResult.InvoiceId = existingInvoice.InvoiceId;
                     return finalResult;
@@ -1599,6 +1600,7 @@ namespace SmartInvoice.API.Services.Implementations
                 await _unitOfWork.Invoices.AddAsync(invoice);
                 await _unitOfWork.CompleteAsync();
 
+                await _quotaService.ConsumeStorageQuotaAsync(CompanyId, fileSize);
 
                 _logger?.LogInformation("Created new invoice {InvoiceId} from S3Key={S3Key}, RiskLevel={RiskLevel}", invoiceId, s3Key, invoice.RiskLevel);
 
@@ -1748,6 +1750,8 @@ namespace SmartInvoice.API.Services.Implementations
             // --- Tạo FileStorage cho file OCR (Visual File) ---
             _logger?.LogInformation("[OCR STEP 4/5] 💾 Creating FileStorage record...");
             Guid? visualFileId = null;
+            long newFileSizeToConsume = 0;
+
             if (!string.IsNullOrEmpty(request.S3Key))
             {
                 _logger?.LogInformation("   └─ Looking up file by S3Key: {S3Key}", request.S3Key);
@@ -1767,6 +1771,7 @@ namespace SmartInvoice.API.Services.Implementations
                     _logger?.LogInformation("      • S3Region: {Region}", _configuration["AWS:Region"] ?? "ap-southeast-1");
 
                     long s3FileSize = await _storageService.GetFileSizeAsync(request.S3Key);
+                    newFileSizeToConsume = s3FileSize;
                     await _quotaService.ValidateStorageQuotaAsync(CompanyId, s3FileSize);
 
                     var fileStorage = new FileStorage
@@ -1786,7 +1791,6 @@ namespace SmartInvoice.API.Services.Implementations
                     visualFileId = fileStorage.FileId;
                     await _unitOfWork.FileStorages.AddAsync(fileStorage);
                     
-                    await _quotaService.ConsumeStorageQuotaAsync(CompanyId, s3FileSize);
                     _logger?.LogInformation("      ✅ FileStorage created: {FileId}", visualFileId);
                 }
             }
@@ -1824,8 +1828,8 @@ namespace SmartInvoice.API.Services.Implementations
                 {
                     AuditId = Guid.NewGuid(),
                     InvoiceId = existingInvoice.InvoiceId,
+                    CompanyId = existingInvoice.CompanyId,
                     InvoiceNumber = existingInvoice.InvoiceNumber,
-                    CompanyId = CompanyId,
                     UserId = UserId,
                     UserEmail = mergeUser?.Email,
                     UserRole = mergeUser?.Role,
@@ -1839,6 +1843,10 @@ namespace SmartInvoice.API.Services.Implementations
                 await _unitOfWork.InvoiceAuditLogs.AddAsync(auditLog);
 
                 await _unitOfWork.CompleteAsync();
+                if (newFileSizeToConsume > 0)
+                {
+                    await _quotaService.ConsumeStorageQuotaAsync(CompanyId, newFileSizeToConsume);
+                }
 
                 finalResult.InvoiceId = existingInvoice.InvoiceId;
                 // Clear any non-critical errors/warnings from OCR validation since we didn't use any of that data
@@ -2066,6 +2074,10 @@ namespace SmartInvoice.API.Services.Implementations
             _logger?.LogInformation("   💾 Saving invoice to database...");
             await _unitOfWork.Invoices.AddAsync(invoice);
             await _unitOfWork.CompleteAsync();
+            if (newFileSizeToConsume > 0)
+            {
+                await _quotaService.ConsumeStorageQuotaAsync(CompanyId, newFileSizeToConsume);
+            }
 
             // Publish SQS message for VietQR validation if Seller TaxCode is available
             if (!string.IsNullOrEmpty(invoice.Seller?.TaxCode) && await _configProvider.GetBoolAsync("ENABLE_VIETQR_VALIDATION", true))
