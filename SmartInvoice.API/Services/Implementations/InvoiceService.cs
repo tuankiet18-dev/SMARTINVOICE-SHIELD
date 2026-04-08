@@ -690,8 +690,8 @@ namespace SmartInvoice.API.Services.Implementations
             {
                 AuditId = Guid.NewGuid(),
                 InvoiceId = invoiceId,
-                CompanyId = invoice.CompanyId,          // THÊM DÒNG NÀY
                 InvoiceNumber = invoice.InvoiceNumber,
+                CompanyId = companyId,
                 UserId = userId,
                 UserEmail = userEmail,
                 UserRole = userRole,
@@ -1380,8 +1380,8 @@ namespace SmartInvoice.API.Services.Implementations
                     {
                         AuditId = Guid.NewGuid(),
                         InvoiceId = existingInvoice.InvoiceId,
-                        CompanyId = existingInvoice.CompanyId,
                         InvoiceNumber = existingInvoice.InvoiceNumber,
+                        CompanyId = CompanyId,
                         UserId = UserId,
                         UserEmail = mergeUser?.Email,
                         UserRole = mergeUser?.Role,
