@@ -155,7 +155,7 @@ public class InvoiceServiceTests
 
         // Act: Member A (memberAId) query invoice của Member B
         var result = await _sut.GetInvoiceDetailAsync(
-            invoice.InvoiceId, companyId, memberAId, "Member");
+            invoice.InvoiceId, companyId, memberAId, "Accountant");
 
         // Assert: RBAC phải ngăn Member xem invoice của người khác
         result.Should().BeNull("Member chỉ được xem invoice của chính mình");
@@ -200,7 +200,7 @@ public class InvoiceServiceTests
 
         // Act
         var result = await _sut.GetInvoiceDetailAsync(
-            invoice.InvoiceId, companyId, memberId, "Member");
+            invoice.InvoiceId, companyId, memberId, "Accountant");
 
         // Assert
         result.Should().NotBeNull("Member được xem invoice của chính mình");
@@ -412,10 +412,10 @@ public class InvoiceServiceTests
         // Act & Assert: Exception phải được ném TRƯỚC KHI query DB
         await _sut.Invoking(s => s.RejectInvoiceAsync(
                 Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-                "member@test.com", "Member", // ← role không hợp lệ
+                "member@test.com", "Accountant", // ← role không hợp lệ
                 "Sai thông tin", null, null))
             .Should().ThrowAsync<UnauthorizedAccessException>()
-            .WithMessage("*Chỉ Admin*");
+            .WithMessage("*Kế toán trưởng và Admin*");
     }
 
     [Fact]
@@ -621,7 +621,7 @@ public class InvoiceServiceTests
 
         // Act: Member A cố restore
         var result = await _sut.RestoreInvoiceAsync(
-            invoice.InvoiceId, companyId, memberA, "memberA@test.com", "Member", null);
+            invoice.InvoiceId, companyId, memberA, "memberA@test.com", "Accountant", null);
 
         // Assert: RBAC phải ngăn
         result.Should().BeFalse("Member chỉ được restore invoice của chính mình");

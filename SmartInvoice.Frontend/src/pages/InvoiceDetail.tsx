@@ -326,6 +326,7 @@ const InvoiceDetail: React.FC = () => {
   const renderWorkflowActions = () => {
     const actions: React.ReactNode[] = [];
     const isYellow = invoice.riskLevel === "Yellow";
+    const canApproveOrReject = user?.role === 'CompanyAdmin' || user?.role === 'ChiefAccountant';
 
     if (invoice.status === "Draft") {
       actions.push(
@@ -343,7 +344,7 @@ const InvoiceDetail: React.FC = () => {
               Modal.confirm({
                 title: "Gửi duyệt hóa đơn?",
                 content:
-                  'Hóa đơn sẽ chuyển sang trạng thái "Chờ duyệt" và chờ Admin phê duyệt.',
+                  'Hóa đơn sẽ chuyển sang trạng thái "Chờ duyệt" và chờ Kế toán trưởng hoặc Giám đốc phê duyệt.',
                 okText: "Gửi duyệt",
                 cancelText: "Hủy",
                 onOk: () => submitMutation.mutate(undefined),
@@ -365,7 +366,7 @@ const InvoiceDetail: React.FC = () => {
       );
     }
 
-    if (invoice.status === "Pending" && isAdmin) {
+    if (invoice.status === "Pending" && canApproveOrReject) {
       actions.push(
         <Button
           key="approve"

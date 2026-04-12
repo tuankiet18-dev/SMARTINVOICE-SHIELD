@@ -40,7 +40,7 @@ public class DashboardController : ControllerBase
 
             var companyIdClaim = User.FindFirst("CompanyId")?.Value;
             var userIdClaim = User.FindFirst("UserId")?.Value;
-            var userRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "Member";
+            var userRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "Accountant";
 
             if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId) ||
                 string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))

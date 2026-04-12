@@ -114,7 +114,7 @@ const Dashboard: React.FC = () => {
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl text-dash-textMain font-bold mb-1 tracking-tight">
-            {user?.role === 'Member' ? 'Tổng quan cá nhân' : 'Tổng quan hệ thống'}
+            {user?.role === 'Accountant' ? 'Tổng quan cá nhân' : 'Tổng quan hệ thống'}
           </h1>
           {/* Gọi hàm ra đây */}
           <p className="text-dash-textMuted font-medium text-sm">

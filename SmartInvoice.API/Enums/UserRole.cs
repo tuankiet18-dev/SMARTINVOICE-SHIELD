@@ -6,5 +6,4 @@ public enum UserRole
     CompanyAdmin,       // Giám đốc / Chủ doanh nghiệp (Toàn quyền)
     ChiefAccountant,    // Kế toán trưởng (Người duyệt cấp 2 / Duyệt cuối)
     Accountant,         // Kế toán viên (Người tạo, gửi duyệt, hoặc duyệt cấp 1)
-    Viewer              // Nhân viên chỉ xem (Sale, Kho... chỉ vào xem hóa đơn)
 }
