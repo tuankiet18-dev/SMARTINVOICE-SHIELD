@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartInvoice.API", "SmartInvoice.API\SmartInvoice.API.csproj", "{2FFFC9D0-DBA8-4D26-B0EB-1CE1C2DBB5B3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartInvoice.Tests", "SmartInvoice.Tests\SmartInvoice.Tests.csproj", "{4412CFAF-BF6B-401A-816D-393E6E5E3C55}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,18 @@ Global
 		{2FFFC9D0-DBA8-4D26-B0EB-1CE1C2DBB5B3}.Release|x64.Build.0 = Release|Any CPU
 		{2FFFC9D0-DBA8-4D26-B0EB-1CE1C2DBB5B3}.Release|x86.ActiveCfg = Release|Any CPU
 		{2FFFC9D0-DBA8-4D26-B0EB-1CE1C2DBB5B3}.Release|x86.Build.0 = Release|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Debug|x64.Build.0 = Debug|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Debug|x86.Build.0 = Debug|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Release|x64.ActiveCfg = Release|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Release|x64.Build.0 = Release|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Release|x86.ActiveCfg = Release|Any CPU
+		{4412CFAF-BF6B-401A-816D-393E6E5E3C55}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

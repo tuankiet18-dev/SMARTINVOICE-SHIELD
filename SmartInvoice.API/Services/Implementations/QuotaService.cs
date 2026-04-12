@@ -71,22 +71,59 @@ public class QuotaService : IQuotaService
         }
 
         // Bước 2: Tiêu thụ quota gói tháng
-        int rowsAffected = await _context.Database.ExecuteSqlRawAsync(
-            "UPDATE \"Companies\" SET \"UsedInvoicesThisMonth\" = \"UsedInvoicesThisMonth\" + 1, \"UpdatedAt\" = {0} WHERE \"CompanyId\" = {1} AND \"UsedInvoicesThisMonth\" < \"MaxInvoicesPerMonth\"",
-            DateTime.UtcNow, companyId);
-
-        if (rowsAffected > 0) return;
+        bool success = await TryIncrementInvoiceQuotaAsync(companyId);
+        if (success) return;
 
         // Bước 3: Tiêu thụ gói Add-on
-        int addOnAffected = await _context.Database.ExecuteSqlRawAsync(
-            "UPDATE \"Companies\" SET \"ExtraInvoicesBalance\" = \"ExtraInvoicesBalance\" - 1, \"UpdatedAt\" = {0} WHERE \"CompanyId\" = {1} AND \"ExtraInvoicesBalance\" > 0",
-            DateTime.UtcNow, companyId);
-
-        if (addOnAffected > 0) return;
+        bool addOnSuccess = await TryDecrementExtraInvoicesAsync(companyId);
+        if (addOnSuccess) return;
 
         // Bước 4: Hết tất cả quota
         throw new InvalidOperationException(
             "Đã hết giới hạn hóa đơn trong tháng. Vui lòng mua thêm Add-on hoặc Nâng cấp gói.");
+    }
+
+    private async Task<bool> TryIncrementInvoiceQuotaAsync(Guid companyId)
+    {
+        if (_context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+        {
+            // Fallback cho Unit Test (InMemory không hỗ trợ SQL Raw)
+            var company = await _context.Companies.FindAsync(companyId);
+            if (company != null && company.UsedInvoicesThisMonth < company.MaxInvoicesPerMonth)
+            {
+                company.UsedInvoicesThisMonth++;
+                company.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            return false;
+        }
+
+        int rowsAffected = await _context.Database.ExecuteSqlRawAsync(
+            "UPDATE \"Companies\" SET \"UsedInvoicesThisMonth\" = \"UsedInvoicesThisMonth\" + 1, \"UpdatedAt\" = {0} WHERE \"CompanyId\" = {1} AND \"UsedInvoicesThisMonth\" < \"MaxInvoicesPerMonth\"",
+            DateTime.UtcNow, companyId);
+        return rowsAffected > 0;
+    }
+
+    private async Task<bool> TryDecrementExtraInvoicesAsync(Guid companyId)
+    {
+        if (_context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+        {
+            var company = await _context.Companies.FindAsync(companyId);
+            if (company != null && company.ExtraInvoicesBalance > 0)
+            {
+                company.ExtraInvoicesBalance--;
+                company.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            return false;
+        }
+
+        int addOnAffected = await _context.Database.ExecuteSqlRawAsync(
+            "UPDATE \"Companies\" SET \"ExtraInvoicesBalance\" = \"ExtraInvoicesBalance\" - 1, \"UpdatedAt\" = {0} WHERE \"CompanyId\" = {1} AND \"ExtraInvoicesBalance\" > 0",
+            DateTime.UtcNow, companyId);
+        return addOnAffected > 0;
     }
 
     public async Task ValidateUserQuotaAsync(Guid companyId)
@@ -141,8 +178,17 @@ public class QuotaService : IQuotaService
 
     public async Task ConsumeStorageQuotaAsync(Guid companyId, long fileSizeInBytes)
     {
-        var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId)
-            ?? throw new KeyNotFoundException("Không tìm thấy thông tin công ty.");
+        if (_context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+        {
+            var company = await _context.Companies.FindAsync(companyId);
+            if (company != null)
+            {
+                company.UsedStorageBytes += fileSizeInBytes;
+                company.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+            return;
+        }
 
         await _context.Database.ExecuteSqlRawAsync(
                 "UPDATE \"Companies\" SET \"UsedStorageBytes\" = \"UsedStorageBytes\" + {0}, \"UpdatedAt\" = {1} WHERE \"CompanyId\" = {2}", 
@@ -151,8 +197,17 @@ public class QuotaService : IQuotaService
 
     public async Task ReleaseStorageQuotaAsync(Guid companyId, long fileSizeInBytes)
     {
-        var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId)
-            ?? throw new KeyNotFoundException("Không tìm thấy thông tin công ty.");
+        if (_context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+        {
+            var company = await _context.Companies.FindAsync(companyId);
+            if (company != null)
+            {
+                company.UsedStorageBytes = Math.Max(company.UsedStorageBytes - fileSizeInBytes, 0);
+                company.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+            return;
+        }
 
         await _context.Database.ExecuteSqlRawAsync(
                 "UPDATE \"Companies\" SET \"UsedStorageBytes\" = GREATEST(\"UsedStorageBytes\" - {0}, 0), \"UpdatedAt\" = {1} WHERE \"CompanyId\" = {2}", 

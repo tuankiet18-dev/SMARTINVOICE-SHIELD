@@ -9,7 +9,27 @@ on:
       - ".github/workflows/deploy-backend.yml"
 
 jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore SmartInvoiceShield.sln
+
+      - name: Build and Test
+        run: |
+          dotnet build SmartInvoiceShield.sln --configuration Release
+          dotnet test SmartInvoice.Tests/SmartInvoice.Tests.csproj --configuration Release --no-build
+
   deploy:
+    needs: build_and_test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
