@@ -28,7 +28,7 @@
 
 ## 📋 Overview
 
-**SmartInvoice Shield** is a multi-tenant SaaS platform designed for Vietnamese enterprises to automate the management of electronic invoices (e-invoices). The system leverages a **triple-engine AI/OCR pipeline** (Gemini Vision API, PaddleOCR, VietOCR) to extract invoice data from PDF/Image/XML files, performs automated **multi-tier tax risk assessment** based on General Department of Taxation (GDT) criteria, and provides a full invoice lifecycle management workflow — from upload to approval.
+**SmartInvoice Shield** is a multi-tenant SaaS platform designed for Vietnamese enterprises to automate the management of electronic invoices (e-invoices). The system leverages a **triple-engine AI/OCR pipeline** (Gemini Vision API, PaddleOCR, VietOCR) with **AI Confidence Scoring** to extract invoice data from PDF/Image/XML files, performs automated **tax risk assessment (Phase 1 - Qualitative Validation)** based on General Department of Taxation (GDT) criteria, and provides a full invoice lifecycle management workflow — from upload to approval.
 
 ### Who is it for?
 
@@ -46,16 +46,16 @@
 
 ### 🤖 AI-Powered Data Extraction (OCR)
 - **Triple-engine OCR pipeline**: Gemini Vision API → PaddleOCR → VietOCR with automatic fallback
+- **AI Confidence Scoring**: Evaluates extraction reliability to warn users of potential data mismatches
 - **Multi-format support**: PDF, PNG, JPG images and XML e-invoice files
 - **Batch upload**: Process multiple invoices simultaneously
 - **OCR review modal**: Side-by-side comparison of original image vs. extracted data
 - **Structured extraction**: Invoice number, date, seller/buyer tax codes, line items, VAT amounts
 
-### 📊 Multi-Tier Risk Assessment
-Risk scoring based on **Decision No. 78/QĐ-TCT** of the General Department of Taxation:
-- **Tier I — Qualitative Risk**: Cross-check tax codes against blacklisted/dissolved companies
-- **Tier II — Quantitative Risk (AI Scoring)**: Anomaly detection on invoice frequency, amounts vs. registered capital
-- **Tier III — Reference Risk**: Historical tax compliance data and third-party verification
+### 📊 Tax Risk Assessment Framework
+Risk scoring designed around **Decision No. 78/QĐ-TCT** of the General Department of Taxation. This MVP focuses on completing the foundational layer (Phase 1):
+- **Phase 1: Qualitative Risk (Deployed)**: Real-time cross-checking of tax codes against blacklisted/dissolved companies via VietQR API and internal blacklists.
+- **Phase 2 & Phase 3: Quantitative & Reference Risk (Future Scope)**: Anomaly detection on invoice frequency, amounts vs. registered capital, and compliance history mapping.
 
 Risk levels: 🟢 `Green` · 🟡 `Yellow` · 🟠 `Orange` · 🔴 `Red`
 
