@@ -70,7 +70,7 @@ namespace SmartInvoice.API.Controller
         {
             var userIdStr = User.FindFirst("UserId")?.Value;
             var companyIdStr = User.FindFirst("CompanyId")?.Value;
-            var userRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "Member";
+            var userRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "Accountant";
             var userEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value ?? "unknown";
 
             if (string.IsNullOrEmpty(userIdStr) || string.IsNullOrEmpty(companyIdStr))
