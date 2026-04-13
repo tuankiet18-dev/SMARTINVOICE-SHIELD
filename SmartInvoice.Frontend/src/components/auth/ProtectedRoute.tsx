@@ -1,42 +1,34 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Spin } from 'antd';
 
 interface ProtectedRouteProps {
-    allowedRoles?: string[];
+  allowedRoles?: string[];
+  requiredPermission?: string; // Thêm dòng này để check quyền
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
-    const { isAuthenticated, isLoading, user } = useAuth();
-    const location = useLocation();
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, requiredPermission }) => {
+  const { user } = useAuth();
+  const location = useLocation();
 
-    // Show loading spinner while checking auth status (especially on refresh)
-    if (isLoading) {
-        return (
-            <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <Spin size="large" description="Đang kiểm tra quyền truy cập..." />
-            </div>
-        );
-    }
+  // 1. Chưa đăng nhập thì đuổi ra Login
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
-    if (!isAuthenticated) {
-        // Redirect them to the /login page, but save the current location they were trying to go to
-        return <Navigate to="/login" state={{ from: location }} replace />;
-    }
+  // 2. Kiểm tra Role (Nếu truyền allowedRoles mà user không có trong mảng đó)
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/app/invoices" replace />; 
+  }
 
-    if (allowedRoles && allowedRoles.length > 0 && user) {
-        if (!allowedRoles.includes(user.role)) {
-            // SuperAdmin should always be redirected to /admin
-            if (user.role === 'SuperAdmin') {
-                return <Navigate to="/admin" replace />;
-            }
-            // All other roles go back to app dashboard
-            return <Navigate to="/app/dashboard" replace />;
-        }
-    }
+  // 3. Kiểm tra Permission cụ thể (Ví dụ: truyền vào "dashboard:view")
+  if (requiredPermission && !user.permissions?.includes(requiredPermission)) {
+    // Nếu Accountant cố tình gõ URL /app/dashboard, đá họ về trang Hóa đơn
+    return <Navigate to="/app/invoices" replace />;
+  }
 
-    return <Outlet />;
+  // Hợp lệ hết thì cho đi tiếp vào các Route con
+  return <Outlet />;
 };
 
 export default ProtectedRoute;

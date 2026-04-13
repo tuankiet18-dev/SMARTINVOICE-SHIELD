@@ -83,7 +83,8 @@ const ApprovalDrawer: React.FC<ApprovalDrawerProps> = ({ open, onClose, invoice 
             onClose={onClose}
             open={open}
             footer={
-                invoice.status === 'Pending' || invoice.status === 'Chờ duyệt' || !invoice.status ? (
+                (invoice.status === 'Pending' || invoice.status === 'Chờ duyệt' || !invoice.status) &&
+                (user?.role === 'CompanyAdmin' || user?.role === 'ChiefAccountant') ? (
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16 }}>
                         <Button
                             danger

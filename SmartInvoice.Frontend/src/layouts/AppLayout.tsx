@@ -35,32 +35,58 @@ const AppLayout: React.FC = () => {
   const { hasRiskWarning, hasAuditLog } = useFeatureFlags();
 
   const isCompanyAdmin = user?.role === 'CompanyAdmin';
+  const isChiefAccountant = user?.role === 'ChiefAccountant';
+  const isAccountant = user?.role === 'Accountant';
 
   const menuItems = [
-    { key: '/app/dashboard', icon: <DashboardOutlined />, label: 'Tổng quan' },
+    // Dashboard: CompanyAdmin, ChiefAccountant
+    ...(isCompanyAdmin || isChiefAccountant ? [
+      { key: '/app/dashboard', icon: <DashboardOutlined />, label: 'Tổng quan' }
+    ] : []),
+    
+    // Chung
     { key: '/app/invoices', icon: <FileTextOutlined />, label: 'Hóa đơn' },
     { key: '/app/upload', icon: <UploadOutlined />, label: 'Tải lên' },
+    
     ...(hasRiskWarning ? [
       { key: '/app/validation', icon: <SafetyCertificateOutlined />, label: 'Rà soát rủi ro' },
     ] : []),
+    
     { key: '/app/reports', icon: <BarChartOutlined />, label: 'Báo cáo' },
-    ...(isCompanyAdmin ? [
-      { key: '/app/subscription', icon: <GiftOutlined />, label: 'Gói dịch vụ' },
+    { key: '/app/subscription', icon: <GiftOutlined />, label: 'Gói dịch vụ' },
+    
+    // Duyệt ngoại lệ: CompanyAdmin, ChiefAccountant
+    ...(isCompanyAdmin || isChiefAccountant ? [
       { key: '/app/approval-dashboard', icon: <AppstoreOutlined />, label: 'Duyệt ngoại lệ' },
-      { key: '/app/team', icon: <TeamOutlined />, label: 'Quản lý Team' },
-      { key: 'divider-1', type: 'divider' as const },
-      ...(hasAuditLog ? [
-        { key: '/app/audit-log', icon: <AuditOutlined />, label: 'Nhật ký Audit' },
-      ] : []),
     ] : []),
-    { key: 'divider-settings', type: 'divider' as const },
-    { key: '/app/settings', icon: <SettingOutlined />, label: 'Cài đặt' },
+
+    // Team: Chỉ CompanyAdmin
+    ...(isCompanyAdmin ? [
+      { key: '/app/team', icon: <TeamOutlined />, label: 'Quản lý Team' },
+    ] : []),
+
+    { key: 'divider-1', type: 'divider' as const },
+    
+    // Audit Log: Chung
+    ...(hasAuditLog ? [
+      { key: '/app/audit-log', icon: <AuditOutlined />, label: 'Nhật ký Audit' },
+    ] : []),
+    
+    // Cài đặt: Chỉ CompanyAdmin
+    ...(isCompanyAdmin ? [
+      { key: 'divider-settings', type: 'divider' as const },
+      { key: '/app/settings', icon: <SettingOutlined />, label: 'Cài đặt' },
+    ] : []),
+    
     { key: '/app/trash', icon: <DeleteOutlined />, label: 'Thùng rác' },
   ];
 
   const userMenuItems = [
     { key: 'profile', icon: <UserOutlined />, label: 'Hồ sơ cá nhân' },
-    { key: 'settings', icon: <SettingOutlined />, label: 'Cài đặt' },
+    // Setting in User menu: Only for CompanyAdmin
+    ...(isCompanyAdmin ? [
+      { key: 'settings', icon: <SettingOutlined />, label: 'Cài đặt' }
+    ] : []),
     { type: 'divider' as const, key: 'div' },
     { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', danger: true },
   ];
@@ -75,6 +101,16 @@ const AppLayout: React.FC = () => {
       navigate('/app/settings');
     } else {
       console.log('Clicked', key);
+    }
+  };
+
+  const getRoleDisplayName = (role?: string) => {
+    switch (role) {
+      case 'SuperAdmin': return 'Super Admin';
+      case 'CompanyAdmin': return 'Quản trị viên';
+      case 'ChiefAccountant': return 'Kế toán trưởng';
+      case 'Accountant': return 'Kế toán viên';
+      default: return 'Nhân viên';
     }
   };
 
@@ -189,7 +225,7 @@ const AppLayout: React.FC = () => {
                 <div style={{ lineHeight: 1.2 }}>
                   <Text strong style={{ fontSize: 13, display: 'block', color: '#202224' }}>{user?.fullName || 'User'}</Text>
                   <Text style={{ fontSize: 11, color: '#828282' }}>
-                    {user?.role === 'CompanyAdmin' ? 'Admin' : (user?.role === 'SuperAdmin' ? 'Super Admin' : 'Member')}
+                    {getRoleDisplayName(user?.role)}
                   </Text>
                 </div>
               </div>

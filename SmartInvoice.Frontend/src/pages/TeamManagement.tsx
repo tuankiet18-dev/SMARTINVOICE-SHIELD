@@ -11,6 +11,9 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 
 const AVAILABLE_PERMISSIONS = [
+    { key: 'dashboard:view', label: 'Xem Tổng quan (Dashboard)', desc: 'Được phép xem các biểu đồ và thống kê hệ thống.' },
+    { key: 'company:view', label: 'Xem cài đặt công ty', desc: 'Được phép xem cấu hình, thông tin công ty.' },
+    { key: 'company:manage', label: 'Quản lý cài đặt công ty', desc: 'Được phép thay đổi cấu hình, thông tin công ty.' },
     { key: 'invoice:view', label: 'Xem hóa đơn', desc: 'Được phép xem danh sách và chi tiết hóa đơn trên hệ thống.' },
     { key: 'invoice:upload', label: 'Tải lên hóa đơn', desc: 'Được phép tải file XML/PDF hoặc tạo mới hóa đơn.' },
     { key: 'invoice:edit', label: 'Chỉnh sửa hóa đơn', desc: 'Được phép cập nhật, sửa đổi thông tin của hóa đơn.' },
@@ -162,11 +165,27 @@ const TeamManagement: React.FC = () => {
             title: 'Phân quyền',
             dataIndex: 'role',
             key: 'role',
-            render: (role: string) => (
-                <Tag color={role === 'CompanyAdmin' ? 'geekblue' : 'default'} style={{ borderRadius: 12 }}>
-                    {role === 'CompanyAdmin' ? 'Quản trị viên' : 'Nhân sự'}
-                </Tag>
-            ),
+            render: (role: string) => {
+                let roleName = 'Nhân sự';
+                let color = 'default';
+
+                if (role === 'CompanyAdmin') {
+                    roleName = 'Quản trị viên';
+                    color = 'geekblue';
+                } else if (role === 'ChiefAccountant') {
+                    roleName = 'Kế toán trưởng';
+                    color = 'purple';
+                } else if (role === 'Accountant') {
+                    roleName = 'Kế toán viên';
+                    color = 'cyan';
+                }
+
+                return (
+                    <Tag color={color} style={{ borderRadius: 12 }}>
+                        {roleName}
+                    </Tag>
+                );
+            },
         },
         {
             title: 'Trạng thái',
@@ -340,12 +359,6 @@ const TeamManagement: React.FC = () => {
                                         <div style={{ whiteSpace: 'normal', lineHeight: '1.4', padding: '4px 0', maxWidth: 300 }}>
                                             <Text strong>Kế toán viên</Text><br/>
                                             <Text type="secondary" style={{ fontSize: 12 }}>Tải lên, xử lý dữ liệu và gửi yêu cầu duyệt.</Text>
-                                        </div>
-                                    </Option>
-                                    <Option value="Viewer" label="Nhân viên (Chỉ xem)">
-                                        <div style={{ whiteSpace: 'normal', lineHeight: '1.4', padding: '4px 0', maxWidth: 300 }}>
-                                            <Text strong>Nhân viên (Chỉ xem)</Text><br/>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Tra cứu và xuất báo cáo, không được chỉnh sửa.</Text>
                                         </div>
                                     </Option>
                                 </Select>

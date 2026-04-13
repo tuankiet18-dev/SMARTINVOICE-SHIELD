@@ -28,4 +28,7 @@ public static class Permissions
 
     // Report Permissions
     public const string ReportExport = "report:export";
+
+    // Dashboard
+    public const string DashboardView = "dashboard:view";
 }

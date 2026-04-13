@@ -78,7 +78,7 @@ namespace SmartInvoice.API.Services.Implementations
             if (invoice.CompanyId != companyId) return null;
 
             // RBAC: Member chỉ xem hóa đơn do mình upload
-            if (userRole == "Member" && invoice.Workflow.UploadedBy != userId) return null;
+            if (userRole == "Accountant" && invoice.Workflow.UploadedBy != userId) return null;
 
             var dto = MapToDetailDto(invoice);
             
@@ -173,7 +173,7 @@ namespace SmartInvoice.API.Services.Implementations
             return await _unitOfWork.Invoices.GetAllAsync();
         }
 
-        public async Task<InvoiceStatsDto> GetInvoiceStatsAsync(DateTime startDate, DateTime endDate, string? statusFilter, Guid companyId)
+        public async Task<InvoiceStatsDto> GetInvoiceStatsAsync(DateTime startDate, DateTime endDate, string? statusFilter, Guid companyId, Guid userId, string userRole)
         {
             // Lấy AppDbContext từ IUnitOfWork (nếu project bạn đang dùng _dbContext trực tiếp thì gọi _dbContext.Invoices)
             // Tui giả định bạn có thể query Invoices như sau:
@@ -182,14 +182,21 @@ namespace SmartInvoice.API.Services.Implementations
                                               && i.InvoiceDate >= startDate
                                               && i.InvoiceDate <= endDate
                                               && !i.IsDeleted
-                                              && !i.IsReplaced).AsQueryable();
+                                              && !i.IsReplaced);
+
+            if (userRole == "Accountant")
+            {
+                filteredQuery = filteredQuery.Where(i => i.Workflow?.UploadedBy == userId);
+            }
+
+            var finalQuery = filteredQuery.AsQueryable();
 
             if (!string.IsNullOrEmpty(statusFilter))
             {
-                filteredQuery = filteredQuery.Where(i => i.Status == statusFilter);
+                finalQuery = finalQuery.Where(i => i.Status == statusFilter);
             }
 
-            var list = filteredQuery.ToList();
+            var list = finalQuery.ToList();
 
             var totalCount = list.Count;
             // LOGIC MỚI: Hợp lệ nếu Status là Approved HOẶC RiskLevel là Green
@@ -448,7 +455,7 @@ namespace SmartInvoice.API.Services.Implementations
             var invoice = await _unitOfWork.Invoices.GetTrashInvoiceWithDetailsAsync(id);
             if (invoice == null || invoice.CompanyId != companyId) return false;
             
-            if (userRole == "Member" && invoice.Workflow?.UploadedBy != userId) return false;
+            if (userRole == "Accountant" && invoice.Workflow?.UploadedBy != userId) return false;
 
             invoice.IsDeleted = false;
             invoice.DeletedAt = null;
@@ -479,7 +486,7 @@ namespace SmartInvoice.API.Services.Implementations
             var invoice = await _unitOfWork.Invoices.GetTrashInvoiceWithDetailsAsync(id);
             if (invoice == null || invoice.CompanyId != companyId) return false;
             
-            if (userRole == "Member" && invoice.Workflow?.UploadedBy != userId) return false;
+            if (userRole == "Accountant" && invoice.Workflow?.UploadedBy != userId) return false;
 
             // Audit log (Ghi TRƯỚC KHI XÓA InvoiceId để DB kịp map, sau đó DB sẽ set null)
             await _unitOfWork.InvoiceAuditLogs.AddAsync(new InvoiceAuditLog
@@ -535,7 +542,7 @@ namespace SmartInvoice.API.Services.Implementations
                 .ToListAsync();
 
             // Member chỉ xóa hóa đơn của mình
-            if (userRole == "Member")
+            if (userRole == "Accountant")
                 allTrash = allTrash.Where(i => i.Workflow.UploadedBy == userId).ToList();
 
             if (allTrash.Count == 0) return 0;
@@ -641,11 +648,15 @@ namespace SmartInvoice.API.Services.Implementations
             };
         }
 
-        public async Task<IEnumerable<InvoiceAuditLogDto>> GetAuditLogsAsync(Guid invoiceId)
+        public async Task<IEnumerable<InvoiceAuditLogDto>> GetAuditLogsAsync(Guid invoiceId, Guid companyId, Guid userId, string userRole)
         {
-            var invoiceExists = await _unitOfWork.Invoices.GetByIdAsync(invoiceId);
-            if (invoiceExists == null)
+            var invoiceExists = await _unitOfWork.Invoices.GetInvoiceWithDetailsAsync(invoiceId);
+            if (invoiceExists == null || invoiceExists.CompanyId != companyId)
                 throw new KeyNotFoundException("Không tìm thấy hóa đơn yêu cầu.");
+
+            // RBAC Member/Accountant chỉ được xem log hóa đơn do mình tạo
+            if (userRole == "Accountant" && invoiceExists.Workflow?.UploadedBy != userId)
+                throw new UnauthorizedAccessException("Bạn không có quyền xem lịch sử hóa đơn này.");
 
             var logs = await _unitOfWork.InvoiceAuditLogs.GetByInvoiceIdAsync(invoiceId);
 
@@ -804,6 +815,12 @@ namespace SmartInvoice.API.Services.Implementations
         {
             _logger?.LogInformation("ApproveInvoiceAsync called for {InvoiceId} by user {UserId}", invoiceId, userId);
 
+            // Ràng buộc chung: Kế toán viên (Accountant) KHÔNG CÓ QUYỀN PHÊ DUYỆT BẤT KỲ CẤP ĐỘ NÀO, chỉ được gửi duyệt
+            if (userRole == "Accountant")
+            {
+                throw new InvalidOperationException("Kế toán viên (Accountant) không có quyền phê duyệt hóa đơn. Vui lòng sử dụng tính năng 'Gửi duyệt'.");
+            }
+
             var invoice = await _unitOfWork.Invoices.GetByIdAsync(invoiceId);
             if (invoice == null)
                 throw new KeyNotFoundException("Không tìm thấy hóa đơn.");
@@ -912,8 +929,8 @@ namespace SmartInvoice.API.Services.Implementations
 
         public async Task RejectInvoiceAsync(Guid invoiceId, Guid companyId, Guid userId, string userEmail, string userRole, string reason, string? comment, string? ipAddress)
         {
-            if (userRole != "CompanyAdmin" && userRole != "SuperAdmin")
-                throw new UnauthorizedAccessException("Chỉ Admin mới có quyền từ chối hóa đơn.");
+            if (userRole != "ChiefAccountant" && userRole != "CompanyAdmin" && userRole != "SuperAdmin")
+                throw new UnauthorizedAccessException("Chỉ Kế toán trưởng và Admin mới có quyền từ chối hóa đơn.");
 
             _logger?.LogInformation("RejectInvoiceAsync called for {InvoiceId} by user {UserId} with reason {Reason}", invoiceId, userId, reason);
 

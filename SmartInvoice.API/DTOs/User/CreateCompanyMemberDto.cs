@@ -18,7 +18,7 @@ namespace SmartInvoice.API.DTOs.User
 
         [Required]
         [MaxLength(50)]
-        public string Role { get; set; } = "Member";
+        public string Role { get; set; } = "Accountant";
 
         public List<string>? Permissions { get; set; }
     }

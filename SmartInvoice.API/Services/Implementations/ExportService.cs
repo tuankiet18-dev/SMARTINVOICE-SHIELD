@@ -39,6 +39,7 @@ public class ExportService : IExportService
     public async Task<ExportResultDto> GenerateExportAsync(
         Guid companyId,
         Guid userId,
+        string userRole,
         GenerateExportRequestDto request
     )
     {
@@ -99,6 +100,11 @@ public class ExportService : IExportService
         {
             // 3. Query DB lấy danh sách hóa đơn theo Filter (AsNoTracking để tối ưu memory)
             var query = _dbContext.Invoices.AsNoTracking().Where(i => i.CompanyId == companyId);
+
+            if (userRole == "Accountant")
+            {
+                query = query.Where(i => i.Workflow != null && i.Workflow.UploadedBy == userId);
+            }
 
             if (request.InvoiceIds != null && request.InvoiceIds.Any())
             {

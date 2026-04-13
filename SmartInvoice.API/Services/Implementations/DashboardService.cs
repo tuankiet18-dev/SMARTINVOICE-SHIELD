@@ -46,7 +46,7 @@ public class DashboardService : IDashboardService
         var invoices = _db.Invoices
             .Where(i => i.CompanyId == companyId && !i.IsDeleted);
 
-        if (userRole == "Member")
+        if (userRole == "Accountant")
         {
             invoices = invoices.Where(i => i.Workflow.UploadedBy == userId);
         }

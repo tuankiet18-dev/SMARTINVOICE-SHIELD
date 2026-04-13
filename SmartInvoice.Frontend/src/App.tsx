@@ -40,49 +40,57 @@ const App = () => (
         <AuthProvider>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/terms-of-use" element={<TermsOfUse />} />
-              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-              {/* Company Routes (All company roles except SuperAdmin) */}
-              <Route path="/app" element={<ProtectedRoute allowedRoles={['CompanyAdmin', 'ChiefAccountant', 'Accountant', 'Viewer']} />}>
-                <Route element={<AppLayout />}>
-                  <Route index element={<Navigate to="/app/dashboard" replace />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/terms-of-use" element={<TermsOfUse />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+
+            {/* Đã bỏ role 'Viewer' ra khỏi danh sách */}
+            <Route path="/app" element={<ProtectedRoute allowedRoles={['CompanyAdmin', 'ChiefAccountant', 'Accountant']} />}>
+              <Route element={<AppLayout />}>
+                <Route index element={<Navigate to="/app/dashboard" replace />} />
+                
+                {/* CompanyAdmin, ChiefAccountant */}
+                <Route element={<ProtectedRoute allowedRoles={['CompanyAdmin', 'ChiefAccountant']} />}>
                   <Route path="dashboard" element={<Dashboard />} />
-                  <Route path="invoices" element={<InvoiceList />} />
-                  <Route path="invoices/:id" element={<InvoiceDetail />} />
-                  <Route path="upload" element={<UploadInvoice />} />
-                  <Route path="validation" element={<ValidationPage />} />
-                  <Route path="reports" element={<ReportsPage />} />
-                  <Route path="profile" element={<Profile />} />
-                  <Route path="subscription" element={<SubscriptionPage />} />
-                  <Route path="payment/result" element={<PaymentResult />} />
-                  <Route path="settings" element={<Settings />} />
-                  <Route path="trash" element={<TrashInvoiceList />} />
+                  <Route path="approval-dashboard" element={<ApprovalDashboard />} />
+                </Route>
 
-                  {/* CompanyAdmin Only Routes */}
-                  <Route element={<ProtectedRoute allowedRoles={['CompanyAdmin']} />}>
-                    <Route path="approval-dashboard" element={<ApprovalDashboard />} />
-                    <Route path="team" element={<TeamManagement />} />
-                    <Route path="audit-log" element={<AuditLogPage />} />
-                  </Route>
+                {/* Các trang ai cũng được xem theo Yêu cầu */}
+                <Route path="invoices" element={<InvoiceList />} />
+                <Route path="invoices/:id" element={<InvoiceDetail />} />
+                <Route path="upload" element={<UploadInvoice />} />
+                <Route path="validation" element={<ValidationPage />} />
+                <Route path="reports" element={<ReportsPage />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="subscription" element={<SubscriptionPage />} />
+                <Route path="payment/result" element={<PaymentResult />} />
+                <Route path="trash" element={<TrashInvoiceList />} />
+                <Route path="audit-log" element={<AuditLogPage />} />
+
+                {/* CompanyAdmin Only Routes */}
+                <Route element={<ProtectedRoute allowedRoles={['CompanyAdmin']} />}>
+                  <Route path="settings" element={<Settings />} />
+                  <Route path="team" element={<TeamManagement />} />
                 </Route>
               </Route>
+            </Route>
 
-              {/* SuperAdmin Routes */}
-              <Route path="/admin" element={<ProtectedRoute allowedRoles={['SuperAdmin']} />}>
-                <Route element={<SuperAdminLayout />}>
-                  <Route index element={<Navigate to="/admin/tenants" replace />} />
-                  <Route path="tenants" element={<TenantManagement />} />
-                  <Route path="global-blacklist" element={<GlobalBlacklist />} />
-                  <Route path="system-config" element={<SystemConfig />} />
-                  <Route path="settings" element={<Settings />} />
-                  <Route path="profile" element={<Profile />} />
-                </Route>
+            {/* SuperAdmin Routes */}
+            <Route path="/admin" element={<ProtectedRoute allowedRoles={['SuperAdmin']} />}>
+              <Route element={<SuperAdminLayout />}>
+                <Route index element={<Navigate to="/admin/tenants" replace />} />
+                <Route path="tenants" element={<TenantManagement />} />
+                <Route path="global-blacklist" element={<GlobalBlacklist />} />
+                <Route path="system-config" element={<SystemConfig />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="profile" element={<Profile />} />
               </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            </Route>
+            
+            <Route path="*" element={<NotFound />} />
+          </Routes>
           </BrowserRouter>
         </AuthProvider>
       </AntdApp>

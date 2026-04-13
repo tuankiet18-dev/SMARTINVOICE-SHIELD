@@ -84,7 +84,7 @@ const Login: React.FC = () => {
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("storage"));
 
-      message.success("Đổi mật khẩu và đăng nhập thành công!");
+      message.success("Đổi mật khẩu thành công! Mời đăng nhập");
       setShowNewPasswordModal(false);
       const savedUser = JSON.parse(localStorage.getItem("user") || "{}");
       navigate(getPostLoginRedirect(savedUser?.role));

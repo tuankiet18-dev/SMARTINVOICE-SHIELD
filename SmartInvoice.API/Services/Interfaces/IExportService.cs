@@ -4,7 +4,7 @@ namespace SmartInvoice.API.Services.Interfaces;
 
 public interface IExportService
 {
-    Task<ExportResultDto> GenerateExportAsync(Guid companyId, Guid userId, GenerateExportRequestDto request);
+    Task<ExportResultDto> GenerateExportAsync(Guid companyId, Guid userId, string userRole, GenerateExportRequestDto request);
     Task<bool> SoftDeleteExportAsync(Guid exportId, Guid companyId);
     Task<IEnumerable<object>> GetTrashExportsAsync(Guid companyId);
     Task<bool> RestoreExportAsync(Guid exportId, Guid companyId);

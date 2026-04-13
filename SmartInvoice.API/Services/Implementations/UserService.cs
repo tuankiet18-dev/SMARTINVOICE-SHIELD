@@ -89,7 +89,6 @@ namespace SmartInvoice.API.Services.Implementations
                 UserRole.CompanyAdmin.ToString(),
                 UserRole.ChiefAccountant.ToString(),
                 UserRole.Accountant.ToString(),
-                UserRole.Viewer.ToString(),
             };
 
             if (string.IsNullOrEmpty(dto.Role) || !validCompanyRoles.Contains(dto.Role))
@@ -326,9 +325,12 @@ namespace SmartInvoice.API.Services.Implementations
                     Constants.Permissions.InvoiceReject,
                     Constants.Permissions.InvoiceOverrideRisk,
                     Constants.Permissions.ReportExport,
+                    Constants.Permissions.DashboardView,
                 },
                 "ChiefAccountant" => new List<string>
                 {
+                    Constants.Permissions.DashboardView,
+                    Constants.Permissions.UserView,
                     Constants.Permissions.InvoiceView,
                     Constants.Permissions.InvoiceUpload,
                     Constants.Permissions.InvoiceEdit,
@@ -336,7 +338,8 @@ namespace SmartInvoice.API.Services.Implementations
                     Constants.Permissions.InvoiceReject,
                     Constants.Permissions.InvoiceOverrideRisk,
                     Constants.Permissions.ReportExport,
-                    Constants.Permissions.UserView,
+                    Constants.Permissions.BlacklistView,
+                    Constants.Permissions.BlacklistManage
                 },
                 "Accountant" => new List<string>
                 {
@@ -345,7 +348,6 @@ namespace SmartInvoice.API.Services.Implementations
                     Constants.Permissions.InvoiceEdit,
                     Constants.Permissions.ReportExport,
                 },
-                "Viewer" => new List<string> { Constants.Permissions.InvoiceView },
                 _ => new List<string>(), // Mặc định không có quyền gì nếu role rác
             };
         }

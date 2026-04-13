@@ -34,7 +34,7 @@ public class ValidationController : ControllerBase
         // ── Tenant scoping ──────────────────────────────
         var companyIdClaim = User.FindFirst("CompanyId")?.Value;
         var userIdClaim = User.FindFirst("UserId")?.Value;
-        var userRole = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value ?? "Member";
+        var userRole = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value ?? "Accountant";
 
         if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId) ||
             string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
@@ -46,7 +46,7 @@ public class ValidationController : ControllerBase
             .Where(i => i.CheckResults.Any(c => c.Category != "AUTO_UPLOAD_VALIDATION"));
 
         // RBAC: Member only sees their own uploaded invoices
-        if (userRole == "Member")
+        if (userRole == "Accountant")
         {
             invoicesQuery = invoicesQuery.Where(i => i.Workflow.UploadedBy == userId);
         }

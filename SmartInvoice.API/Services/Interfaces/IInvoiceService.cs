@@ -14,8 +14,8 @@ namespace SmartInvoice.API.Services.Interfaces
                 Task<string?> GetVisualFileUrlAsync(Guid invoiceId, Guid companyId);
                 Task<IEnumerable<Invoice>> GetAllInvoicesAsync();
                 Task<PagedResult<InvoiceDto>> GetInvoicesAsync(GetInvoicesQueryDto query, Guid companyId, Guid userId, string userRole);
-                Task<IEnumerable<InvoiceAuditLogDto>> GetAuditLogsAsync(Guid invoiceId);
-                Task<InvoiceStatsDto> GetInvoiceStatsAsync(DateTime startDate, DateTime endDate, string? statusFilter, Guid companyId);
+                Task<IEnumerable<InvoiceAuditLogDto>> GetAuditLogsAsync(Guid invoiceId, Guid companyId, Guid userId, string userRole);
+                Task<InvoiceStatsDto> GetInvoiceStatsAsync(DateTime startDate, DateTime endDate, string? statusFilter, Guid companyId, Guid userId, string userRole);
                 Task<List<InvoiceVersionDto>> GetInvoiceVersionsAsync(Guid invoiceId, Guid companyId);
 
                 // ─── CRUD ───

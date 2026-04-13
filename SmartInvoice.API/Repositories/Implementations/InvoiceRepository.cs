@@ -84,7 +84,7 @@ namespace SmartInvoice.API.Repositories.Implementations
             query = query.Where(i => i.CompanyId == companyId && !i.IsDeleted && !i.IsReplaced);
 
             // 2. Role-Based Access Control (RBAC)
-            if (userRole == "Member")
+            if (userRole == "Accountant")
             {
                 // Member can only see their own uploaded invoices
                 query = query.Where(i => i.Workflow.UploadedBy == userId);
@@ -156,7 +156,7 @@ namespace SmartInvoice.API.Repositories.Implementations
 
             query = query.Where(i => i.CompanyId == companyId && i.IsDeleted);
 
-            if (userRole == "Member")
+            if (userRole == "Accountant")
             {
                 query = query.Where(i => i.Workflow.UploadedBy == userId);
             }
