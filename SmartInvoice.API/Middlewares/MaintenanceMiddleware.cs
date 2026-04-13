@@ -2,7 +2,7 @@ using System.Net;
 using System.Text.Json;
 using SmartInvoice.API.Services.Interfaces;
 
-namespace SmartInvoice.API.Middleware
+namespace SmartInvoice.API.Middlewares
 {
     public class MaintenanceMiddleware
     {

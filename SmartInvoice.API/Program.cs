@@ -24,7 +24,7 @@ using SmartInvoice.API.Services.Implementations;
 using SmartInvoice.API.Services.Interfaces;
 
 using System.Security.Claims;
-using SmartInvoice.API.Middleware;
+using SmartInvoice.API.Middlewares;
 // DotNetEnv logic removed since we now use parameter store
 
 var builder = WebApplication.CreateBuilder(args);
@@ -362,7 +362,7 @@ app.UseCors("AllowAmplify");
 app.UseMiddleware<MaintenanceMiddleware>();
 
 app.UseAuthentication();
-app.UseMiddleware<SmartInvoice.API.Middlewares.TenantStatusMiddleware>();
+app.UseMiddleware<TenantStatusMiddleware>();
 app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok("Healthy"));
