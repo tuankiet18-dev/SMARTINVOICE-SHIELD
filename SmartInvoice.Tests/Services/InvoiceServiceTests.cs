@@ -656,7 +656,7 @@ public class InvoiceServiceTests
         var endDate   = DateTime.UtcNow.AddDays(1);
 
         // Act
-        var stats = await _sut.GetInvoiceStatsAsync(startDate, endDate, null, companyId);
+        var stats = await _sut.GetInvoiceStatsAsync(startDate, endDate, null, companyId, Guid.NewGuid(), "Admin");
 
         // Assert
         stats.TotalCount.Should().Be(5,
@@ -697,7 +697,7 @@ public class InvoiceServiceTests
         // Act: Filter theo status = "Approved"
         var stats = await _sut.GetInvoiceStatsAsync(
             DateTime.UtcNow.AddMonths(-1), DateTime.UtcNow.AddDays(1),
-            "Approved", companyId);
+            "Approved", companyId, Guid.NewGuid(), "Admin");
 
         // Assert: Chỉ trả về 1 invoice Approved
         stats.TotalCount.Should().Be(1);
@@ -725,7 +725,7 @@ public class InvoiceServiceTests
         // Act: Query chỉ từ 1 năm trước đến nay
         var startDate = DateTime.UtcNow.AddYears(-1);
         var endDate   = DateTime.UtcNow.AddDays(1);
-        var stats = await _sut.GetInvoiceStatsAsync(startDate, endDate, null, companyId);
+        var stats = await _sut.GetInvoiceStatsAsync(startDate, endDate, null, companyId, Guid.NewGuid(), "Admin");
 
         // Assert: Chỉ trả về invoice gần đây
         stats.TotalCount.Should().Be(1);
