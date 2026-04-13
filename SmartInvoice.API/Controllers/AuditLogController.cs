@@ -32,14 +32,26 @@ public class AuditLogController : ControllerBase
         try
         {
             var companyIdClaim = User.FindFirst("CompanyId")?.Value;
-            if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId))
-                return Unauthorized(new { message = "CompanyId claim is missing or invalid." });
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+            var userRole = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value 
+                ?? User.FindFirst("role")?.Value 
+                ?? "Accountant";
+
+            if (string.IsNullOrEmpty(companyIdClaim) || !Guid.TryParse(companyIdClaim, out var companyId) ||
+                string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                return Unauthorized(new { message = "CompanyId or UserId claim is missing or invalid." });
 
             // Base query: Phi bình thường hóa CompanyId giúp xem log độc lập với hóa đơn
             var baseQuery = _db.InvoiceAuditLogs
                 .Include(a => a.Invoice)
                 .Include(a => a.User)
                 .Where(a => a.CompanyId == companyId);
+
+            // RBAC: Nếu là Accountant thì chỉ được xem log của các hóa đơn do chính họ tải lên hoặc log do họ tạo ra
+            if (userRole == "Accountant")
+            {
+                baseQuery = baseQuery.Where(a => a.UserId == userId || (a.Invoice != null && a.Invoice.Workflow.UploadedBy == userId));
+            }
 
             // Filter by action
             if (!string.IsNullOrEmpty(query.Action))

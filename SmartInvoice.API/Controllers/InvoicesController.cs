@@ -658,7 +658,8 @@ namespace SmartInvoice.API.Controller
         {
             try
             {
-                var logs = await _invoiceService.GetAuditLogsAsync(id);
+                var userInfo = GetUserInfo();
+                var logs = await _invoiceService.GetAuditLogsAsync(id, userInfo.CompanyId, userInfo.UserId, userInfo.UserRole);
                 return Ok(logs);
             }
             catch (KeyNotFoundException)
@@ -677,8 +678,8 @@ namespace SmartInvoice.API.Controller
         {
             try
             {
-                var (_, companyId, _, _) = GetUserInfo();
-                var stats = await _invoiceService.GetInvoiceStatsAsync(startDate, endDate, status, companyId);
+                var (userId, companyId, userRole, _) = GetUserInfo();
+                var stats = await _invoiceService.GetInvoiceStatsAsync(startDate, endDate, status, companyId, userId, userRole);
                 return Ok(stats);
             }
             catch (Exception ex)

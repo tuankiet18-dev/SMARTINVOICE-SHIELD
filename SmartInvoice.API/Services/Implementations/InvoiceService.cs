@@ -173,7 +173,7 @@ namespace SmartInvoice.API.Services.Implementations
             return await _unitOfWork.Invoices.GetAllAsync();
         }
 
-        public async Task<InvoiceStatsDto> GetInvoiceStatsAsync(DateTime startDate, DateTime endDate, string? statusFilter, Guid companyId)
+        public async Task<InvoiceStatsDto> GetInvoiceStatsAsync(DateTime startDate, DateTime endDate, string? statusFilter, Guid companyId, Guid userId, string userRole)
         {
             // Lấy AppDbContext từ IUnitOfWork (nếu project bạn đang dùng _dbContext trực tiếp thì gọi _dbContext.Invoices)
             // Tui giả định bạn có thể query Invoices như sau:
@@ -182,14 +182,21 @@ namespace SmartInvoice.API.Services.Implementations
                                               && i.InvoiceDate >= startDate
                                               && i.InvoiceDate <= endDate
                                               && !i.IsDeleted
-                                              && !i.IsReplaced).AsQueryable();
+                                              && !i.IsReplaced);
+
+            if (userRole == "Accountant")
+            {
+                filteredQuery = filteredQuery.Where(i => i.Workflow?.UploadedBy == userId);
+            }
+
+            var finalQuery = filteredQuery.AsQueryable();
 
             if (!string.IsNullOrEmpty(statusFilter))
             {
-                filteredQuery = filteredQuery.Where(i => i.Status == statusFilter);
+                finalQuery = finalQuery.Where(i => i.Status == statusFilter);
             }
 
-            var list = filteredQuery.ToList();
+            var list = finalQuery.ToList();
 
             var totalCount = list.Count;
             // LOGIC MỚI: Hợp lệ nếu Status là Approved HOẶC RiskLevel là Green
@@ -641,11 +648,15 @@ namespace SmartInvoice.API.Services.Implementations
             };
         }
 
-        public async Task<IEnumerable<InvoiceAuditLogDto>> GetAuditLogsAsync(Guid invoiceId)
+        public async Task<IEnumerable<InvoiceAuditLogDto>> GetAuditLogsAsync(Guid invoiceId, Guid companyId, Guid userId, string userRole)
         {
-            var invoiceExists = await _unitOfWork.Invoices.GetByIdAsync(invoiceId);
-            if (invoiceExists == null)
+            var invoiceExists = await _unitOfWork.Invoices.GetInvoiceWithDetailsAsync(invoiceId);
+            if (invoiceExists == null || invoiceExists.CompanyId != companyId)
                 throw new KeyNotFoundException("Không tìm thấy hóa đơn yêu cầu.");
+
+            // RBAC Member/Accountant chỉ được xem log hóa đơn do mình tạo
+            if (userRole == "Accountant" && invoiceExists.Workflow?.UploadedBy != userId)
+                throw new UnauthorizedAccessException("Bạn không có quyền xem lịch sử hóa đơn này.");
 
             var logs = await _unitOfWork.InvoiceAuditLogs.GetByInvoiceIdAsync(invoiceId);
 

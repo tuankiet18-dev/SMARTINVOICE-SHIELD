@@ -27,13 +27,16 @@ public class ExportsController : ControllerBase
     {
         var companyId = GetCurrentCompanyId();
         var userId = GetCurrentUserId();
+        var userRole = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value
+            ?? User.FindFirst("role")?.Value 
+            ?? "Accountant";
 
         if (companyId == null || userId == null)
             return Unauthorized(new { Message = "Không xác định được người dùng hoặc công ty" });
 
         try
         {
-            var result = await _exportService.GenerateExportAsync(companyId.Value, userId.Value, request);
+            var result = await _exportService.GenerateExportAsync(companyId.Value, userId.Value, userRole, request);
             return Ok(result);
         }
         catch (InvalidOperationException ex)
