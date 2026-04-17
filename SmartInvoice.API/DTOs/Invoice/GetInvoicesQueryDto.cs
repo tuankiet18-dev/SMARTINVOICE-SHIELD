@@ -16,5 +16,8 @@ namespace SmartInvoice.API.DTOs.Invoice
         public string? RiskLevel { get; set; }
         public DateTime? FromDate { get; set; }
         public DateTime? ToDate { get; set; }
+        
+        // Thêm tham số để ẩn/hiện Hóa đơn Test của Data Seeder
+        public bool ExcludeDemoData { get; set; } = false;
     }
 }

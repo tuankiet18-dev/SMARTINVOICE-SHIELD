@@ -375,7 +375,8 @@ export const invoiceService = {
         status?: string,
         riskLevel?: string,
         fromDate?: string,
-        toDate?: string
+        toDate?: string,
+        excludeDemoData?: boolean
     ): Promise<PagedResult<InvoiceDto>> {
         const params = new URLSearchParams();
         params.set('page', String(page));
@@ -385,6 +386,7 @@ export const invoiceService = {
         if (riskLevel) params.set('riskLevel', riskLevel);
         if (fromDate) params.set('fromDate', fromDate);
         if (toDate) params.set('toDate', toDate);
+        if (excludeDemoData) params.set('excludeDemoData', 'true');
 
         const response = await apiClient.get<PagedResult<InvoiceDto>>(`/invoices?${params.toString()}`);
         return response.data;
