@@ -92,6 +92,11 @@ namespace SmartInvoice.API.Repositories.Implementations
             // CompanyAdmin and SuperAdmin can see all invoices in the company
 
             // 3. Apply Filters
+            if (request.ExcludeDemoData)
+            {
+                query = query.Where(i => i.InvoiceNumber == null || !i.InvoiceNumber.StartsWith("DEMO-"));
+            }
+
             if (!string.IsNullOrEmpty(request.Keyword))
             {
                 var keyword = request.Keyword.ToLower();

@@ -28,6 +28,7 @@ const InvoiceList: React.FC = () => {
   const riskLevel = searchParams.get('riskLevel') || undefined;
   const dateFrom = searchParams.get('dateFrom') || undefined;
   const dateTo = searchParams.get('dateTo') || undefined;
+  const excludeDemoData = searchParams.get('excludeDemoData') === 'true';
   const dateRange: [string, string] | undefined = dateFrom && dateTo ? [dateFrom, dateTo] : undefined;
   const page = Number(searchParams.get('page')) || 1;
   const pageSize = Number(searchParams.get('pageSize')) || 10;
@@ -45,7 +46,7 @@ const InvoiceList: React.FC = () => {
   };
 
   const { data: invoiceData, isLoading } = useQuery({
-    queryKey: ['invoices', page, pageSize, keyword, status, riskLevel, dateRange],
+    queryKey: ['invoices', page, pageSize, keyword, status, riskLevel, dateRange, excludeDemoData],
     queryFn: () => invoiceService.getInvoices(
       page,
       pageSize,
@@ -53,7 +54,8 @@ const InvoiceList: React.FC = () => {
       status,
       riskLevel,
       dateRange?.[0],
-      dateRange?.[1]
+      dateRange?.[1],
+      excludeDemoData
     ),
   });
 
@@ -545,6 +547,16 @@ const InvoiceList: React.FC = () => {
                       updateParams({ dateFrom: undefined, dateTo: undefined, page: '1' });
                     }
                   }}
+                />
+              </Col>
+              <Col xs={24} sm={8}>
+                <Select placeholder="Loại dữ liệu" style={{ width: '100%' }} allowClear
+                  value={excludeDemoData ? 'true' : 'false'}
+                  onChange={val => updateParams({ excludeDemoData: val === 'true' ? 'true' : undefined, page: '1' })}
+                  options={[
+                    { value: 'false', label: 'Tất cả hóa đơn' },
+                    { value: 'true', label: 'Ẩn hóa đơn Demo' }
+                  ]}
                 />
               </Col>
             </Row>

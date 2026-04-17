@@ -33,6 +33,7 @@ const ValidationPage: React.FC = () => {
   const keyword = searchParams.get('keyword') || undefined;
   const layerIssue = searchParams.get('layerIssue') || undefined;
   const validationStatus = searchParams.get('validationStatus') || undefined;
+  const excludeDemoData = searchParams.get('excludeDemoData') === 'true';
   const page = Number(searchParams.get('page')) || 1;
   const pageSize = Number(searchParams.get('pageSize')) || 20;
 
@@ -48,8 +49,8 @@ const ValidationPage: React.FC = () => {
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: ['validation-overview', page, pageSize, keyword, layerIssue, validationStatus],
-    queryFn: () => validationService.getOverview({ page, pageSize, keyword, layerIssue, validationStatus }),
+    queryKey: ['validation-overview', page, pageSize, keyword, layerIssue, validationStatus, excludeDemoData],
+    queryFn: () => validationService.getOverview({ page, pageSize, keyword, layerIssue, validationStatus, excludeDemoData }),
   });
 
   const columns = [
@@ -284,7 +285,7 @@ const ValidationPage: React.FC = () => {
 
               {showFilters && (
                 <Row gutter={12} style={{ marginTop: 12 }}>
-                  <Col xs={24} sm={12}>
+                  <Col xs={24} sm={8}>
                     <Select
                       placeholder="Lọc theo lỗi / cảnh báo tại lớp"
                       style={{ width: '100%' }}
@@ -298,7 +299,7 @@ const ValidationPage: React.FC = () => {
                       ]}
                     />
                   </Col>
-                  <Col xs={24} sm={12}>
+                  <Col xs={24} sm={8}>
                     <Select
                       placeholder="Kết quả kiểm tra"
                       style={{ width: '100%' }}
@@ -309,6 +310,16 @@ const ValidationPage: React.FC = () => {
                         { value: 'Pass', label: 'Đạt (Pass)' },
                         { value: 'Warning', label: 'Cảnh báo (Warning)' },
                         { value: 'Fail', label: 'Không đạt (Fail)' },
+                      ]}
+                    />
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <Select placeholder="Loại dữ liệu" style={{ width: '100%' }} allowClear
+                      value={excludeDemoData ? 'true' : 'false'}
+                      onChange={val => updateParams({ excludeDemoData: val === 'true' ? 'true' : undefined, page: '1' })}
+                      options={[
+                        { value: 'false', label: 'Tất cả hóa đơn' },
+                        { value: 'true', label: 'Ẩn hóa đơn Demo' }
                       ]}
                     />
                   </Col>

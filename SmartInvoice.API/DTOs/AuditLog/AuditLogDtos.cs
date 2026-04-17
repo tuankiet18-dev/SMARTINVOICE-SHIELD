@@ -8,6 +8,7 @@ public class AuditLogQueryDto
     public string? Action { get; set; } // UPLOAD, EDIT, SUBMIT, APPROVE, REJECT
     public string? DateFrom { get; set; }
     public string? DateTo { get; set; }
+    public bool ExcludeDemoData { get; set; } = false;
 }
 
 public class SystemAuditLogDto

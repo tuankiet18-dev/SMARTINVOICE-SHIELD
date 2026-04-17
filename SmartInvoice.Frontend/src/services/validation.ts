@@ -47,6 +47,7 @@ export interface ValidationOverviewQuery {
   keyword?: string;
   layerIssue?: string;
   validationStatus?: string;
+  excludeDemoData?: boolean;
 }
 
 /* ── API ───────────────────────────────────────────────── */
@@ -59,6 +60,7 @@ export const validationService = {
     if (query.keyword) params.append('keyword', query.keyword);
     if (query.layerIssue) params.append('layerIssue', query.layerIssue);
     if (query.validationStatus) params.append('validationStatus', query.validationStatus);
+    if (query.excludeDemoData) params.append('excludeDemoData', 'true');
     const { data } = await apiClient.get<ValidationOverview>(`/validation/overview?${params}`);
     return data;
   },

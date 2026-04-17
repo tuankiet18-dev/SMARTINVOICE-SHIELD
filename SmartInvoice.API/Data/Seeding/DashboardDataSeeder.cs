@@ -10,8 +10,14 @@ public static class DashboardDataSeeder
     public static async Task SeedInvoicesAsync(AppDbContext context, int amountToSeed = 1000)
     {
         // 1. Fetch required linked entities to avoid FK constraint errors
-        var companies = await context.Companies.ToListAsync();
-        var users = await context.Users.ToListAsync();
+        var companies = await context.Companies
+            .Where(c => c.CompanyName != "System Administration")
+            .ToListAsync();
+            
+        var validCompanyIds = companies.Select(c => c.CompanyId).ToList();
+        var users = await context.Users
+            .Where(u => validCompanyIds.Contains(u.CompanyId))
+            .ToListAsync();
         
         // Let's assume you might not have DocumentTypes, fallback to handle it:
         // Adjust if your db has DocumentTypes mapped
@@ -19,7 +25,7 @@ public static class DashboardDataSeeder
 
         if (companies.Count == 0 || users.Count == 0)
         {
-            throw new Exception("Please ensure you have at least 1 Company and 1 User in your database before seeding Invoices.");
+            throw new Exception("Please ensure you have at least 1 Company (excluding System Administration) and 1 User in your database before seeding Invoices.");
         }
 
         // Set Vietnamese locale for realistic names and addresses
@@ -56,10 +62,12 @@ public static class DashboardDataSeeder
             .RuleFor(i => i.ProcessingMethod, f => f.PickRandom("XML", "OCR", "MANUAL"))
             .RuleFor(i => i.FormNumber, f => f.PickRandom("01GTKT", "02GTTT"))
             .RuleFor(i => i.SerialNumber, f => f.Random.Replace("C##T"))
-            .RuleFor(i => i.InvoiceNumber, f => f.Random.Replace("#######"))
+            // Gắn cờ DEMO vào số hóa đơn để dễ phân biệt bằng mắt
+            .RuleFor(i => i.InvoiceNumber, f => "DEMO-" + f.Random.Replace("#######"))
             
-            // Distribute invoice dates over the last 180 days for metrics
-            .RuleFor(i => i.InvoiceDate, f => f.Date.Recent(180).ToUniversalTime())
+            // Lùi ngày về quá khứ (từ 1 đến 180 ngày trước), không có ngày hôm nay.
+            // Để chừa trọn "Hôm nay" (Today) hoàn toàn trống cho bạn test Core Flow!
+            .RuleFor(i => i.InvoiceDate, f => DateTime.UtcNow.AddDays(-f.Random.Int(1, 180)))
             
             .RuleFor(i => i.InvoiceCurrency, f => "VND")
             .RuleFor(i => i.ExchangeRate, f => 1m)
@@ -68,7 +76,7 @@ public static class DashboardDataSeeder
             .RuleFor(i => i.Buyer, f => buyerFaker.Generate())
             
             // Tax Calculation logic
-            .RuleFor(i => i.TotalAmountBeforeTax, f => Math.Round(f.Random.Decimal(1000000m, 50000000m), 2))
+            .RuleFor(i => i.TotalAmountBeforeTax, f => Math.Round(f.Random.Decimal(100000m, 50000000m), 2))
             .RuleFor(i => i.TotalTaxAmount, (f, i) => Math.Round(i.TotalAmountBeforeTax.Value * 0.1m, 2)) // 10% VAT
             .RuleFor(i => i.TotalAmount, (f, i) => i.TotalAmountBeforeTax.Value + i.TotalTaxAmount.Value)
             // Can be generated but left simple for demo
@@ -81,11 +89,70 @@ public static class DashboardDataSeeder
             .RuleFor(i => i.RiskLevel, f => f.PickRandomParam("Green", "Green", "Green", "Green", "Green", "Yellow", "Yellow", "Red"))
             .RuleFor(i => i.OcrConfidenceScore, f => f.Random.Float(0.6f, 0.99f))
             
-            // Workflow linkage
-            .RuleFor(i => i.Workflow, (f, i) => new InvoiceWorkflow
+            // Generate Detailed ExtractedData including Line Items
+            .RuleFor(i => i.ExtractedData, (f, i) => 
             {
-                UploadedBy = f.PickRandom(users).Id,
-                CurrentApprovalStep = i.Status == "Approved" ? 3 : 1
+                var numItems = f.Random.Int(1, 5); // 1 to 5 items per invoice
+                var lineItems = new List<SmartInvoice.API.Entities.JsonModels.InvoiceLineItem>();
+                
+                decimal calculatedTotalAmountBeforeTax = 0;
+                
+                for (int j = 1; j <= numItems; j++)
+                {
+                    var quantity = f.Random.Int(1, 50);
+                    var unitPrice = Math.Round(f.Random.Decimal(10000m, 1000000m), 2);
+                    var total = quantity * unitPrice;
+                    var vatAmount = Math.Round(total * 0.1m, 2);
+                    
+                    lineItems.Add(new SmartInvoice.API.Entities.JsonModels.InvoiceLineItem
+                    {
+                        Stt = j,
+                        ProductName = f.Commerce.ProductName(),
+                        Unit = f.PickRandom("Cái", "Chiếc", "Hộp", "Kg", "Lít", "Bộ"),
+                        Quantity = quantity,
+                        UnitPrice = unitPrice,
+                        TotalAmount = total,
+                        VatRate = 10,
+                        VatAmount = vatAmount
+                    });
+                    
+                    calculatedTotalAmountBeforeTax += total;
+                }
+                
+                // Override outer Invoice totals to match the line items sum to maintain consistency!
+                i.TotalAmountBeforeTax = calculatedTotalAmountBeforeTax;
+                i.TotalTaxAmount = Math.Round(calculatedTotalAmountBeforeTax * 0.1m, 2);
+                i.TotalAmount = i.TotalAmountBeforeTax.Value + i.TotalTaxAmount.Value;
+
+                return new SmartInvoice.API.Entities.JsonModels.InvoiceExtractedData
+                {
+                    SellerName = i.Seller.Name,
+                    SellerTaxCode = i.Seller.TaxCode,
+                    SellerAddress = i.Seller.Address,
+                    BuyerName = i.Buyer.Name,
+                    BuyerTaxCode = i.Buyer.TaxCode,
+                    BuyerAddress = i.Buyer.Address,
+                    InvoiceNumber = i.InvoiceNumber,
+                    InvoiceDate = i.InvoiceDate,
+                    TotalPreTax = i.TotalAmountBeforeTax.Value,
+                    TotalTaxAmount = i.TotalTaxAmount.Value,
+                    TotalAmount = i.TotalAmount,
+                    LineItems = lineItems,
+                    InvoiceCurrency = "VND"
+                };
+            })
+            
+            // Workflow linkage
+            .RuleFor(i => i.Workflow, (f, i) => 
+            {
+                var companyUsers = users.Where(u => u.CompanyId == i.CompanyId).ToList();
+                var uploaderId = companyUsers.Any() ? f.PickRandom(companyUsers).Id : f.PickRandom(users).Id;
+                
+                return new InvoiceWorkflow
+                {
+                    UploadedBy = uploaderId,
+                    CurrentApprovalStep = i.Status == "Approved" ? 3 : 1
+                };
             })
             .RuleFor(i => i.CreatedAt, (f, i) => i.InvoiceDate.ToUniversalTime())
             .RuleFor(i => i.UpdatedAt, (f, i) => i.InvoiceDate.AddDays(f.Random.Int(0, 5)).ToUniversalTime());
@@ -103,6 +170,7 @@ public static class DashboardDataSeeder
             {
                 AuditId = Guid.NewGuid(),
                 InvoiceId = invoice.InvoiceId,
+                CompanyId = invoice.CompanyId,
                 UserId = uploader.Id,
                 UserEmail = uploader.Email,
                 UserRole = "User",
@@ -118,6 +186,7 @@ public static class DashboardDataSeeder
                 {
                     AuditId = Guid.NewGuid(),
                     InvoiceId = invoice.InvoiceId,
+                    CompanyId = invoice.CompanyId,
                     UserId = uploader.Id,
                     UserEmail = uploader.Email,
                     UserRole = "Manager",

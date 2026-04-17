@@ -50,6 +50,12 @@ public class ValidationController : ControllerBase
         {
             invoicesQuery = invoicesQuery.Where(i => i.Workflow.UploadedBy == userId);
         }
+        
+        // Exclude Demo Data
+        if (query.ExcludeDemoData)
+        {
+            invoicesQuery = invoicesQuery.Where(i => i.InvoiceNumber == null || !i.InvoiceNumber.StartsWith("DEMO-"));
+        }
 
         // ── Project all validated invoices to DTOs (in-memory) ──────
         var allItems = await invoicesQuery

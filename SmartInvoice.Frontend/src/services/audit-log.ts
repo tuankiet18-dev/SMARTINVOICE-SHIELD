@@ -37,6 +37,7 @@ export interface AuditLogQuery {
   action?: string;
   dateFrom?: string;
   dateTo?: string;
+  excludeDemoData?: boolean;
 }
 
 export const auditLogService = {
@@ -48,6 +49,7 @@ export const auditLogService = {
     if (query.action) params.append('action', query.action);
     if (query.dateFrom) params.append('dateFrom', query.dateFrom);
     if (query.dateTo) params.append('dateTo', query.dateTo);
+    if (query.excludeDemoData) params.append('excludeDemoData', 'true');
 
     const { data } = await apiClient.get(`/auditlog?${params.toString()}`);
     return data;

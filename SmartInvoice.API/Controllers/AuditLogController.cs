@@ -53,6 +53,16 @@ public class AuditLogController : ControllerBase
                 baseQuery = baseQuery.Where(a => a.UserId == userId || (a.Invoice != null && a.Invoice.Workflow.UploadedBy == userId));
             }
 
+            // Exclude Demo Data
+            if (query.ExcludeDemoData)
+            {
+                // Filter out logs where InvoiceNumber or Invoice.InvoiceNumber starts with "DEMO-"
+                baseQuery = baseQuery.Where(a => 
+                    (a.InvoiceNumber == null || !a.InvoiceNumber.StartsWith("DEMO-")) &&
+                    (a.Invoice == null || a.Invoice.InvoiceNumber == null || !a.Invoice.InvoiceNumber.StartsWith("DEMO-"))
+                );
+            }
+
             // Filter by action
             if (!string.IsNullOrEmpty(query.Action))
                 baseQuery = baseQuery.Where(a => a.Action == query.Action);

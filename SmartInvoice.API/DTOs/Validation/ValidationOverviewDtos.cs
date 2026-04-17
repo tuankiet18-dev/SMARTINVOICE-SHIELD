@@ -16,6 +16,9 @@ public class ValidationOverviewQueryDto
 
     /// <summary>Filter by validation status: Pass, Warning, Fail.</summary>
     public string? ValidationStatus { get; set; }
+
+    /// <summary>Hide Demo Invoices started with DEMO-</summary>
+    public bool ExcludeDemoData { get; set; } = false;
 }
 
 /// <summary>
