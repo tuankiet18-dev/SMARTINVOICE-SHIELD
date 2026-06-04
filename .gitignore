@@ -39,10 +39,17 @@ Generated\ Files/
 .env.local
 .env.*
 !.env.example
-!.env.production
+
+# Local OCR runtime files
+invoice_ocr/inference/web_app/.env
+invoice_ocr/inference/web_app/tmp_normalized/
+invoice_ocr/inference/tmp_normalized/
 
 # Sensitive Configs
 appsettings.Development.json
+appsettings.*.json
+!appsettings.json
+!appsettings.Example.json
 
 # Frontend
 node_modules/

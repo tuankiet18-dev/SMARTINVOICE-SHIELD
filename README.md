@@ -97,6 +97,8 @@ Risk levels: 🟢 `Green` · 🟡 `Yellow` · 🟠 `Orange` · 🔴 `Red`
 
 The system follows an **event-driven, microservice-oriented architecture** deployed on AWS:
 
+![SmartInvoice Shield AWS Architecture](docs/images/smartinvoice-arch.jpg)
+
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        INTERNET                                     │
@@ -343,6 +345,19 @@ SmartInvoice Shield implements a **5-layer security architecture**:
 | **4. Data** | Encryption at Rest | S3 AES-256 SSE, RDS encryption, SSM SecureString for secrets |
 | **5. App** | Middleware Guards | CORS policy (Amplify origin only), Maintenance mode, Tenant status checks |
 
+### Repository Safety
+
+Keep runtime secrets out of GitHub. The local Docker stack reads variables from the root `.env` file, while production values should come from GitHub Secrets and AWS Systems Manager Parameter Store.
+
+| File / location | GitHub policy | Notes |
+|-----------------|---------------|-------|
+| `.env`, `.env.*` | Do not commit | Contains database passwords, AWS keys, Cognito client secret, VnPay secret, SQS URLs, and local endpoints |
+| `SmartInvoice.API/appsettings.Development.json` | Do not commit | Local developer overrides only |
+| `invoice_ocr/inference/web_app/.env` | Do not commit | May contain `GEMINI_API_KEY` |
+| `SmartInvoice.Frontend/.env.development`, `.env.production` | Do not commit | Frontend build-time environment values |
+| `.env.example`, `appsettings.Example.json` | Safe to commit | Placeholder values only |
+| GitHub Actions secrets | Store in GitHub | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_ACCOUNT_ID` |
+
 ### RBAC Permissions Matrix
 
 ```
@@ -376,7 +391,13 @@ invoice:reject · invoice:override_risk · report:export
 
 2. **Configure environment variables**
 
-   Create a `.env` file in `SmartInvoice.API/`:
+   Copy the root template and fill in local values:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   The root `.env` file is loaded by `docker-compose.yml` and must stay local:
 
    ```env
    # AWS Credentials

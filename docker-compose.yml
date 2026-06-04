@@ -9,21 +9,32 @@ services:
     container_name: smartinvoice-backend
     restart: always
     ports:
-      - "5172:8080"
+      - "${BACKEND_PORT_EXTERNAL}:${BACKEND_PORT}"
     volumes:
       - ./SmartInvoice.API:/app
       - /app/obj
       - /app/bin
-    # Load environment variables from .env file
+    # Load environment variables from root .env file
     env_file:
-      - ./SmartInvoice.API/.env
+      - .env
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - DB_CONNECTION_STRING=Host=postgres;Port=5432;Database=SmartInvoiceDb;Username=postgres;Password=yourdescription
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+      - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
       - DOTNET_WATCH_SUPPRESS_PROMPTS=1
-      - OCR_API_ENDPOINT=http://smartinvoice-ocr:5000
-      - AWS_SQS_OCR_URL=https://sqs.ap-southeast-1.amazonaws.com/212208750923/smartinvoice-ocr-queue-dev
-      - AWS_SQS_URL=https://sqs.ap-southeast-1.amazonaws.com/212208750923/smartinvoice-vietqr-queue
+      - OCR_API_ENDPOINT=${OCR_API_ENDPOINT}
+      - AWS_SQS_OCR_URL=${AWS_SQS_OCR_URL}
+      - AWS_SQS_URL=${AWS_SQS_URL}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID}
+      - COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}
+      - COGNITO_CLIENT_SECRET=${COGNITO_CLIENT_SECRET}
+      - VnPay__TmnCode=${VNPAY_TMN_CODE}
+      - VnPay__HashSecret=${VNPAY_HASH_SECRET}
+      - VnPay__ReturnUrl=${VNPAY_RETURN_URL}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+
     depends_on:
       - postgres
     networks:
@@ -36,11 +47,11 @@ services:
     image: postgres:16
     container_name: smartinvoice-db
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=yourdescription
-      - POSTGRES_DB=SmartInvoiceDb
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     ports:
-      - "5433:5432"
+      - "${DB_PORT_EXTERNAL}:${DB_PORT}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -54,13 +65,13 @@ services:
       dockerfile: Dockerfile.dev
     container_name: smartinvoice-frontend
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT_EXTERNAL}:${FRONTEND_PORT}"
     volumes:
       - ./SmartInvoice.Frontend:/app
       - /app/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://localhost:5172/api
+      - VITE_API_URL=${VITE_API_URL}
     depends_on:
       - backend
     networks:
@@ -75,11 +86,11 @@ services:
     container_name: smartinvoice-ocr
     restart: always
     ports:
-      - "5000:5000"
+      - "${OCR_PORT}:${OCR_PORT}"
     environment:
       - DEVICE=cpu
       - HOST=0.0.0.0
-      - PORT=5000
+      - PORT=${OCR_PORT}
     volumes:
       - ./invoice_ocr:/app
     networks:
@@ -91,3 +102,4 @@ networks:
 
 volumes:
   postgres_data:
+
